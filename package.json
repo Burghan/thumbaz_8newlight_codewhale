@@ -1,0 +1,17 @@
+{
+  "name": "thumbaz_8newlight",
+  "version": "0.1.0",
+  "description": "8NewLight back-office: menu, ingredients, recipes, purchasing, inventory",
+  "main": "server/app.js",
+  "scripts": {
+    "start": "node server/app.js",
+    "migrate": "node server/migrate.js",
+    "dev": "node server/app.js"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "better-sqlite3": "^12.5.0",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1"
+  }
+}

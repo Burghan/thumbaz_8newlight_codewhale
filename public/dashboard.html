@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--ink);
+    }
+
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 12px;
+      color: var(--accent);
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .page-header h1 {
+      margin: 0;
+    }
+    .page-subtitle {
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    .controls {
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    select {
+      padding: 10px 12px;
+      font-size: 14px;
+      min-height: 44px;
+      border-radius: 8px;
+      border: 1px solid var(--accent);
+      background: #15181f;
+      color: var(--accent);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .card {
+      background: #fff;
+      padding: 14px;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .label {
+      font-size: 13px;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+
+    .value {
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    .revenue { color: #2b6cb0; }
+    .cogs { color: #b00020; }
+    .profit { color: #2e7d32; }
+    .muted { color: #6b7280; }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 14px 0 8px;
+      color: var(--accent);
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: #eef2f7;
+      color: #1f2937;
+    }
+
+    .table-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .heatmap {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+    }
+    .heat-tile {
+      border-radius: 12px;
+      padding: 10px;
+      color: #fff;
+      min-height: 78px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 6px 16px rgba(41, 26, 18, 0.18);
+    }
+    .heat-name {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    .heat-value {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .heat-sub {
+      font-size: 11px;
+      opacity: 0.9;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #b00020;
+    }
+
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body class=" theme-cafe">
+
+<button class="menu-toggle" id="menuToggle">☰ Menu</button>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
+    <div class="brand-text">
+      <div class="brand-title">8 NewLight Coffee Bar</div>
+      <div class="brand-subtitle">Navigation</div>
+    </div>
+  </div>
+  <a href="/dashboard.html">Dashboard</a>
+  <a href="/pos.html">POS</a>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Employees</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/employees.html" class="nav-sub">Employees</a>
+      <a href="/clock.html" class="nav-sub">Clock</a>
+    </div>
+  </div>
+  <a href="/inventory.html">Inventory</a>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Product</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/menu.html" class="nav-sub">Menu Items</a>
+      <a href="/receipe.html" class="nav-sub">Ingredients / Recipe</a>
+    </div>
+  </div>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Purchase</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/purchase.html" class="nav-sub">Ingredient Stock</a>
+      <a href="/expenses.html" class="nav-sub">Expenses</a>
+      <a href="/supplier.html" class="nav-sub">Suppliers</a>
+    </div>
+  </div>
+  <a href="/chart.html">Daily Chart</a>
+    <a href="/report.html">Reports</a>
+  <a href="/setup.html">Setup</a>
+  <a href="/logout.html">Logout</a>
+</aside>
+
+<div class="content">
+
+<div class="page-brand">
+  <img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" />
+  <div class="page-brand-text">8 NewLight Coffee</div>
+</div>
+
+<div class="page-header">
+  <h1>📊 Management Dashboard</h1>
+  <span class="pill" style="background:#1c212b;color:var(--accent);border:1px solid var(--accent);">Live KPIs</span>
+  <div class="page-subtitle">Monitor sales, margins, and stock health in one view.</div>
+</div>
+
+<div class="controls">
+  <label for="month" class="muted" style="color: var(--accent);">Month</label>
+  <select id="month"></select>
+</div>
+
+<div class="section-title">Key Metrics</div>
+<div class="grid">
+  <div class="card">
+    <div class="label">Revenue</div>
+    <div class="value revenue" id="revenue">Rp. 0.00</div>
+  </div>
+
+  <div class="card">
+    <div class="label">COGS</div>
+    <div class="value cogs" id="cogs">Rp. 0.00</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Expenses</div>
+    <div class="value muted" id="expenses">Rp. 0.00</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Profit</div>
+    <div class="value profit" id="profit">Rp. 0.00</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Profit Margin</div>
+    <div class="value muted" id="profitMargin">0%</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Total Sales</div>
+    <div class="value muted" id="totalSales">0</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Net Profit</div>
+    <div class="value profit" id="netProfit">Rp. 0.00</div>
+  </div>
+</div>
+
+<div class="section-title">Quick Insight</div>
+<div class="grid">
+  <div class="card">
+    <div class="label">Average Sales</div>
+    <div class="value revenue" id="avgSales">Rp. 0.00</div>
+  </div>
+  <div class="card">
+    <div class="label">Average Profit</div>
+    <div class="value profit" id="avgProfit">Rp. 0.00</div>
+  </div>
+  <div class="card">
+    <div class="label">Average COGS</div>
+    <div class="value cogs" id="avgCogs">Rp. 0.00</div>
+  </div>
+</div>
+
+<div class="section-title">Low Stock Heatmap</div>
+<div class="card">
+  <div class="table-meta">
+    <span class="pill" id="lowStockCount">0 items</span>
+    <span class="muted" id="lowStockNote">Thresholds by unit</span>
+  </div>
+  <div class="heatmap" id="lowStockHeatmap">
+    <div class="heat-tile" style="background:#9a3412;">
+      <div class="heat-name">Loading…</div>
+      <div class="heat-value">--</div>
+      <div class="heat-sub">--</div>
+    </div>
+  </div>
+</div>
+
+<div class="status" id="status"></div>
+
+<script src="/auth.js"></script>
+<script>
+  const monthSelect = document.getElementById('month');
+  const revenueEl = document.getElementById('revenue');
+  const cogsEl = document.getElementById('cogs');
+  const expensesEl = document.getElementById('expenses');
+  const profitEl = document.getElementById('profit');
+  const netProfitEl = document.getElementById('netProfit');
+  const profitMarginEl = document.getElementById('profitMargin');
+  const totalSalesEl = document.getElementById('totalSales');
+  const avgSalesEl = document.getElementById('avgSales');
+  const avgProfitEl = document.getElementById('avgProfit');
+  const avgCogsEl = document.getElementById('avgCogs');
+  const lowStockHeatmap = document.getElementById('lowStockHeatmap');
+  const lowStockCount = document.getElementById('lowStockCount');
+  const lowStockNote = document.getElementById('lowStockNote');
+  const statusEl = document.getElementById('status');
+
+  const auth = requireRole(['admin', 'manager']);
+  const DEFAULT_MIN_STOCK = 200;
+  let unitThresholds = { Gr: 200, Ml: 500, Pcs: 5 };
+  let currentRevenue = 0;
+  let currentCogs = 0;
+  let currentProfit = 0;
+
+  function formatRupiah(value) {
+    const num = Number(value || 0);
+    const parts = num.toFixed(2).split('.');
+    const whole = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return `Rp. ${whole}.${parts[1]}`;
+  }
+
+  function buildMonths() {
+    monthSelect.innerHTML = '';
+
+    const months = new Set();
+    const now = new Date();
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.add(d.toISOString().slice(0, 7));
+    }
+
+    fetch('/api/reports/monthly-summary', { headers: authHeaders() })
+      .then(res => res.ok ? res.json() : [])
+      .then(rows => {
+        rows.forEach(row => {
+          if (row.month) months.add(row.month);
+        });
+      })
+      .catch(() => {})
+      .finally(() => {
+        const sorted = Array.from(months).sort().reverse();
+        sorted.forEach(value => {
+          const opt = document.createElement('option');
+          opt.value = value;
+          opt.textContent = value;
+          monthSelect.appendChild(opt);
+        });
+        monthSelect.value = monthSelect.options[0]?.value || '';
+        loadDashboard();
+      });
+  }
+
+  function loadThresholds() {
+    return fetch('/api/inventory/thresholds', { headers: authHeaders() })
+      .then(res => res.ok ? res.json() : [])
+      .then(rows => {
+        rows.forEach(row => {
+          unitThresholds[row.unit] = Number(row.threshold);
+        });
+        lowStockNote.textContent = `Thresholds: Gr ${unitThresholds.Gr} · Ml ${unitThresholds.Ml} · Pcs ${unitThresholds.Pcs}`;
+      })
+      .catch(() => {
+        lowStockNote.textContent = 'Thresholds by unit';
+      });
+  }
+
+  function loadDashboard() {
+    if (!auth) return;
+    const month = monthSelect.value;
+    if (!month) return;
+
+    statusEl.textContent = 'Loading…';
+
+    fetch(`/api/reports/monthly?month=${month}`, { headers: authHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        const revenue = Number(data.revenue ?? 0);
+        const cogs = Number(data.cogs ?? 0);
+        const grossProfit = Number(data.gross_profit ?? data.profit ?? 0);
+        const netProfit = Number(data.net_profit ?? data.profit ?? 0);
+        const expenses = Number(data.expenses ?? 0);
+        const salesCount = Number(data.sales_count ?? 0);
+
+        currentRevenue = revenue;
+        currentCogs = cogs;
+        currentProfit = netProfit;
+
+        revenueEl.textContent = formatRupiah(revenue);
+        cogsEl.textContent = formatRupiah(cogs);
+        expensesEl.textContent = formatRupiah(expenses);
+        profitEl.textContent = formatRupiah(grossProfit);
+        netProfitEl.textContent = formatRupiah(netProfit);
+        profitMarginEl.textContent = revenue > 0 ? `${((netProfit / revenue) * 100).toFixed(1)}%` : '0%';
+        totalSalesEl.textContent = salesCount.toString();
+        statusEl.textContent = '';
+      })
+      .catch(() => {
+        statusEl.textContent = '❌ Failed to load dashboard';
+      });
+
+    fetch(`/api/reports/daily?month=${month}`, { headers: authHeaders() })
+      .then(res => res.json())
+      .then(days => {
+        const dayCount = days.length || 0;
+        avgSalesEl.textContent = dayCount ? formatRupiah(currentRevenue / dayCount) : 'Rp. 0.00';
+        avgProfitEl.textContent = dayCount ? formatRupiah(currentProfit / dayCount) : 'Rp. 0.00';
+        avgCogsEl.textContent = dayCount ? formatRupiah(currentCogs / dayCount) : 'Rp. 0.00';
+      });
+
+    loadThresholds()
+      .finally(() => {
+        fetch('/api/inventory/on-hand', { headers: authHeaders() })
+          .then(res => res.json())
+          .then(items => {
+            lowStockHeatmap.innerHTML = '';
+            if (!Array.isArray(items) || items.length === 0) {
+              lowStockHeatmap.innerHTML = '<div class="muted">No inventory data</div>';
+              lowStockCount.textContent = '0 items';
+              return;
+            }
+            const low = items
+              .map(item => {
+                const unitMin = item.unit && unitThresholds[item.unit] !== undefined
+                  ? unitThresholds[item.unit]
+                  : DEFAULT_MIN_STOCK;
+                const hasCustomMin = item.min_stock !== null && item.min_stock !== undefined
+                  && Number(item.min_stock) > 0;
+                const minStock = hasCustomMin ? Number(item.min_stock) : unitMin;
+                const qty = Number(item.quantity || 0);
+                return { ...item, minStock, qty };
+              })
+              .filter(item => item.qty < item.minStock)
+              .sort((a, b) => (a.qty - a.minStock) - (b.qty - b.minStock));
+
+            if (!low.length) {
+              lowStockHeatmap.innerHTML = '<div class="muted">All ingredients are above minimum stock</div>';
+              lowStockCount.textContent = '0 items';
+              return;
+            }
+
+            lowStockCount.textContent = `${low.length} item${low.length > 1 ? 's' : ''}`;
+            low.forEach(item => {
+              const shortfall = Math.max(0, item.minStock - item.qty);
+              const pct = item.minStock > 0 ? item.qty / item.minStock : 0;
+              let color = '#166534';
+              if (pct < 0.25) color = '#9a3412';
+              else if (pct < 0.5) color = '#c2410c';
+              else if (pct < 0.8) color = '#b45309';
+              const tile = document.createElement('div');
+              tile.className = 'heat-tile';
+              tile.style.background = color;
+              tile.innerHTML = `
+                <div class="heat-name">${item.name}</div>
+                <div class="heat-value">${item.qty.toFixed(2)} ${item.unit || ''}</div>
+                <div class="heat-sub">Min ${Number(item.minStock).toFixed(2)} · Short ${shortfall.toFixed(2)}</div>
+              `;
+              lowStockHeatmap.appendChild(tile);
+            });
+          })
+          .catch(() => {
+            lowStockHeatmap.innerHTML = '<div class="muted">Failed to load low stock alerts</div>';
+          });
+      });
+  }
+
+  buildMonths();
+  monthSelect.addEventListener('change', loadDashboard);
+</script>
+
+</div>
+<script src="/sidebar.js"></script>
+</body>
+</html>

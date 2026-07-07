@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Low Stock Forecast – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    body { font-family: inherit; margin: 0; padding: 0; background: transparent;
+      color: var(--ink); }
+    .subtitle { margin-bottom: 12px; }
+    .cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .card { background: var(--card); padding: 14px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.25); border: 1px solid var(--border); }
+    label { display: block; margin-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; display: block; overflow-x: auto; }
+    th { background: #1c2028; font-weight: 600; color: var(--accent); }
+    .value { text-align: right; }
+    .warn { color: #b45309; font-weight: 600; }
+    .danger { color: #b00020; font-weight: 700; }
+  </style>
+</head>
+<body class=" theme-cafe">
+  <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
+      <div class="brand-text">
+        <div class="brand-title">8 NewLight Coffee Bar</div>
+        <div class="brand-subtitle">Navigation</div>
+      </div>
+    </div>
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/pos.html">POS</a>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Employees</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/employees.html" class="nav-sub">Employees</a>
+      <a href="/clock.html" class="nav-sub">Clock</a>
+    </div>
+  </div>
+    <a href="/inventory.html">Inventory</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button" aria-expanded="false">
+        <span>Product</span>
+        <span class="chevron" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+        </span>
+      </button>
+      <div class="nav-children">
+        <a href="/menu.html" class="nav-sub">Menu Items</a>
+        <a href="/receipe.html" class="nav-sub">Ingredients / Recipe</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button" aria-expanded="false">
+        <span>Purchase</span>
+        <span class="chevron" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+        </span>
+      </button>
+      <div class="nav-children">
+        <a href="/purchase.html" class="nav-sub">Ingredient Stock</a>
+        <a href="/expenses.html" class="nav-sub">Expenses</a>
+        <a href="/supplier.html" class="nav-sub">Suppliers</a>
+      </div>
+    </div>
+    <a href="/chart.html">Daily Chart</a>
+    <a href="/report.html">Reports</a>
+    <a href="/setup.html">Setup</a>
+  <a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content">
+    <div class="page-brand">
+      <img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" />
+      <div class="page-brand-text">8 NewLight Coffee</div>
+    </div>
+
+    <h1>⏳ Low Stock Forecast</h1>
+    <div class="subtitle">Days remaining based on usage rate.</div>
+
+    <div class="cards">
+      <div class="card">
+        <label for="days">Usage Window (days)</label>
+        <input id="days" type="number" min="7" max="60" value="14" />
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+        <thead>
+          <tr>
+            <th>Ingredient</th>
+            <th>Unit</th>
+            <th>On Hand</th>
+            <th>Usage (Window)</th>
+            <th>Daily Usage</th>
+            <th>Days Remaining</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="6">Loading...</td></tr>
+        </tbody>
+        </table>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin', 'manager']);
+    const daysInput = document.getElementById('days');
+    const rowsEl = document.getElementById('rows');
+    const statusEl = document.getElementById('status');
+
+    function loadReport() {
+      if (!auth) return;
+      const days = Number(daysInput.value || 14);
+      statusEl.textContent = 'Loading...';
+      rowsEl.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+      fetch(`/api/reports/low-stock-forecast?days=${days}`, { headers: authHeaders() })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(rows => {
+          rowsEl.innerHTML = '';
+          if (!rows.length) {
+            rowsEl.innerHTML = '<tr><td colspan="6">No data yet</td></tr>';
+            statusEl.textContent = '';
+            return;
+          }
+          rows.forEach(row => {
+            const remaining = row.days_remaining;
+            let className = '';
+            if (remaining !== null && remaining <= 3) className = 'danger';
+            else if (remaining !== null && remaining <= 7) className = 'warn';
+            const displayRemaining = remaining === null ? 'N/A' : remaining.toFixed(2);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${row.name}</td>
+              <td>${row.unit || ''}</td>
+              <td>${Number(row.quantity || 0).toFixed(4)}</td>
+              <td>${Number(row.usage_qty || 0).toFixed(4)}</td>
+              <td>${Number(row.daily_usage || 0).toFixed(4)}</td>
+              <td class="${className}">${displayRemaining}</td>
+            `;
+            rowsEl.appendChild(tr);
+          });
+          statusEl.textContent = '';
+        })
+        .catch(() => {
+          statusEl.textContent = 'Failed to load low stock forecast';
+        });
+    }
+
+    loadReport();
+    daysInput.addEventListener('change', loadReport);
+  </script>
+</body>
+</html>

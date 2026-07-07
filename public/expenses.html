@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Expenses – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    body {
+      font-family: inherit;
+      background: transparent;
+      margin: 0;
+      padding: 0;
+      color: var(--ink);
+    }
+    h1 {
+      margin-bottom: 6px;
+    }
+    .page-header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .page-subtitle {
+      font-size: 16px;
+      color: var(--accent);
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #1c212b;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .card {
+      background: var(--card);
+      padding: 16px;
+      border-radius: 12px;
+      max-width: 520px;
+      box-shadow: 0 8px 20px rgba(41, 26, 18, 0.16);
+      border: 1px solid var(--border);
+    }
+    .card.wide {
+      max-width: 100%;
+    }
+    .cards {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    select, input, textarea {
+      width: 100%;
+      padding: 12px;
+      font-size: 14px;
+      min-height: 44px;
+      border-radius: 6px;
+    }
+    button {
+      margin-top: 14px;
+      width: 100%;
+      padding: 12px;
+      min-height: 48px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+    }
+    .status { margin-top: 10px; font-size: 14px; }
+    @media (min-width: 900px) {
+      .cards {
+        grid-template-columns: 1fr 1.3fr;
+        align-items: start;
+      }
+    }
+  </style>
+</head>
+<body class="theme-cafe">
+  <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
+      <div class="brand-text">
+        <div class="brand-title">8 NewLight Coffee Bar</div>
+        <div class="brand-subtitle">Navigation</div>
+      </div>
+    </div>
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/pos.html">POS</a>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Employees</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/employees.html" class="nav-sub">Employees</a>
+      <a href="/clock.html" class="nav-sub">Clock</a>
+    </div>
+  </div>
+    <a href="/inventory.html">Inventory</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button" aria-expanded="false">
+        <span>Product</span>
+        <span class="chevron" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+        </span>
+      </button>
+      <div class="nav-children">
+        <a href="/menu.html" class="nav-sub">Menu Items</a>
+        <a href="/receipe.html" class="nav-sub">Ingredients / Recipe</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button" aria-expanded="false">
+        <span>Purchase</span>
+        <span class="chevron" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+        </span>
+      </button>
+      <div class="nav-children">
+        <a href="/purchase.html" class="nav-sub">Ingredient Stock</a>
+        <a href="/expenses.html" class="nav-sub">Expenses</a>
+        <a href="/supplier.html" class="nav-sub">Suppliers</a>
+      </div>
+    </div>
+    <a href="/chart.html">Daily Chart</a>
+    <a href="/report.html">Reports</a>
+    <a href="/setup.html">Setup</a>
+  <a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content">
+    <div class="page-brand">
+      <img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" />
+      <div class="page-brand-text">8 NewLight Coffee</div>
+    </div>
+
+    <div class="page-header">
+      <h1>💸 Expenses</h1>
+      <span class="pill">Operating Costs</span>
+      <div class="page-subtitle">Track non-stock expenses that affect P&amp;L.</div>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="section-title">New Expense</div>
+        <label>Expense Type</label>
+        <select id="expense_type">
+          <option value="">Select</option>
+          <option value="Electricity bill">Electricity bill</option>
+          <option value="Rent">Rent</option>
+          <option value="Internet bill">Internet bill</option>
+          <option value="Other">Other</option>
+        </select>
+
+        <label>Total Cost</label>
+        <input id="cost" type="number" step="1" placeholder="0" />
+
+        <label>Notes</label>
+        <textarea id="notes" placeholder="Details or reference"></textarea>
+
+        <button id="save">Save Expense</button>
+        <div class="status" id="status"></div>
+      </div>
+
+      <div class="card wide">
+        <div class="section-title">Expense List</div>
+        <div class="page-subtitle">Latest expenses first.</div>
+        <div class="table-wrap">
+          <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Total Cost</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            <tr><td colspan="4">Loading...</td></tr>
+          </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin', 'manager']);
+    const status = document.getElementById('status');
+    const rows = document.getElementById('rows');
+    const expenseTypeEl = document.getElementById('expense_type');
+
+    function formatRupiah(value) {
+      const num = Number(value || 0);
+      const parts = num.toFixed(2).split('.');
+      const whole = parts[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.');
+      return `Rp. ${whole}.${parts[1]}`;
+    }
+
+    function loadExpenses() {
+      if (!auth) return;
+      fetch('/api/purchases', { headers: authHeaders() })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => {
+          rows.innerHTML = '';
+          const expenses = data.filter(p => p.category === 'expense');
+          if (!expenses.length) {
+            rows.innerHTML = '<tr><td colspan="4">No expenses yet</td></tr>';
+            return;
+          }
+          expenses.forEach(p => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${p.date}</td>
+              <td>${p.expense_type || ''}</td>
+              <td>${formatRupiah(p.total_cost)}</td>
+              <td>${p.notes || ''}</td>
+            `;
+            rows.appendChild(tr);
+          });
+        })
+        .catch(() => {
+          rows.innerHTML = '<tr><td colspan="4">Failed to load expenses</td></tr>';
+        });
+    }
+
+    document.getElementById('save').addEventListener('click', () => {
+      if (!auth) return;
+      const payload = {
+        category: 'expense',
+        expense_type: expenseTypeEl.value,
+        total_cost: document.getElementById('cost').value,
+        notes: document.getElementById('notes').value
+      };
+      fetch('/api/purchases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify(payload)
+      })
+        .then(r => r.json())
+        .then(d => {
+          status.textContent = d.message || d.error || 'Saved';
+          if (!d.error) {
+            loadExpenses();
+          }
+        })
+        .catch(() => {
+          status.textContent = 'Failed to save expense';
+        });
+    });
+
+    loadExpenses();
+  </script>
+</body>
+</html>

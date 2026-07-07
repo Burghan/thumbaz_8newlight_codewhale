@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Menu Items – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+
+  <style>
+    body {
+      font-family: inherit;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--ink);
+    }
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+
+    .cards {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 900px) {
+      .cards {
+        grid-template-columns: 1fr;
+        align-items: start;
+      }
+    }
+
+    .card {
+      background: var(--card);
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+      border: 1px solid var(--border);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(140px, 1fr));
+      gap: 10px;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      min-height: 44px;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+
+    button {
+      margin-top: 14px;
+      width: 100%;
+      padding: 12px;
+      min-height: 48px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+    }
+
+    .row-btn {
+      margin: 0 6px 0 0;
+      padding: 6px 10px;
+      min-height: 32px;
+      font-size: 12px;
+      border-radius: 6px;
+      width: auto;
+      cursor: pointer;
+    }
+
+    .row-btn.danger {
+      background: #9c3b33;
+    }
+
+    .editing-row {
+      outline: 2px solid var(--accent);
+      box-shadow: 0 0 0 2px rgba(240, 132, 27, 0.25);
+    }
+
+    .editing-banner {
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(240, 132, 27, 0.12);
+      border: 1px solid rgba(240, 132, 27, 0.4);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .image-preview {
+      width: 100%;
+      max-width: 140px;
+      height: 100px;
+      border-radius: 10px;
+      border: 1px dashed var(--border);
+      background: #12151b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .image-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .thumb {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      object-fit: cover;
+      display: block;
+    }
+
+    .status {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #b00020;
+      min-height: 18px;
+    }
+
+    @media (max-width: 720px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .list-scroll {
+      max-height: 280px;
+      overflow: auto;
+    }
+
+    table th {
+      white-space: normal;
+      line-height: 1.2;
+    }
+
+    table th,
+    table td {
+      min-width: 120px;
+      padding: 10px 8px;
+    }
+
+    table th:first-child,
+    table td:first-child {
+      min-width: 200px;
+    }
+
+    .col-hidden {
+      display: none;
+    }
+
+    .editor-card {
+      border: 1px solid rgba(240, 132, 27, 0.35);
+      background: linear-gradient(140deg, rgba(21, 18, 14, 0.9), rgba(18, 16, 12, 0.9));
+      max-width: none;
+      margin: 0;
+    }
+
+    .editor-card .grid {
+      gap: 10px;
+      grid-template-columns: repeat(3, minmax(120px, 1fr));
+    }
+
+    @media (max-width: 900px) {
+      .editor-card {
+        max-width: none;
+      }
+
+      .editor-card .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .menu-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: flex-end;
+      margin-bottom: 10px;
+    }
+
+    .menu-controls .control {
+      min-width: 160px;
+      max-width: 240px;
+      flex: 0 1 auto;
+    }
+
+    .menu-controls label {
+      margin-top: 0;
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    .menu-controls .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 22px;
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    .pill-archived {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(180, 180, 180, 0.15);
+      color: #b9b9b9;
+      font-size: 11px;
+      margin-left: 6px;
+    }
+  </style>
+</head>
+<body class="theme-cafe">
+  <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+    <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
+    <div class="brand-text">
+      <div class="brand-title">8 NewLight Coffee Bar</div>
+      <div class="brand-subtitle">Navigation</div>
+    </div>
+  </div>
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/pos.html">POS</a>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Employees</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/employees.html" class="nav-sub">Employees</a>
+      <a href="/clock.html" class="nav-sub">Clock</a>
+    </div>
+  </div>
+    <a href="/inventory.html">Inventory</a>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Product</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/menu.html" class="nav-sub">Menu Items</a>
+      <a href="/receipe.html" class="nav-sub">Ingredients / Recipe</a>
+    </div>
+  </div>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Purchase</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/purchase.html" class="nav-sub">Ingredient Stock</a>
+      <a href="/expenses.html" class="nav-sub">Expenses</a>
+      <a href="/supplier.html" class="nav-sub">Suppliers</a>
+    </div>
+  </div>
+    <a href="/chart.html">Daily Chart</a>
+    <a href="/report.html">Reports</a>
+    <a href="/setup.html">Setup</a>
+  <a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content">
+    <div class="page-brand">
+  <img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" />
+  <div class="page-brand-text">8 NewLight Coffee</div>
+</div>
+
+<h1>📋 Menu Items</h1>
+
+    <div class="cards">
+      <div class="card menu-list-card">
+        <div class="menu-controls">
+          <div class="control">
+            <label for="filterCategory">Filter Category</label>
+            <select id="filterCategory">
+              <option value="">All Categories</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="sortMenu">Sort By</label>
+            <select id="sortMenu">
+              <option value="name-asc">Name (A–Z)</option>
+              <option value="name-desc">Name (Z–A)</option>
+              <option value="category-asc">Category (A–Z)</option>
+              <option value="category-desc">Category (Z–A)</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>&nbsp;</label>
+            <button type="button" id="archiveDuplicatesBtn" class="secondary">Archive Duplicates</button>
+          </div>
+          <div class="control">
+            <label>&nbsp;</label>
+            <button type="button" id="exportExcelBtn" class="secondary">⬇ Export to Excel</button>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="showArchived" />
+            Show Archived
+          </label>
+        </div>
+        <div class="table-wrap list-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Menu Name</th>
+                <th>Actions</th>
+                <th data-col="variant">Variant</th>
+                <th>Selling Price</th>
+                <th data-col="special_price">Special Price</th>
+                <th data-col="std_cost_per_item">HPP Ingredients</th>
+                <th data-col="labor_cost" class="col-hidden">Labor</th>
+                <th data-col="utility_cost" class="col-hidden">Utilities</th>
+                <th data-col="wifi_cost" class="col-hidden">Wifi</th>
+                <th>HPP Total</th>
+                <th data-col="notes">Notes</th>
+              </tr>
+            </thead>
+            <tbody id="rows">
+              <tr><td colspan="11">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card editor-card" id="menuEditor">
+        <div class="editing-banner" id="editBanner" style="display:none;">Editing menu item</div>
+        <form id="menu-form">
+          <div class="grid">
+            <div>
+              <label for="name">Menu Name</label>
+              <input id="name" placeholder="Coffee Milk" required />
+            </div>
+            <div>
+              <label for="category">Menu Category</label>
+              <input id="category" placeholder="Coffee Regular" />
+            </div>
+            <div>
+              <label for="brand">Brand</label>
+              <input id="brand" placeholder="GENERAL" />
+            </div>
+            <div>
+              <label for="variant">Variant Name</label>
+              <input id="variant" placeholder="Golden Hazel" />
+            </div>
+            <div>
+              <label for="favorite">Favorite Item</label>
+              <select id="favorite">
+                <option value="0">No</option>
+                <option value="1">Yes</option>
+              </select>
+            </div>
+            <div>
+              <label for="image">Menu Image</label>
+              <input id="image" type="file" accept="image/*" />
+              <div class="image-preview" id="imagePreview">No image</div>
+            </div>
+            <div>
+              <label for="barcode">Product Code / Barcode</label>
+              <input id="barcode" placeholder="" />
+            </div>
+            <div>
+              <label for="price">Selling Price</label>
+              <input id="price" type="number" step="1" placeholder="20000" required />
+            </div>
+            <div>
+              <label for="special_price">Special Price (HQ)</label>
+              <input id="special_price" type="number" step="1" placeholder="" />
+            </div>
+            <div>
+              <label for="cost">HPP Ingredients</label>
+              <input id="cost" type="number" step="1" placeholder="15150" />
+            </div>
+            <div>
+              <label for="labor_cost">Labor (Fixed)</label>
+              <input id="labor_cost" type="number" step="1" placeholder="3000" />
+            </div>
+            <div>
+              <label for="utility_cost">Utilities/Water/Cup (Fixed)</label>
+              <input id="utility_cost" type="number" step="1" placeholder="3500" />
+            </div>
+            <div>
+              <label for="wifi_cost">Wifi (Fixed)</label>
+              <input id="wifi_cost" type="number" step="1" placeholder="500" />
+            </div>
+            <div>
+              <label for="stock">Stock (Optional)</label>
+              <input id="stock" type="number" step="1" placeholder="0" />
+            </div>
+            <div>
+              <label for="notes">Notes</label>
+              <textarea id="notes" placeholder=""></textarea>
+            </div>
+          </div>
+          <button type="submit" id="saveBtn">Save Menu Item</button>
+          <button type="button" id="cancelBtn" class="secondary">Cancel Edit</button>
+          <div class="status" id="status"></div>
+        </form>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin', 'manager']);
+    const rowsEl = document.getElementById('rows');
+    const statusEl = document.getElementById('status');
+
+    const nameEl = document.getElementById('name');
+    const categoryEl = document.getElementById('category');
+    const brandEl = document.getElementById('brand');
+    const variantEl = document.getElementById('variant');
+    const favoriteEl = document.getElementById('favorite');
+    const barcodeEl = document.getElementById('barcode');
+    const imageEl = document.getElementById('image');
+    const imagePreview = document.getElementById('imagePreview');
+    const priceEl = document.getElementById('price');
+    const specialPriceEl = document.getElementById('special_price');
+    const costEl = document.getElementById('cost');
+    const laborCostEl = document.getElementById('labor_cost');
+    const utilityCostEl = document.getElementById('utility_cost');
+    const wifiCostEl = document.getElementById('wifi_cost');
+    const stockEl = document.getElementById('stock');
+    const notesEl = document.getElementById('notes');
+    const saveBtn = document.getElementById('saveBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const menuEditor = document.getElementById('menuEditor');
+    const editBanner = document.getElementById('editBanner');
+    const filterCategory = document.getElementById('filterCategory');
+    const sortMenu = document.getElementById('sortMenu');
+    const showArchived = document.getElementById('showArchived');
+    const archiveDuplicatesBtn = document.getElementById('archiveDuplicatesBtn');
+    const exportExcelBtn = document.getElementById('exportExcelBtn');
+
+    let editingId = null;
+    let menuData = [];
+    const productMap = new Map();
+
+    function formatRupiah(value) {
+      if (value === null || value === undefined || value === '') return '';
+      const num = Number(value || 0);
+      const parts = num.toFixed(2).split('.');
+      const whole = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      return `Rp. ${whole}.${parts[1]}`;
+    }
+
+    function renderMenuRows(data) {
+      rowsEl.innerHTML = '';
+      if (!data.length) {
+        rowsEl.innerHTML = '<tr><td colspan="9">No menu items yet</td></tr>';
+        return;
+      }
+
+      const filterValue = String(filterCategory.value || '').toLowerCase();
+      let filtered = data;
+      if (filterValue) {
+        filtered = data.filter(p => String(p.category || '').toLowerCase() === filterValue);
+      }
+
+      const sortValue = sortMenu.value || 'name-asc';
+      filtered = filtered.slice().sort((a, b) => {
+        const nameA = String(a.name || '');
+        const nameB = String(b.name || '');
+        const catA = String(a.category || '');
+        const catB = String(b.category || '');
+        if (sortValue === 'name-desc') return nameB.localeCompare(nameA);
+        if (sortValue === 'category-asc') {
+          const diff = catA.localeCompare(catB);
+          return diff !== 0 ? diff : nameA.localeCompare(nameB);
+        }
+        if (sortValue === 'category-desc') {
+          const diff = catB.localeCompare(catA);
+          return diff !== 0 ? diff : nameA.localeCompare(nameB);
+        }
+        return nameA.localeCompare(nameB);
+      });
+
+      filtered.forEach(p => {
+        const tr = document.createElement('tr');
+        const priceLabel = formatRupiah(p.price);
+        const specialPriceLabel = formatRupiah(p.special_price);
+        const costLabel = formatRupiah(p.std_cost_per_item);
+        const laborLabel = formatRupiah(p.labor_cost);
+        const utilityLabel = formatRupiah(p.utility_cost);
+        const wifiLabel = formatRupiah(p.wifi_cost);
+        const hppTotal = Number(p.std_cost_per_item || 0)
+          + Number(p.labor_cost || 0)
+          + Number(p.utility_cost || 0)
+          + Number(p.wifi_cost || 0);
+        const hppTotalLabel = formatRupiah(hppTotal);
+        const isActive = Number(p.active) === 1;
+        const nameLabel = p.variant ? `${p.name}, ${p.variant}` : (p.name || '');
+        const statusLabel = isActive ? '' : '<span class="pill-archived">Archived</span>';
+        const actionBtn = isActive
+          ? `<button type="button" class="row-btn danger" data-action="archive" data-id="${p.id}">Archive</button>`
+          : `<button type="button" class="row-btn danger" data-action="delete" data-id="${p.id}">Delete</button>`;
+        tr.innerHTML = `
+          <td>${nameLabel}${statusLabel}</td>
+          <td>
+            <button type="button" class="row-btn" data-action="edit" data-id="${p.id}">Edit</button>
+            ${actionBtn}
+          </td>
+          <td data-col="variant">${p.variant || ''}</td>
+          <td>${priceLabel}</td>
+          <td>${specialPriceLabel}</td>
+          <td>${costLabel}</td>
+          <td data-col="labor_cost" class="col-hidden">${laborLabel}</td>
+          <td data-col="utility_cost" class="col-hidden">${utilityLabel}</td>
+          <td data-col="wifi_cost" class="col-hidden">${wifiLabel}</td>
+          <td>${hppTotalLabel}</td>
+          <td>${p.notes || ''}</td>
+        `;
+        rowsEl.appendChild(tr);
+      });
+    }
+
+    function loadMenu() {
+      if (!auth) return;
+      const includeArchived = showArchived.checked ? '1' : '0';
+      fetch(`/api/products?include_archived=${includeArchived}`, { headers: authHeaders() })
+        .then(res => res.json())
+        .then(data => {
+          productMap.clear();
+          menuData = data || [];
+          if (!data.length) {
+            renderMenuRows([]);
+            return;
+          }
+          const categories = new Set();
+          data.forEach(p => {
+            productMap.set(String(p.id), p);
+            if (p.category) categories.add(p.category);
+          });
+          filterCategory.innerHTML = '<option value="">All Categories</option>';
+          Array.from(categories).sort().forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat;
+            opt.textContent = cat;
+            filterCategory.appendChild(opt);
+          });
+          renderMenuRows(data);
+        });
+    }
+
+
+    rowsEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const id = btn.getAttribute('data-id');
+      const action = btn.getAttribute('data-action');
+      const row = btn.closest('tr');
+
+      if (action === 'edit') {
+        const record = productMap.get(String(id));
+        if (!record) return;
+        editingId = id;
+        rowsEl.querySelectorAll('tr').forEach(tr => tr.classList.remove('editing-row'));
+        if (row) row.classList.add('editing-row');
+        nameEl.value = record.name || '';
+        categoryEl.value = record.category || '';
+        brandEl.value = record.brand || '';
+        variantEl.value = record.variant || '';
+        favoriteEl.value = record.favorite ? '1' : '0';
+        barcodeEl.value = record.barcode || '';
+        priceEl.value = record.price ?? '';
+        specialPriceEl.value = record.special_price ?? '';
+        costEl.value = record.std_cost_per_item ?? '';
+        laborCostEl.value = record.labor_cost ?? '';
+        utilityCostEl.value = record.utility_cost ?? '';
+        wifiCostEl.value = record.wifi_cost ?? '';
+        stockEl.value = record.stock ?? 0;
+        notesEl.value = record.notes || '';
+        imageEl.value = '';
+        if (record.image_url) {
+          imagePreview.innerHTML = `<img src="${record.image_url}" alt="${record.name || ''}" />`;
+        } else {
+          imagePreview.textContent = 'No image';
+        }
+        saveBtn.textContent = 'Update Menu Item';
+        statusEl.textContent = 'Editing mode';
+        editBanner.textContent = `Editing: ${record.name || 'Menu Item'}`;
+        editBanner.style.display = 'block';
+        if (menuEditor) {
+          menuEditor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        nameEl.focus();
+        return;
+      }
+
+      if (action === 'archive') {
+        if (!confirm('Archive this menu item?')) return;
+        fetch(`/api/products/${id}/archive`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders()
+          }
+        })
+        .then(res => res.json())
+        .then(data => {
+          statusEl.textContent = data.message || data.error || 'Archived';
+          loadMenu();
+        })
+        .catch(() => {
+          statusEl.textContent = 'Failed to archive menu item';
+        });
+        return;
+      }
+
+      if (action === 'delete') {
+        if (!confirm('Delete this product? This cannot be undone.')) return;
+        fetch(`/api/products/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders()
+          }
+        })
+        .then(res => res.ok ? res.json() : res.json().then(err => Promise.reject(err)))
+        .then(data => {
+          statusEl.textContent = data.message || 'Deleted';
+          loadMenu();
+        })
+        .catch(err => {
+          statusEl.textContent = err?.error || 'Failed to delete product';
+        });
+      }
+    });
+
+    document.getElementById('menu-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!auth) return;
+
+      const payload = {
+        name: nameEl.value.trim(),
+        category: categoryEl.value.trim(),
+        item_type: categoryEl.value.trim(),
+        brand: brandEl.value.trim(),
+        variant: variantEl.value.trim(),
+        favorite: favoriteEl.value,
+        barcode: barcodeEl.value.trim(),
+        selling_price: priceEl.value,
+        special_price: specialPriceEl.value,
+        std_cost_per_item: costEl.value,
+        labor_cost: laborCostEl.value,
+        utility_cost: utilityCostEl.value,
+        wifi_cost: wifiCostEl.value,
+        stock: stockEl.value,
+        notes: notesEl.value.trim()
+      };
+
+      statusEl.textContent = 'Saving…';
+      const url = editingId ? `/api/products/${editingId}` : '/api/products';
+      const method = editingId ? 'PUT' : 'POST';
+      fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders()
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+        .then(data => {
+          statusEl.textContent = data.message || data.error || 'Saved';
+          if (!data.error) {
+            const id = editingId || data.id;
+            const file = imageEl.files[0];
+            if (id && file) {
+            const formData = new FormData();
+            formData.append('image', file);
+            fetch(`/api/products/${id}/image`, {
+              method: 'POST',
+              headers: {
+                ...authHeaders()
+              },
+              body: formData
+            })
+              .then(res => res.json())
+              .then(imgRes => {
+                if (imgRes.error) {
+                  statusEl.textContent = imgRes.error;
+                } else {
+                  statusEl.textContent = 'Saved with image';
+                }
+              })
+              .finally(() => {
+                e.target.reset();
+                imagePreview.textContent = 'No image';
+                editingId = null;
+                saveBtn.textContent = 'Save Menu Item';
+                editBanner.style.display = 'none';
+                loadMenu();
+              });
+            return;
+          }
+
+          e.target.reset();
+          imagePreview.textContent = 'No image';
+          editingId = null;
+          saveBtn.textContent = 'Save Menu Item';
+          editBanner.style.display = 'none';
+          loadMenu();
+        }
+      })
+      .catch(() => {
+        statusEl.textContent = 'Failed to save menu item';
+      });
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      editingId = null;
+      rowsEl.querySelectorAll('tr').forEach(tr => tr.classList.remove('editing-row'));
+      document.getElementById('menu-form').reset();
+      imagePreview.textContent = 'No image';
+      saveBtn.textContent = 'Save Menu Item';
+      statusEl.textContent = '';
+      editBanner.style.display = 'none';
+    });
+
+    filterCategory.addEventListener('change', () => renderMenuRows(menuData));
+    sortMenu.addEventListener('change', () => renderMenuRows(menuData));
+    showArchived.addEventListener('change', loadMenu);
+
+    archiveDuplicatesBtn.addEventListener('click', () => {
+      if (!confirm('Archive duplicate menu items (same name and variant)?')) return;
+      fetch('/api/products/archive-duplicates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders()
+        }
+      })
+      .then(res => res.ok ? res.json() : res.json().then(err => Promise.reject(err)))
+      .then(data => {
+        statusEl.textContent = data.message || 'Archived duplicates';
+        loadMenu();
+      })
+      .catch(err => {
+        statusEl.textContent = err?.error || 'Failed to archive duplicates';
+      });
+    });
+
+    exportExcelBtn.addEventListener('click', () => {
+      if (!auth) return;
+      const original = exportExcelBtn.textContent;
+      exportExcelBtn.textContent = 'Exporting…';
+      exportExcelBtn.disabled = true;
+      statusEl.textContent = '';
+      fetch('/api/export/menu', { headers: authHeaders() })
+        .then(res => {
+          if (!res.ok) return res.json().then(err => Promise.reject(err));
+          return res.blob();
+        })
+        .then(blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          const today = new Date().toISOString().slice(0, 10);
+          a.href = url;
+          a.download = `menu-export-${today}.xlsx`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          statusEl.textContent = 'Menu exported to Excel';
+        })
+        .catch(err => {
+          statusEl.textContent = err?.error || 'Failed to export menu';
+        })
+        .finally(() => {
+          exportExcelBtn.textContent = original;
+          exportExcelBtn.disabled = false;
+        });
+    });
+
+    loadMenu();
+
+    imageEl.addEventListener('change', () => {
+      const file = imageEl.files[0];
+      if (!file) {
+        imagePreview.textContent = 'No image';
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      imagePreview.innerHTML = `<img src="${url}" alt="Preview" />`;
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Suppliers – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    body {
+      font-family: inherit;
+      margin: 0;
+      padding: 0;
+      color: var(--ink);
+      background: transparent;
+    }
+    h1 {
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+    .cards {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr;
+    }
+    .card {
+      background: var(--card);
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(41, 26, 18, 0.16);
+      border: 1px solid var(--border);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      min-height: 44px;
+      box-sizing: border-box;
+    }
+    textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+    button {
+      margin-top: 14px;
+      width: 100%;
+      padding: 12px;
+      min-height: 48px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+    }
+    .row-btn {
+      margin: 0 6px 0 0;
+      padding: 6px 10px;
+      min-height: 32px;
+      font-size: 12px;
+      border-radius: 6px;
+      width: auto;
+      cursor: pointer;
+    }
+    .row-btn.danger {
+      background: #9c3b33;
+    }
+    .status {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #b00020;
+      min-height: 18px;
+    }
+    body.no-menu-toggle .menu-toggle {
+      display: none;
+    }
+    @media (max-width: 720px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (min-width: 900px) {
+      .cards {
+        grid-template-columns: 1fr 1.4fr;
+        align-items: start;
+      }
+    }
+  </style>
+</head>
+<body class="no-menu-toggle theme-cafe">
+  <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
+      <div class="brand-text">
+        <div class="brand-title">8 NewLight Coffee Bar</div>
+        <div class="brand-subtitle">Navigation</div>
+      </div>
+    </div>
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/pos.html">POS</a>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Employees</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/employees.html" class="nav-sub">Employees</a>
+      <a href="/clock.html" class="nav-sub">Clock</a>
+    </div>
+  </div>
+    <a href="/inventory.html">Inventory</a>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Product</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/menu.html" class="nav-sub">Menu Items</a>
+      <a href="/receipe.html" class="nav-sub">Ingredients / Recipe</a>
+    </div>
+  </div>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Purchase</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/purchase.html" class="nav-sub">Ingredient Stock</a>
+      <a href="/expenses.html" class="nav-sub">Expenses</a>
+      <a href="/supplier.html" class="nav-sub">Suppliers</a>
+    </div>
+  </div>
+    <a href="/chart.html">Daily Chart</a>
+    <a href="/report.html">Reports</a>
+    <a href="/setup.html">Setup</a>
+  <a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content">
+    <div class="page-brand">
+  <img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" />
+  <div class="page-brand-text">8 NewLight Coffee</div>
+</div>
+
+<h1>🏷️ Suppliers</h1>
+
+    <div class="cards">
+      <div class="card">
+        <form id="supplier-form">
+          <div class="grid">
+            <div>
+              <label for="name">Supplier Name</label>
+              <input id="name" placeholder="Coffee Beans Co." required />
+            </div>
+            <div>
+              <label for="contact_name">Contact Person</label>
+              <input id="contact_name" placeholder="Jane Doe" />
+            </div>
+            <div>
+              <label for="phone">Phone</label>
+              <input id="phone" placeholder="+62 812 3456 7890" />
+            </div>
+            <div>
+              <label for="email">Email</label>
+              <input id="email" type="email" placeholder="hello@supplier.com" />
+            </div>
+            <div>
+              <label for="address">Address</label>
+              <input id="address" placeholder="Jl. Kemang 12, Jakarta" />
+            </div>
+            <div>
+              <label for="notes">Notes</label>
+              <textarea id="notes" placeholder="Delivery days, terms, etc."></textarea>
+            </div>
+          </div>
+          <button type="submit" id="saveBtn">Save Supplier</button>
+          <button type="button" id="cancelBtn" class="secondary">Cancel Edit</button>
+          <div class="status" id="status"></div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Contact</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Address</th>
+              <th>Notes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            <tr><td colspan="7">Loading…</td></tr>
+          </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin', 'manager']);
+    const rowsEl = document.getElementById('rows');
+    const statusEl = document.getElementById('status');
+
+    const nameEl = document.getElementById('name');
+    const contactEl = document.getElementById('contact_name');
+    const phoneEl = document.getElementById('phone');
+    const emailEl = document.getElementById('email');
+    const addressEl = document.getElementById('address');
+    const notesEl = document.getElementById('notes');
+    const saveBtn = document.getElementById('saveBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+
+    let editingId = null;
+    const supplierMap = new Map();
+
+    function loadSuppliers() {
+      if (!auth) return;
+      fetch('/api/suppliers', { headers: authHeaders() })
+        .then(res => res.json())
+        .then(data => {
+          rowsEl.innerHTML = '';
+          supplierMap.clear();
+          if (!data.length) {
+            rowsEl.innerHTML = '<tr><td colspan="7">No suppliers yet</td></tr>';
+            return;
+          }
+          data.forEach(s => {
+            supplierMap.set(String(s.id), s);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${s.name || ''}</td>
+              <td>${s.contact_name || ''}</td>
+              <td>${s.phone || ''}</td>
+              <td>${s.email || ''}</td>
+              <td>${s.address || ''}</td>
+              <td>${s.notes || ''}</td>
+              <td>
+                <button type="button" class="row-btn" data-action="edit" data-id="${s.id}">Edit</button>
+                <button type="button" class="row-btn danger" data-action="archive" data-id="${s.id}">Archive</button>
+              </td>
+            `;
+            rowsEl.appendChild(tr);
+          });
+        })
+        .catch(() => {
+          rowsEl.innerHTML = '<tr><td colspan="7">Failed to load suppliers</td></tr>';
+        });
+    }
+
+    rowsEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const id = btn.getAttribute('data-id');
+      const action = btn.getAttribute('data-action');
+
+      if (action === 'edit') {
+        const record = supplierMap.get(String(id));
+        if (!record) return;
+        editingId = id;
+        nameEl.value = record.name || '';
+        contactEl.value = record.contact_name || '';
+        phoneEl.value = record.phone || '';
+        emailEl.value = record.email || '';
+        addressEl.value = record.address || '';
+        notesEl.value = record.notes || '';
+        saveBtn.textContent = 'Update Supplier';
+        statusEl.textContent = 'Editing mode';
+        return;
+      }
+
+      if (action === 'archive') {
+        if (!confirm('Archive this supplier?')) return;
+        fetch(`/api/suppliers/${id}/archive`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() }
+        })
+          .then(res => res.json())
+          .then(data => {
+            statusEl.textContent = data.message || data.error || 'Archived';
+            loadSuppliers();
+          })
+          .catch(() => {
+            statusEl.textContent = 'Failed to archive supplier';
+          });
+      }
+    });
+
+    document.getElementById('supplier-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!auth) return;
+
+      const payload = {
+        name: nameEl.value.trim(),
+        contact_name: contactEl.value.trim(),
+        phone: phoneEl.value.trim(),
+        email: emailEl.value.trim(),
+        address: addressEl.value.trim(),
+        notes: notesEl.value.trim()
+      };
+
+      statusEl.textContent = 'Saving…';
+      const url = editingId ? `/api/suppliers/${editingId}` : '/api/suppliers';
+      const method = editingId ? 'PUT' : 'POST';
+      fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify(payload)
+      })
+        .then(res => res.json())
+        .then(data => {
+          statusEl.textContent = data.message || data.error || 'Saved';
+          if (!data.error) {
+            e.target.reset();
+            editingId = null;
+            saveBtn.textContent = 'Save Supplier';
+            loadSuppliers();
+          }
+        })
+        .catch(() => {
+          statusEl.textContent = 'Failed to save supplier';
+        });
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      editingId = null;
+      document.getElementById('supplier-form').reset();
+      saveBtn.textContent = 'Save Supplier';
+      statusEl.textContent = '';
+    });
+
+    loadSuppliers();
+  </script>
+</body>
+</html>

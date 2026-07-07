@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Recipe – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+
+  <style>
+    body {
+      font-family: inherit;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--ink);
+    }
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .tab {
+      border: none;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: var(--coffee-700);
+      color: var(--cream-50);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .tab.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .hidden-tab {
+      display: none !important;
+    }
+
+    .cards {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr;
+    }
+
+    .card {
+      background: var(--card);
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(41, 26, 18, 0.16);
+      border: 1px solid var(--border);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(140px, 1fr));
+      gap: 10px;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      min-height: 44px;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+
+    button {
+      margin-top: 14px;
+      width: 100%;
+      padding: 12px;
+      min-height: 48px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+    }
+
+    .import-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+      align-items: center;
+    }
+
+    .import-row button {
+      width: auto;
+      margin-top: 0;
+      padding: 10px 12px;
+      min-height: 40px;
+    }
+
+    .import-note {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .row-btn {
+      margin: 0 6px 0 0;
+      padding: 6px 10px;
+      min-height: 32px;
+      font-size: 12px;
+      border-radius: 6px;
+      width: auto;
+      cursor: pointer;
+    }
+
+    .row-btn.danger {
+      background: #9c3b33;
+    }
+
+    .list-scroll {
+      max-height: 280px;
+      overflow: auto;
+    }
+
+    .menu-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: flex-end;
+      margin-bottom: 10px;
+    }
+
+    .menu-controls .control {
+      min-width: 160px;
+      max-width: 240px;
+      flex: 0 1 auto;
+    }
+
+    .menu-controls label {
+      margin-top: 0;
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    table th {
+      white-space: normal;
+      line-height: 1.2;
+    }
+
+    table th,
+    table td {
+      min-width: 120px;
+      padding: 10px 8px;
+    }
+
+    table th:first-child,
+    table td:first-child {
+      min-width: 200px;
+    }
+
+    .editor-card {
+      border: 1px solid rgba(240, 132, 27, 0.35);
+      background: linear-gradient(140deg, rgba(21, 18, 14, 0.9), rgba(18, 16, 12, 0.9));
+    }
+
+    .editor-card .grid {
+      gap: 12px;
+    }
+
+    .editing-row {
+      outline: 2px solid var(--accent);
+      box-shadow: 0 0 0 2px rgba(240, 132, 27, 0.25);
+    }
+
+    .editing-banner {
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(240, 132, 27, 0.12);
+      border: 1px solid rgba(240, 132, 27, 0.4);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .status {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #b00020;
+      min-height: 18px;
+    }
+
+    @media (max-width: 720px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (min-width: 900px) {
+      .cards {
+        grid-template-columns: 1fr 1.3fr;
+        align-items: start;
+      }
+    }
+
+    #ingredientsTab.cards {
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 900px) {
+      #ingredientsTab.cards {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body class="theme-cafe">
+  <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+    <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
+    <div class="brand-text">
+      <div class="brand-title">8 NewLight Coffee Bar</div>
+      <div class="brand-subtitle">Navigation</div>
+    </div>
+  </div>
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/pos.html">POS</a>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Employees</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/employees.html" class="nav-sub">Employees</a>
+      <a href="/clock.html" class="nav-sub">Clock</a>
+    </div>
+  </div>
+    <a href="/inventory.html">Inventory</a>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Product</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/menu.html" class="nav-sub">Menu Items</a>
+      <a href="/receipe.html" class="nav-sub">Ingredients / Recipe</a>
+    </div>
+  </div>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Purchase</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/purchase.html" class="nav-sub">Ingredient Stock</a>
+      <a href="/expenses.html" class="nav-sub">Expenses</a>
+      <a href="/supplier.html" class="nav-sub">Suppliers</a>
+    </div>
+  </div>
+    <a href="/chart.html">Daily Chart</a>
+    <a href="/report.html">Reports</a>
+    <a href="/setup.html">Setup</a>
+  <a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content">
+    <div class="page-brand">
+  <img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" />
+  <div class="page-brand-text">8 NewLight Coffee</div>
+</div>
+
+<h1>🧾 Ingredients & Recipe</h1>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="ingredients">Ingredients</button>
+      <button class="tab" data-tab="recipe">Recipe</button>
+    </div>
+
+    <div id="ingredientsTab" class="cards">
+      <div class="card">
+        <div class="menu-controls">
+          <div class="control">
+            <label for="ingredientFilter">Filter Category</label>
+            <select id="ingredientFilter">
+              <option value="">All Categories</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="ingredientSort">Sort By</label>
+            <select id="ingredientSort">
+              <option value="name-asc">Name (A–Z)</option>
+              <option value="name-desc">Name (Z–A)</option>
+              <option value="category-asc">Category (A–Z)</option>
+              <option value="category-desc">Category (Z–A)</option>
+            </select>
+          </div>
+        </div>
+    <div class="table-wrap list-scroll">
+      <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Actions</th>
+              <th>Base Unit</th>
+              <th>Purchase Unit</th>
+              <th>Conversion (Purchase to Base)</th>
+              <th>Std Cost per Base</th>
+              <th>Minimum Stock</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="ingredientRows">
+            <tr><td colspan="8">Loading…</td></tr>
+          </tbody>
+      </table>
+    </div>
+      </div>
+
+      <div class="card editor-card" id="ingredientEditor">
+        <div class="editing-banner" id="ingredientEditBanner" style="display:none;">Editing ingredient</div>
+        <form id="ingredient-form">
+          <div class="grid">
+            <div>
+              <label for="name">Ingredient Name</label>
+              <input id="name" placeholder="Coffee Beans" required />
+            </div>
+            <div>
+              <label for="category">Category</label>
+              <select id="category">
+                <option value="">Select</option>
+                <option value="Drink">Drink</option>
+                <option value="Food">Food</option>
+                <option value="Packaging">Packaging</option>
+              </select>
+            </div>
+            <div>
+              <label for="base_unit">Base Unit</label>
+              <input id="base_unit" placeholder="gram" required />
+            </div>
+            <div>
+              <label for="purchase_unit">Purchase Unit</label>
+              <input id="purchase_unit" placeholder="kg" />
+            </div>
+            <div>
+              <label for="conv">Conversion (Purchase to Base)</label>
+              <input id="conv" type="number" step="0.0001" placeholder="1000" />
+            </div>
+            <div>
+              <label for="std_cost">Standard Cost per Base</label>
+              <input id="std_cost" type="number" step="0.0001" placeholder="0.015" />
+            </div>
+            <div>
+              <label for="min_stock">Minimum Stock</label>
+              <input id="min_stock" type="number" step="0.01" placeholder="0" />
+            </div>
+            <div>
+              <label for="notes">Notes</label>
+              <textarea id="notes" placeholder="Notes"></textarea>
+            </div>
+          </div>
+          <button type="submit" id="ingredientSave">Save Ingredient</button>
+          <button type="button" id="ingredientCancel" class="secondary">Cancel Edit</button>
+          <div class="status" id="ingredientStatus"></div>
+        </form>
+      </div>
+    </div>
+
+    <div id="recipeTab" class="cards hidden-tab">
+      <div class="card">
+        <div class="grid">
+          <div>
+            <label for="onlyWithRecipe">Recipe Filter</label>
+            <select id="onlyWithRecipe">
+              <option value="1">Only with recipe</option>
+              <option value="0">All menu items</option>
+            </select>
+          </div>
+          <div>
+            <label for="product">Menu Item</label>
+            <select id="product"></select>
+          </div>
+          <div>
+            <label for="ingredient">Ingredient</label>
+            <select id="ingredient"></select>
+          </div>
+          <div>
+            <label for="quantity">Quantity (Base Unit)</label>
+            <input id="quantity" type="number" step="0.0001" placeholder="0.00" />
+          </div>
+        </div>
+        <button id="saveRecipe">Add / Update Ingredient</button>
+        <button class="secondary" id="removeRecipe">Remove Ingredient</button>
+        <button class="secondary" id="applyToVariants">Apply to Variants</button>
+        <div class="status" id="recipeStatus"></div>
+      </div>
+
+      <div class="card">
+    <div class="table-wrap">
+      <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Menu</th>
+              <th>Ingredient</th>
+              <th>Ratio</th>
+              <th>Unit</th>
+            </tr>
+          </thead>
+          <tbody id="recipeRows">
+            <tr><td colspan="5">Select a menu item</td></tr>
+          </tbody>
+      </table>
+    </div>
+        <div class="status" id="recipeInfo"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin', 'manager']);
+
+    const ingredientStatus = document.getElementById('ingredientStatus');
+    const ingredientRows = document.getElementById('ingredientRows');
+    const ingredientSave = document.getElementById('ingredientSave');
+    const ingredientCancel = document.getElementById('ingredientCancel');
+    const ingredientEditor = document.getElementById('ingredientEditor');
+    const ingredientEditBanner = document.getElementById('ingredientEditBanner');
+    const ingredientFilter = document.getElementById('ingredientFilter');
+    const ingredientSort = document.getElementById('ingredientSort');
+
+    const nameEl = document.getElementById('name');
+    const categoryEl = document.getElementById('category');
+    const baseUnitEl = document.getElementById('base_unit');
+    const purchaseUnitEl = document.getElementById('purchase_unit');
+    const convEl = document.getElementById('conv');
+    const stdCostEl = document.getElementById('std_cost');
+    const notesEl = document.getElementById('notes');
+    const minStockEl = document.getElementById('min_stock');
+
+    const productSelect = document.getElementById('product');
+    const ingredientSelect = document.getElementById('ingredient');
+    const quantityEl = document.getElementById('quantity');
+    const recipeStatus = document.getElementById('recipeStatus');
+    const recipeRows = document.getElementById('recipeRows');
+    const onlyWithRecipe = document.getElementById('onlyWithRecipe');
+    const recipeInfo = document.getElementById('recipeInfo');
+    const applyToVariantsBtn = document.getElementById('applyToVariants');
+
+    let editingIngredientId = null;
+    let ingredientData = [];
+    const ingredientMap = new Map();
+
+    const tabs = document.querySelectorAll('.tab');
+    const ingredientsTab = document.getElementById('ingredientsTab');
+    const recipeTab = document.getElementById('recipeTab');
+
+    function activateTab(target) {
+      tabs.forEach(b => b.classList.remove('active'));
+      const active = document.querySelector(`.tab[data-tab="${target}"]`);
+      if (active) active.classList.add('active');
+      ingredientsTab.classList.add('hidden-tab');
+      recipeTab.classList.add('hidden-tab');
+      if (target === 'ingredients') {
+        ingredientsTab.classList.remove('hidden-tab');
+      } else {
+        recipeTab.classList.remove('hidden-tab');
+      }
+    }
+
+    tabs.forEach(btn => {
+      btn.addEventListener('click', () => activateTab(btn.getAttribute('data-tab')));
+    });
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    activateTab(tabParam === 'recipe' ? 'recipe' : 'ingredients');
+
+    function renderIngredientRows(data) {
+      ingredientRows.innerHTML = '';
+      if (!data.length) {
+        ingredientRows.innerHTML = '<tr><td colspan="8">No ingredients yet</td></tr>';
+        return;
+      }
+
+      const filterValue = String(ingredientFilter.value || '').toLowerCase();
+      let filtered = data;
+      if (filterValue) {
+        filtered = data.filter(i => String(i.category || '').toLowerCase() === filterValue);
+      }
+
+      const sortValue = ingredientSort.value || 'name-asc';
+      filtered = filtered.slice().sort((a, b) => {
+        const nameA = String(a.name || '');
+        const nameB = String(b.name || '');
+        const catA = String(a.category || '');
+        const catB = String(b.category || '');
+        if (sortValue === 'name-desc') return nameB.localeCompare(nameA);
+        if (sortValue === 'category-asc') {
+          const diff = catA.localeCompare(catB);
+          return diff !== 0 ? diff : nameA.localeCompare(nameB);
+        }
+        if (sortValue === 'category-desc') {
+          const diff = catB.localeCompare(catA);
+          return diff !== 0 ? diff : nameA.localeCompare(nameB);
+        }
+        return nameA.localeCompare(nameB);
+      });
+
+      filtered.forEach(i => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${i.name || ''}</td>
+          <td>
+            <button type="button" class="row-btn" data-action="edit" data-id="${i.id}">Edit</button>
+            <button type="button" class="row-btn danger" data-action="archive" data-id="${i.id}">Archive</button>
+          </td>
+          <td>${i.base_unit || i.unit || ''}</td>
+          <td>${i.purchase_unit || ''}</td>
+          <td>${i.conv_purchase_to_base || ''}</td>
+          <td>${i.std_cost_per_base ?? ''}</td>
+          <td>${i.min_stock ?? 0}</td>
+          <td>${i.notes || ''}</td>
+        `;
+        ingredientRows.appendChild(tr);
+      });
+    }
+
+    function loadIngredients() {
+      if (!auth) return;
+      fetch('/api/ingredients', { headers: authHeaders(), credentials: 'same-origin' })
+        .then(res => res.ok ? res.json() : Promise.reject())
+        .then(data => {
+          ingredientRows.innerHTML = '';
+          ingredientMap.clear();
+          ingredientData = data || [];
+          if (!ingredientData.length) {
+            renderIngredientRows([]);
+            return;
+          }
+          const categories = new Set();
+          ingredientData.forEach(i => {
+            ingredientMap.set(String(i.id), i);
+            if (i.category) categories.add(i.category);
+          });
+          ingredientFilter.innerHTML = '<option value="">All Categories</option>';
+          Array.from(categories).sort().forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat;
+            opt.textContent = cat;
+            ingredientFilter.appendChild(opt);
+          });
+          renderIngredientRows(ingredientData);
+        })
+        .catch(() => {
+          ingredientRows.innerHTML = '<tr><td colspan="8">Failed to load ingredients</td></tr>';
+        });
+    }
+
+    function loadIngredientsForRecipe() {
+      fetch('/api/ingredients', { headers: authHeaders(), credentials: 'same-origin' })
+        .then(res => res.ok ? res.json() : Promise.reject())
+        .then(data => {
+          ingredientSelect.innerHTML = '';
+          data.forEach(i => {
+            const opt = document.createElement('option');
+            opt.value = i.id;
+            opt.textContent = `${i.name} (${i.base_unit || i.unit || ''})`;
+            ingredientSelect.appendChild(opt);
+          });
+        })
+        .catch(() => {
+          ingredientSelect.innerHTML = '';
+        });
+    }
+
+    const productMap = new Map();
+    const recipeCountMap = new Map();
+
+    function loadMenuForRecipe() {
+      Promise.all([
+        fetch('/api/products', { credentials: 'same-origin' }).then(res => res.ok ? res.json() : Promise.reject()),
+        fetch('/api/recipes/summary', { headers: authHeaders(), credentials: 'same-origin' }).then(res => res.ok ? res.json() : [])
+      ])
+      .then(([products, summaries]) => {
+        productSelect.innerHTML = '';
+        productMap.clear();
+        recipeCountMap.clear();
+        recipeInfo.textContent = '';
+
+        summaries.forEach(s => {
+          recipeCountMap.set(String(s.product_id), s.count);
+        });
+
+        let filtered = onlyWithRecipe.value === '1'
+          ? products.filter(p => (recipeCountMap.get(String(p.id)) || 0) > 0)
+          : products;
+
+        if (filtered.length === 0 && products.length > 0) {
+          filtered = products;
+          recipeInfo.textContent = 'No recipes found or access limited. Showing all menu items.';
+        }
+
+        filtered.forEach(p => {
+          const count = recipeCountMap.get(String(p.id)) || 0;
+          const opt = document.createElement('option');
+          const variantLabel = p.variant ? ` - ${p.variant}` : '';
+          opt.value = p.id;
+          opt.textContent = `${p.name}${variantLabel} (${count})`;
+          productSelect.appendChild(opt);
+          productMap.set(String(p.id), { name: p.name, category: p.category, variant: p.variant || '' });
+        });
+
+        const withRecipe = filtered.find(p => (recipeCountMap.get(String(p.id)) || 0) > 0);
+        if (withRecipe) {
+          productSelect.value = String(withRecipe.id);
+        }
+
+        if (productSelect.value) {
+          loadRecipe();
+        } else {
+          recipeRows.innerHTML = '<tr><td colspan="5">No menu items available</td></tr>';
+        }
+      })
+      .catch(() => {
+        productSelect.innerHTML = '';
+        recipeRows.innerHTML = '<tr><td colspan="5">Failed to load menu items (check login)</td></tr>';
+      });
+    }
+
+    function loadRecipe() {
+      const productId = productSelect.value;
+      if (!productId) return;
+      recipeInfo.textContent = `Loading recipe for ID ${productId}…`;
+      fetch(`/api/recipes/${productId}`, { headers: authHeaders(), credentials: 'same-origin' })
+        .then(res => res.ok ? res.json() : Promise.reject(res.status))
+        .then(rows => {
+          recipeRows.innerHTML = '';
+          if (!rows.length) {
+            recipeRows.innerHTML = '<tr><td colspan="5">No recipe yet</td></tr>';
+            recipeInfo.textContent = `No recipe for ID ${productId}`;
+            return;
+          }
+          const product = productMap.get(String(productId)) || { name: '', category: '' };
+          rows.forEach((r, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${index === 0 ? (product.category || '') : ''}</td>
+              <td>${index === 0 ? (product.name || '') : ''}</td>
+              <td>${r.name}</td>
+              <td>${r.quantity}</td>
+              <td>${r.unit}</td>
+            `;
+            recipeRows.appendChild(tr);
+          });
+          const variantLabel = product.variant ? ` - ${product.variant}` : '';
+          recipeInfo.textContent = `Recipe loaded for ${product.name || 'menu item'}${variantLabel}`;
+        })
+        .catch(() => {
+          recipeRows.innerHTML = '<tr><td colspan="5">Failed to load recipe</td></tr>';
+          recipeInfo.textContent = 'Failed to load recipe (check login)';
+        });
+    }
+
+    ingredientRows.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const id = btn.getAttribute('data-id');
+      const action = btn.getAttribute('data-action');
+      const row = btn.closest('tr');
+      if (!row) return;
+      const cells = row.querySelectorAll('td');
+
+      if (action === 'edit') {
+        editingIngredientId = id;
+        ingredientRows.querySelectorAll('tr').forEach(tr => tr.classList.remove('editing-row'));
+        if (row) row.classList.add('editing-row');
+        const record = ingredientMap.get(String(id)) || {};
+        nameEl.value = record.name || cells[0].textContent.trim();
+        categoryEl.value = record.category || '';
+        baseUnitEl.value = record.base_unit || record.unit || cells[2].textContent.trim();
+        purchaseUnitEl.value = record.purchase_unit || cells[3].textContent.trim();
+        convEl.value = record.conv_purchase_to_base || cells[4].textContent.trim();
+        stdCostEl.value = record.std_cost_per_base ?? cells[5].textContent.trim();
+        minStockEl.value = record.min_stock ?? cells[6].textContent.trim();
+        notesEl.value = record.notes || cells[7].textContent.trim();
+        ingredientSave.textContent = 'Update Ingredient';
+        ingredientStatus.textContent = 'Editing mode';
+        ingredientEditBanner.textContent = `Editing: ${nameEl.value || 'Ingredient'}`;
+        ingredientEditBanner.style.display = 'block';
+        if (ingredientEditor) {
+          ingredientEditor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        nameEl.focus();
+        return;
+      }
+
+      if (action === 'archive') {
+        if (!confirm('Archive this ingredient?')) return;
+        fetch(`/api/ingredients/${id}/archive`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders()
+          }
+        })
+        .then(res => res.json())
+        .then(data => {
+          ingredientStatus.textContent = data.message || data.error || 'Archived';
+          loadIngredients();
+          loadIngredientsForRecipe();
+        })
+        .catch(() => {
+          ingredientStatus.textContent = 'Failed to archive ingredient';
+        });
+      }
+    });
+
+    document.getElementById('ingredient-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!auth) return;
+
+      const payload = {
+        name: nameEl.value.trim(),
+        category: categoryEl.value.trim(),
+        base_unit: baseUnitEl.value.trim(),
+        purchase_unit: purchaseUnitEl.value.trim(),
+        conv_purchase_to_base: convEl.value,
+        std_cost_per_base: stdCostEl.value,
+        min_stock: minStockEl.value,
+        notes: notesEl.value.trim()
+      };
+
+      ingredientStatus.textContent = 'Saving…';
+      const url = editingIngredientId ? `/api/ingredients/${editingIngredientId}` : '/api/ingredients';
+      const method = editingIngredientId ? 'PUT' : 'POST';
+      fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders()
+        },
+        body: JSON.stringify(payload)
+      })
+        .then(res => res.json())
+        .then(data => {
+          ingredientStatus.textContent = data.message || data.error || 'Saved';
+          if (!data.error) {
+            e.target.reset();
+            editingIngredientId = null;
+            ingredientSave.textContent = 'Save Ingredient';
+            ingredientEditBanner.style.display = 'none';
+            loadIngredients();
+            loadIngredientsForRecipe();
+          }
+        })
+        .catch(() => {
+          ingredientStatus.textContent = 'Failed to save ingredient';
+        });
+    });
+
+    ingredientCancel.addEventListener('click', () => {
+      editingIngredientId = null;
+      ingredientRows.querySelectorAll('tr').forEach(tr => tr.classList.remove('editing-row'));
+      document.getElementById('ingredient-form').reset();
+      ingredientSave.textContent = 'Save Ingredient';
+      ingredientStatus.textContent = '';
+      ingredientEditBanner.style.display = 'none';
+    });
+
+    ingredientFilter.addEventListener('change', () => renderIngredientRows(ingredientData));
+    ingredientSort.addEventListener('change', () => renderIngredientRows(ingredientData));
+
+    document.getElementById('saveRecipe').addEventListener('click', () => {
+      const payload = {
+        product_id: productSelect.value,
+        ingredient_id: ingredientSelect.value,
+        quantity: quantityEl.value
+      };
+      recipeStatus.textContent = 'Saving…';
+      fetch('/api/recipes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders()
+        },
+        body: JSON.stringify(payload)
+      })
+        .then(res => res.json())
+        .then(data => {
+          recipeStatus.textContent = data.message || data.error || 'Saved';
+          loadRecipe();
+        })
+        .catch(() => {
+          recipeStatus.textContent = 'Failed to save recipe';
+        });
+    });
+
+    document.getElementById('removeRecipe').addEventListener('click', () => {
+      const payload = {
+        product_id: productSelect.value,
+        ingredient_id: ingredientSelect.value
+      };
+      recipeStatus.textContent = 'Removing…';
+      fetch('/api/recipes', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders()
+        },
+        body: JSON.stringify(payload)
+      })
+        .then(res => res.json())
+        .then(data => {
+          recipeStatus.textContent = data.message || data.error || 'Removed';
+          loadRecipe();
+        })
+        .catch(() => {
+          recipeStatus.textContent = 'Failed to remove recipe';
+        });
+    });
+
+    applyToVariantsBtn.addEventListener('click', () => {
+      const selectedId = String(productSelect.value || '');
+      if (!selectedId) return;
+      const selected = productMap.get(selectedId);
+      if (!selected?.name) {
+        recipeStatus.textContent = 'Select a menu item first';
+        return;
+      }
+
+      const baseName = selected.name.split(' - ')[0].trim().toLowerCase();
+      const sourceId = Number(selectedId);
+      const targetIds = [];
+      productMap.forEach((value, id) => {
+        const candidate = String(value.name || '').split(' - ')[0].trim().toLowerCase();
+        if (candidate === baseName) {
+          targetIds.push(Number(id));
+        }
+      });
+
+      if (targetIds.length <= 1) {
+        recipeStatus.textContent = 'No variants found for this menu';
+        return;
+      }
+
+      recipeStatus.textContent = 'Applying recipe to variants…';
+      fetch(`/api/recipes/${sourceId}`, { headers: authHeaders(), credentials: 'same-origin' })
+        .then(res => res.ok ? res.json() : Promise.reject())
+        .then(rows => {
+          if (!rows.length) {
+            recipeStatus.textContent = 'No recipe to apply';
+            return;
+          }
+          const requests = targetIds
+            .filter(id => id !== sourceId)
+            .flatMap(targetId => rows.map(row => ({
+              product_id: targetId,
+              ingredient_id: row.ingredient_id,
+              quantity: row.quantity
+            })));
+          if (!requests.length) {
+            recipeStatus.textContent = 'No variants to update';
+            return;
+          }
+          return fetch('/api/recipes/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ rows: requests })
+          })
+            .then(res => res.ok ? res.json() : res.json().then(err => Promise.reject(err)))
+            .then(data => {
+              recipeStatus.textContent = data.message || 'Applied to variants';
+              loadMenuForRecipe();
+            });
+        })
+        .catch(() => {
+          recipeStatus.textContent = 'Failed to apply recipe to variants';
+        });
+    });
+
+    productSelect.addEventListener('change', loadRecipe);
+    onlyWithRecipe.addEventListener('change', loadMenuForRecipe);
+
+    if (auth) {
+      loadIngredients();
+      loadIngredientsForRecipe();
+      loadMenuForRecipe();
+    }
+  </script>
+</body>
+</html>

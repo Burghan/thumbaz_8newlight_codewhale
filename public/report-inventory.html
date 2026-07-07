@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inventory Valuation – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    body { font-family: inherit; margin: 0; padding: 0; background: transparent;
+      color: var(--ink); }
+    .subtitle { margin-bottom: 12px; }
+    .cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .card { background: var(--card); padding: 14px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.25); border: 1px solid var(--border); }
+    label { display: block; margin-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; display: block; overflow-x: auto; }
+    th { background: #1c2028; font-weight: 600; color: var(--accent); }
+    .value { text-align: right; }
+    .muted { color: #6b7280; }
+    .summary-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+    .summary-item { background: #1c212b; border-radius: 10px; padding: 10px; border: 1px solid var(--border); }
+    .summary-value { font-weight: 700; }
+  </style>
+</head>
+<body class=" theme-cafe">
+  <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
+      <div class="brand-text">
+        <div class="brand-title">8 NewLight Coffee Bar</div>
+        <div class="brand-subtitle">Navigation</div>
+      </div>
+    </div>
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/pos.html">POS</a>
+  <div class="nav-group">
+    <button class="nav-toggle" type="button" aria-expanded="false">
+      <span>Employees</span>
+      <span class="chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+      </span>
+    </button>
+    <div class="nav-children">
+      <a href="/employees.html" class="nav-sub">Employees</a>
+      <a href="/clock.html" class="nav-sub">Clock</a>
+    </div>
+  </div>
+    <a href="/inventory.html">Inventory</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button" aria-expanded="false">
+        <span>Product</span>
+        <span class="chevron" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+        </span>
+      </button>
+      <div class="nav-children">
+        <a href="/menu.html" class="nav-sub">Menu Items</a>
+        <a href="/receipe.html" class="nav-sub">Ingredients / Recipe</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button" aria-expanded="false">
+        <span>Purchase</span>
+        <span class="chevron" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+        </span>
+      </button>
+      <div class="nav-children">
+        <a href="/purchase.html" class="nav-sub">Ingredient Stock</a>
+        <a href="/expenses.html" class="nav-sub">Expenses</a>
+        <a href="/supplier.html" class="nav-sub">Suppliers</a>
+      </div>
+    </div>
+    <a href="/chart.html">Daily Chart</a>
+    <a href="/report.html">Reports</a>
+    <a href="/setup.html">Setup</a>
+  <a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content">
+    <div class="page-brand">
+      <img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" />
+      <div class="page-brand-text">8 NewLight Coffee</div>
+    </div>
+
+    <h1>📦 Inventory Valuation</h1>
+    <div class="subtitle">Stock value with shrinkage and variance (from inventory logs).</div>
+
+    <div class="cards">
+      <div class="card">
+        <label for="monthSelect">Month (optional)</label>
+        <select id="monthSelect">
+          <option value="">All Time</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Summary</div>
+      <div class="summary-grid" id="summaryGrid"></div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+        <thead>
+          <tr>
+            <th>Ingredient</th>
+            <th>Unit</th>
+            <th>On Hand</th>
+            <th>Avg Cost</th>
+            <th>Stock Value</th>
+            <th>Purchases</th>
+            <th>Usage</th>
+            <th>Adjustments</th>
+            <th>Variance</th>
+            <th>Shrinkage %</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="10">Loading...</td></tr>
+        </tbody>
+        </table>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin', 'manager']);
+    const monthSelect = document.getElementById('monthSelect');
+    const rowsEl = document.getElementById('rows');
+    const statusEl = document.getElementById('status');
+    const summaryGrid = document.getElementById('summaryGrid');
+
+    function formatRupiah(value) {
+      const num = Number(value || 0);
+      const parts = num.toFixed(2).split('.');
+      const whole = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      return `Rp. ${whole}.${parts[1]}`;
+    }
+
+    function buildMonths() {
+      const now = new Date();
+      for (let i = -1; i < 11; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const value = d.toISOString().slice(0, 7);
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = value;
+        monthSelect.appendChild(opt);
+      }
+    }
+
+    function renderSummary(totals) {
+      const cards = [
+        { label: 'Total Stock Value', value: formatRupiah(totals.stock_value || 0) },
+        { label: 'Total Variance Qty', value: (totals.variance_qty || 0).toFixed(4) },
+        { label: 'Shrinkage %', value: `${(totals.shrinkage_pct || 0).toFixed(2)}%` }
+      ];
+      summaryGrid.innerHTML = '';
+      cards.forEach(card => {
+        const div = document.createElement('div');
+        div.className = 'summary-item';
+        div.innerHTML = `<div class="summary-label">${card.label}</div><div class="summary-value">${card.value}</div>`;
+        summaryGrid.appendChild(div);
+      });
+    }
+
+    function loadReport() {
+      if (!auth) return;
+      statusEl.textContent = 'Loading...';
+      rowsEl.innerHTML = '<tr><td colspan="10">Loading...</td></tr>';
+      const month = monthSelect.value;
+      const url = month ? `/api/reports/inventory-valuation?month=${month}` : '/api/reports/inventory-valuation';
+      fetch(url, { headers: authHeaders() })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => {
+          const items = data.items || [];
+          renderSummary(data.totals || { stock_value: 0, variance_qty: 0, shrinkage_pct: 0 });
+          rowsEl.innerHTML = '';
+          if (!items.length) {
+            rowsEl.innerHTML = '<tr><td colspan="10">No data yet</td></tr>';
+            statusEl.textContent = '';
+            return;
+          }
+          items.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${item.name}</td>
+              <td>${item.unit || ''}</td>
+              <td>${Number(item.quantity || 0).toFixed(4)}</td>
+              <td class="value muted">${formatRupiah(item.cost_per_unit || 0)}</td>
+              <td class="value">${formatRupiah(item.stock_value || 0)}</td>
+              <td>${Number(item.purchase_qty || 0).toFixed(4)}</td>
+              <td>${Number(item.usage_qty || 0).toFixed(4)}</td>
+              <td>${Number(item.adjustment_qty || 0).toFixed(4)}</td>
+              <td>${Number(item.variance_qty || 0).toFixed(4)}</td>
+              <td>${Number(item.shrinkage_pct || 0).toFixed(2)}%</td>
+            `;
+            rowsEl.appendChild(tr);
+          });
+          statusEl.textContent = '';
+        })
+        .catch(() => {
+          statusEl.textContent = 'Failed to load inventory valuation';
+        });
+    }
+
+    buildMonths();
+    loadReport();
+    monthSelect.addEventListener('change', loadReport);
+  </script>
+</body>
+</html>
