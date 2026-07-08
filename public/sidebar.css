@@ -265,3 +265,18 @@ body.sidebar-open .menu-toggle {
   background: rgba(255, 255, 255, 0.22);
   box-shadow: inset 3px 0 0 var(--cream);
 }
+
+/* auto-hide overlay backdrop */
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(46, 72, 100, 0.30);
+  z-index: 900;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+body.sidebar-open .sidebar-backdrop {
+  opacity: 1;
+  pointer-events: auto;
+}

@@ -255,12 +255,25 @@
 
   toggle.addEventListener('click', toggleSidebar);
 
-  // Default to open on desktop, collapsed on mobile.
+  // Auto-hide overlay: dim backdrop + close on outside-click, nav-click, Esc.
+  let backdrop = document.getElementById('sidebarBackdrop');
+  if (!backdrop) {
+    backdrop = document.createElement('div');
+    backdrop.id = 'sidebarBackdrop';
+    backdrop.className = 'sidebar-backdrop';
+    document.body.appendChild(backdrop);
+  }
+  backdrop.addEventListener('click', closeSidebar);
+  sidebar.addEventListener('click', (e) => {
+    if (e.target.closest('a[href]')) closeSidebar();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeSidebar();
+  });
+
+  // Start hidden everywhere; the menu button opens it as an overlay.
   filterLinksByRole();
   buildReportsGroup();
   setupNavGroups();
   addIcons();
-  if (!document.body.classList.contains('pos-page') && window.matchMedia('(min-width: 900px)').matches) {
-    openSidebar();
-  }
 })();

@@ -285,10 +285,66 @@
     .menu-controls label { color: var(--brand-ink); }
     .menu-controls .toggle { color: var(--brand-ink); }
     .menu-controls .toggle input { width: auto; min-height: auto; }
+
+    /* ---- topbar ---- */
+    .topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .topbar h1 { margin: 0; }
+    .topbar .spacer { flex: 1; }
+    .topbar button { margin-top: 0; width: auto; min-height: 40px; padding: 8px 14px; }
+    .icon-btn {
+      width: 40px; min-height: 40px; padding: 0; margin-top: 0;
+      background: var(--card); color: var(--brand-ink);
+      border: 1px solid var(--border); border-radius: 10px; font-size: 18px; box-shadow: none;
+    }
+    .icon-btn:hover { background: #eef2f8; }
+    @media (max-width: 720px) {
+      .topbar { flex-wrap: wrap; }
+      .topbar h1 { font-size: 20px; }
+      .topbar .spacer { flex-basis: 100%; height: 0; }
+      .topbar button { flex: 1 1 auto; }
+    }
+
+    label .hint { color: var(--muted); font-weight: 400; font-size: 11px; }
+    input[readonly] { background: var(--cream-soft); color: var(--muted); cursor: not-allowed; }
+
+    /* ---- slide-over modal ---- */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(46, 72, 100, 0.35);
+      display: flex; justify-content: flex-end; z-index: 1200;
+      animation: fade 0.15s ease;
+    }
+    .modal-backdrop[hidden] { display: none; }
+    .modal {
+      width: min(560px, 94vw); height: 100%; overflow-y: auto;
+      background: var(--card); border-left: 1px solid var(--border);
+      box-shadow: -16px 0 40px rgba(46, 72, 100, 0.25);
+      padding: 20px; animation: slideIn 0.2s ease;
+    }
+    .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .modal .grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+    .modal .grid .full { grid-column: 1 / -1; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
+    .modal-actions button { margin-top: 0; flex: 1; }
+    @keyframes slideIn { from { transform: translateX(30px); opacity: 0.5; } to { transform: none; opacity: 1; } }
+    @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+    /* keep content full-width when the sidebar overlays */
+    body.sidebar-open .content { margin-left: 0 !important; }
+
+    /* ---- toast ---- */
+    .toast {
+      position: fixed; left: 50%; bottom: 24px;
+      transform: translateX(-50%) translateY(10px);
+      background: var(--brand-ink); color: #fff;
+      padding: 10px 18px; border-radius: 10px; box-shadow: var(--shadow);
+      opacity: 0; pointer-events: none; transition: all 0.2s ease; z-index: 1300; font-size: 14px;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.error { background: var(--danger); }
   </style>
 </head>
 <body class="theme-cafe">
-  <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
     <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
@@ -344,22 +400,24 @@
   </aside>
 
   <div class="content">
-    <div class="page-brand">
-  <img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" />
-  <div class="page-brand-text">8 NewLight Coffee</div>
-</div>
+    <div class="topbar">
+      <button class="icon-btn" id="menuToggle" aria-label="Open menu">☰</button>
+      <h1>Menu Items</h1>
+      <div class="spacer"></div>
+      <button type="button" class="secondary" id="importBtn">⬆ Import</button>
+      <button type="button" class="secondary" id="exportExcelBtn">⬇ Export</button>
+      <button type="button" id="addBtn">＋ Add Menu Item</button>
+      <input type="file" id="importFile" accept=".xlsx,.xls" hidden />
+    </div>
+    <p class="page-sub">Pricing, cost (HPP) and margin for every menu item — HPP is driven by the latest ingredient prices.</p>
 
-<h1>📋 Menu Items</h1>
-<p class="page-sub">Pricing, cost (HPP) and margin for every menu item — HPP is driven by the latest ingredient prices.</p>
+    <div class="stats">
+      <div class="stat"><div class="label">Menu Items</div><div class="value" id="statCount">–</div></div>
+      <div class="stat"><div class="label">Avg Margin</div><div class="value" id="statMargin">–</div></div>
+      <div class="stat"><div class="label">With Recipe</div><div class="value" id="statCosted">–</div></div>
+      <div class="stat" id="statLossCard"><div class="label">Below Cost</div><div class="value" id="statLoss">–</div></div>
+    </div>
 
-<div class="stats">
-  <div class="stat"><div class="label">Menu Items</div><div class="value" id="statCount">–</div></div>
-  <div class="stat"><div class="label">Avg Margin</div><div class="value" id="statMargin">–</div></div>
-  <div class="stat"><div class="label">With Recipe</div><div class="value" id="statCosted">–</div></div>
-  <div class="stat" id="statLossCard"><div class="label">Below Cost</div><div class="value" id="statLoss">–</div></div>
-</div>
-
-    <div class="cards">
       <div class="card menu-list-card">
         <div class="menu-controls">
           <div class="control search">
@@ -381,14 +439,6 @@
               <option value="category-desc">Category (Z–A)</option>
             </select>
           </div>
-          <div class="control">
-            <label>&nbsp;</label>
-            <button type="button" id="archiveDuplicatesBtn" class="secondary">Archive Duplicates</button>
-          </div>
-          <div class="control">
-            <label>&nbsp;</label>
-            <button type="button" id="exportExcelBtn" class="secondary">⬇ Export to Excel</button>
-          </div>
           <label class="toggle">
             <input type="checkbox" id="showArchived" />
             Show Archived
@@ -401,9 +451,8 @@
                 <th>Menu Name</th>
                 <th>Actions</th>
                 <th data-col="variant">Variant</th>
-                <th>Selling Price</th>
-                <th data-col="special_price">Special Price</th>
-                <th data-col="std_cost_per_item">HPP Ingredients</th>
+                <th class="num">Selling Price</th>
+                <th class="num" data-col="std_cost_per_item">HPP Ingredients</th>
                 <th data-col="labor_cost" class="col-hidden">Labor</th>
                 <th data-col="utility_cost" class="col-hidden">Utilities</th>
                 <th data-col="wifi_cost" class="col-hidden">Wifi</th>
@@ -414,90 +463,70 @@
               </tr>
             </thead>
             <tbody id="rows">
-              <tr><td colspan="13">Loading…</td></tr>
+              <tr><td colspan="12">Loading…</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <div class="card editor-card" id="menuEditor">
-        <div class="card-title">✏️ Add / Edit Menu Item</div>
-        <div class="editing-banner" id="editBanner" style="display:none;">Editing menu item</div>
-        <form id="menu-form">
-          <div class="grid">
-            <div>
-              <label for="name">Menu Name</label>
-              <input id="name" placeholder="Coffee Milk" required />
-            </div>
-            <div>
-              <label for="category">Menu Category</label>
-              <input id="category" placeholder="Coffee Regular" />
-            </div>
-            <div>
-              <label for="brand">Brand</label>
-              <input id="brand" placeholder="GENERAL" />
-            </div>
-            <div>
-              <label for="variant">Variant Name</label>
-              <input id="variant" placeholder="Golden Hazel" />
-            </div>
-            <div>
-              <label for="favorite">Favorite Item</label>
-              <select id="favorite">
-                <option value="0">No</option>
-                <option value="1">Yes</option>
-              </select>
-            </div>
-            <div>
-              <label for="image">Menu Image</label>
-              <input id="image" type="file" accept="image/*" />
-              <div class="image-preview" id="imagePreview">No image</div>
-            </div>
-            <div>
-              <label for="barcode">Product Code / Barcode</label>
-              <input id="barcode" placeholder="" />
-            </div>
-            <div>
-              <label for="price">Selling Price</label>
-              <input id="price" type="number" step="1" placeholder="20000" required />
-            </div>
-            <div>
-              <label for="special_price">Special Price (HQ)</label>
-              <input id="special_price" type="number" step="1" placeholder="" />
-            </div>
-            <div>
-              <label for="cost">HPP Ingredients</label>
-              <input id="cost" type="number" step="1" placeholder="15150" />
-            </div>
-            <div>
-              <label for="labor_cost">Labor (Fixed)</label>
-              <input id="labor_cost" type="number" step="1" placeholder="3000" />
-            </div>
-            <div>
-              <label for="utility_cost">Utilities/Water/Cup (Fixed)</label>
-              <input id="utility_cost" type="number" step="1" placeholder="3500" />
-            </div>
-            <div>
-              <label for="wifi_cost">Wifi (Fixed)</label>
-              <input id="wifi_cost" type="number" step="1" placeholder="500" />
-            </div>
-            <div>
-              <label for="stock">Stock (Optional)</label>
-              <input id="stock" type="number" step="1" placeholder="0" />
-            </div>
-            <div>
-              <label for="notes">Notes</label>
-              <textarea id="notes" placeholder=""></textarea>
-            </div>
-          </div>
-          <button type="submit" id="saveBtn">Save Menu Item</button>
-          <button type="button" id="cancelBtn" class="secondary">Cancel Edit</button>
-          <div class="status" id="status"></div>
-        </form>
-      </div>
+  </div>
 
+  <!-- Slide-over editor modal -->
+  <div class="modal-backdrop" id="editorBackdrop" hidden>
+    <div class="modal" id="menuEditor" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-head">
+        <span class="card-title" id="modalTitle">Add Menu Item</span>
+        <button type="button" class="icon-btn" id="closeModal" aria-label="Close">✕</button>
+      </div>
+      <form id="menu-form">
+        <div class="grid">
+          <div>
+            <label for="name">Menu Name</label>
+            <input id="name" placeholder="Coffee Milk" required />
+          </div>
+          <div>
+            <label for="category">Menu Category</label>
+            <input id="category" placeholder="Coffee Regular" />
+          </div>
+          <div>
+            <label for="variant">Variant Name</label>
+            <input id="variant" placeholder="Regular / Large" />
+          </div>
+          <div>
+            <label for="price">Selling Price</label>
+            <input id="price" type="number" step="1" placeholder="20000" required />
+          </div>
+          <div>
+            <label for="cost">HPP Ingredients <span class="hint">(auto from recipe)</span></label>
+            <input id="cost" type="number" readonly title="Computed from the recipe using latest ingredient prices. Edit on the Recipe page." />
+          </div>
+          <div>
+            <label for="labor_cost">Labor</label>
+            <input id="labor_cost" type="number" step="1" placeholder="3000" />
+          </div>
+          <div>
+            <label for="utility_cost">Utilities / Water / Cup</label>
+            <input id="utility_cost" type="number" step="1" placeholder="3500" />
+          </div>
+          <div>
+            <label for="wifi_cost">Wifi</label>
+            <input id="wifi_cost" type="number" step="1" placeholder="500" />
+          </div>
+          <div class="full">
+            <label for="notes">Notes</label>
+            <textarea id="notes" placeholder="Optional note for this menu item"></textarea>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="cancelBtn" class="secondary">Cancel</button>
+          <button type="submit" id="saveBtn">Save Menu Item</button>
+        </div>
+        <div class="status" id="status"></div>
+      </form>
     </div>
   </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/auth.js"></script>
   <script src="/sidebar.js"></script>
@@ -508,28 +537,25 @@
 
     const nameEl = document.getElementById('name');
     const categoryEl = document.getElementById('category');
-    const brandEl = document.getElementById('brand');
     const variantEl = document.getElementById('variant');
-    const favoriteEl = document.getElementById('favorite');
-    const barcodeEl = document.getElementById('barcode');
-    const imageEl = document.getElementById('image');
-    const imagePreview = document.getElementById('imagePreview');
     const priceEl = document.getElementById('price');
-    const specialPriceEl = document.getElementById('special_price');
     const costEl = document.getElementById('cost');
     const laborCostEl = document.getElementById('labor_cost');
     const utilityCostEl = document.getElementById('utility_cost');
     const wifiCostEl = document.getElementById('wifi_cost');
-    const stockEl = document.getElementById('stock');
     const notesEl = document.getElementById('notes');
     const saveBtn = document.getElementById('saveBtn');
     const cancelBtn = document.getElementById('cancelBtn');
-    const menuEditor = document.getElementById('menuEditor');
-    const editBanner = document.getElementById('editBanner');
+    const editorBackdrop = document.getElementById('editorBackdrop');
+    const modalTitle = document.getElementById('modalTitle');
+    const closeModalBtn = document.getElementById('closeModal');
+    const addBtn = document.getElementById('addBtn');
+    const importBtn = document.getElementById('importBtn');
+    const importFile = document.getElementById('importFile');
+    const menuForm = document.getElementById('menu-form');
     const filterCategory = document.getElementById('filterCategory');
     const sortMenu = document.getElementById('sortMenu');
     const showArchived = document.getElementById('showArchived');
-    const archiveDuplicatesBtn = document.getElementById('archiveDuplicatesBtn');
     const exportExcelBtn = document.getElementById('exportExcelBtn');
     const searchMenu = document.getElementById('searchMenu');
     const statCount = document.getElementById('statCount');
@@ -541,6 +567,32 @@
     let editingId = null;
     let menuData = [];
     const productMap = new Map();
+
+    function openModal(title) {
+      modalTitle.textContent = title;
+      editorBackdrop.hidden = false;
+      setTimeout(() => nameEl.focus(), 50);
+    }
+
+    function closeModal() {
+      editorBackdrop.hidden = true;
+      editingId = null;
+      menuForm.reset();
+      costEl.value = '';
+      saveBtn.textContent = 'Save Menu Item';
+      statusEl.textContent = '';
+      statusEl.classList.remove('error');
+      rowsEl.querySelectorAll('tr').forEach(tr => tr.classList.remove('editing-row'));
+    }
+
+    function openAdd() {
+      menuForm.reset();
+      editingId = null;
+      costEl.value = '';
+      saveBtn.textContent = 'Save Menu Item';
+      statusEl.textContent = '';
+      openModal('Add Menu Item');
+    }
 
     function formatRupiah(value) {
       if (value === null || value === undefined || value === '') return '';
@@ -578,7 +630,7 @@
       updateStats(data);
       rowsEl.innerHTML = '';
       if (!data.length) {
-        rowsEl.innerHTML = '<tr><td colspan="13">No menu items yet</td></tr>';
+        rowsEl.innerHTML = '<tr><td colspan="12">No menu items yet</td></tr>';
         return;
       }
 
@@ -612,7 +664,7 @@
       });
 
       if (!filtered.length) {
-        rowsEl.innerHTML = '<tr><td colspan="13">No items match your search</td></tr>';
+        rowsEl.innerHTML = '<tr><td colspan="12">No items match your search</td></tr>';
         return;
       }
 
@@ -633,8 +685,9 @@
         const nameLabel = p.variant ? `${p.name}, ${p.variant}` : (p.name || '');
         const statusLabel = isActive ? '' : '<span class="pill-archived">Archived</span>';
         const actionBtn = isActive
-          ? `<button type="button" class="row-btn danger" data-action="archive" data-id="${p.id}">Archive</button>`
-          : `<button type="button" class="row-btn danger" data-action="delete" data-id="${p.id}">Delete</button>`;
+          ? `<button type="button" class="row-btn secondary" data-action="archive" data-id="${p.id}">Archive</button>`
+          : `<button type="button" class="row-btn" data-action="restore" data-id="${p.id}">Restore</button>
+             <button type="button" class="row-btn danger" data-action="delete" data-id="${p.id}">Delete</button>`;
         if (hasPrice && profit < 0) tr.classList.add('loss');
         tr.innerHTML = `
           <td>${nameLabel}${statusLabel}</td>
@@ -644,7 +697,6 @@
           </td>
           <td data-col="variant">${p.variant || ''}</td>
           <td class="num">${formatRupiah(p.price)}</td>
-          <td class="num">${formatRupiah(p.special_price)}</td>
           <td class="num">${formatRupiah(p.std_cost_per_item)}</td>
           <td data-col="labor_cost" class="col-hidden num">${formatRupiah(p.labor_cost)}</td>
           <td data-col="utility_cost" class="col-hidden num">${formatRupiah(p.utility_cost)}</td>
@@ -698,205 +750,125 @@
         const record = productMap.get(String(id));
         if (!record) return;
         editingId = id;
-        rowsEl.querySelectorAll('tr').forEach(tr => tr.classList.remove('editing-row'));
-        if (row) row.classList.add('editing-row');
         nameEl.value = record.name || '';
         categoryEl.value = record.category || '';
-        brandEl.value = record.brand || '';
         variantEl.value = record.variant || '';
-        favoriteEl.value = record.favorite ? '1' : '0';
-        barcodeEl.value = record.barcode || '';
         priceEl.value = record.price ?? '';
-        specialPriceEl.value = record.special_price ?? '';
         costEl.value = record.std_cost_per_item ?? '';
         laborCostEl.value = record.labor_cost ?? '';
         utilityCostEl.value = record.utility_cost ?? '';
         wifiCostEl.value = record.wifi_cost ?? '';
-        stockEl.value = record.stock ?? 0;
         notesEl.value = record.notes || '';
-        imageEl.value = '';
-        if (record.image_url) {
-          imagePreview.innerHTML = `<img src="${record.image_url}" alt="${record.name || ''}" />`;
-        } else {
-          imagePreview.textContent = 'No image';
-        }
         saveBtn.textContent = 'Update Menu Item';
-        statusEl.textContent = 'Editing mode';
-        editBanner.textContent = `Editing: ${record.name || 'Menu Item'}`;
-        editBanner.style.display = 'block';
-        if (menuEditor) {
-          menuEditor.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-        nameEl.focus();
+        openModal(`Edit: ${record.name || 'Menu Item'}`);
         return;
       }
 
       if (action === 'archive') {
         if (!confirm('Archive this menu item?')) return;
-        fetch(`/api/products/${id}/archive`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            ...authHeaders()
-          }
-        })
-        .then(res => res.json())
-        .then(data => {
-          statusEl.textContent = data.message || data.error || 'Archived';
-          loadMenu();
-        })
-        .catch(() => {
-          statusEl.textContent = 'Failed to archive menu item';
-        });
+        rowAction(`/api/products/${id}/archive`, 'PATCH', 'Archived');
+        return;
+      }
+
+      if (action === 'restore') {
+        rowAction(`/api/products/${id}/restore`, 'PATCH', 'Restored');
         return;
       }
 
       if (action === 'delete') {
-        if (!confirm('Delete this product? This cannot be undone.')) return;
+        if (!confirm('Delete this product permanently? This cannot be undone.')) return;
         fetch(`/api/products/${id}`, {
           method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            ...authHeaders()
-          }
+          headers: { 'Content-Type': 'application/json', ...authHeaders() }
         })
         .then(res => res.ok ? res.json() : res.json().then(err => Promise.reject(err)))
-        .then(data => {
-          statusEl.textContent = data.message || 'Deleted';
-          loadMenu();
-        })
-        .catch(err => {
-          statusEl.textContent = err?.error || 'Failed to delete product';
-        });
+        .then(data => { showToast(data.message || 'Deleted'); loadMenu(); })
+        .catch(err => { showToast(err?.error || 'Failed to delete product', true); });
       }
     });
 
-    document.getElementById('menu-form').addEventListener('submit', (e) => {
+    function rowAction(url, method, okMsg) {
+      fetch(url, { method, headers: { 'Content-Type': 'application/json', ...authHeaders() } })
+        .then(res => res.json())
+        .then(data => { showToast(data.message || data.error || okMsg); loadMenu(); })
+        .catch(() => { showToast('Action failed', true); });
+    }
+
+    function showToast(msg, isError) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.toggle('error', !!isError);
+      t.classList.add('show');
+      clearTimeout(showToast._timer);
+      showToast._timer = setTimeout(() => t.classList.remove('show'), 2600);
+    }
+
+    menuForm.addEventListener('submit', (e) => {
       e.preventDefault();
       if (!auth) return;
 
       const payload = {
         name: nameEl.value.trim(),
         category: categoryEl.value.trim(),
-        item_type: categoryEl.value.trim(),
-        brand: brandEl.value.trim(),
         variant: variantEl.value.trim(),
-        favorite: favoriteEl.value,
-        barcode: barcodeEl.value.trim(),
         selling_price: priceEl.value,
-        special_price: specialPriceEl.value,
-        std_cost_per_item: costEl.value,
         labor_cost: laborCostEl.value,
         utility_cost: utilityCostEl.value,
         wifi_cost: wifiCostEl.value,
-        stock: stockEl.value,
         notes: notesEl.value.trim()
       };
 
       statusEl.textContent = 'Saving…';
+      statusEl.classList.remove('error');
       const url = editingId ? `/api/products/${editingId}` : '/api/products';
       const method = editingId ? 'PUT' : 'POST';
       fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders()
-        },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(payload)
       })
       .then(res => res.json())
-        .then(data => {
-          statusEl.textContent = data.message || data.error || 'Saved';
-          if (!data.error) {
-            const id = editingId || data.id;
-            const file = imageEl.files[0];
-            if (id && file) {
-            const formData = new FormData();
-            formData.append('image', file);
-            fetch(`/api/products/${id}/image`, {
-              method: 'POST',
-              headers: {
-                ...authHeaders()
-              },
-              body: formData
-            })
-              .then(res => res.json())
-              .then(imgRes => {
-                if (imgRes.error) {
-                  statusEl.textContent = imgRes.error;
-                } else {
-                  statusEl.textContent = 'Saved with image';
-                }
-              })
-              .finally(() => {
-                e.target.reset();
-                imagePreview.textContent = 'No image';
-                editingId = null;
-                saveBtn.textContent = 'Save Menu Item';
-                editBanner.style.display = 'none';
-                loadMenu();
-              });
-            return;
-          }
-
-          e.target.reset();
-          imagePreview.textContent = 'No image';
-          editingId = null;
-          saveBtn.textContent = 'Save Menu Item';
-          editBanner.style.display = 'none';
-          loadMenu();
+      .then(data => {
+        if (data.error) {
+          statusEl.textContent = data.error;
+          statusEl.classList.add('error');
+          return;
         }
+        showToast(data.message || 'Saved');
+        closeModal();
+        loadMenu();
       })
       .catch(() => {
         statusEl.textContent = 'Failed to save menu item';
+        statusEl.classList.add('error');
       });
     });
 
-    cancelBtn.addEventListener('click', () => {
-      editingId = null;
-      rowsEl.querySelectorAll('tr').forEach(tr => tr.classList.remove('editing-row'));
-      document.getElementById('menu-form').reset();
-      imagePreview.textContent = 'No image';
-      saveBtn.textContent = 'Save Menu Item';
-      statusEl.textContent = '';
-      editBanner.style.display = 'none';
-    });
+    cancelBtn.addEventListener('click', closeModal);
 
     filterCategory.addEventListener('change', () => renderMenuRows(menuData));
     sortMenu.addEventListener('change', () => renderMenuRows(menuData));
     searchMenu.addEventListener('input', () => renderMenuRows(menuData));
     showArchived.addEventListener('change', loadMenu);
 
-    archiveDuplicatesBtn.addEventListener('click', () => {
-      if (!confirm('Archive duplicate menu items (same name and variant)?')) return;
-      fetch('/api/products/archive-duplicates', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders()
-        }
-      })
-      .then(res => res.ok ? res.json() : res.json().then(err => Promise.reject(err)))
-      .then(data => {
-        statusEl.textContent = data.message || 'Archived duplicates';
-        loadMenu();
-      })
-      .catch(err => {
-        statusEl.textContent = err?.error || 'Failed to archive duplicates';
-      });
+    // ---- modal open/close wiring ----
+    addBtn.addEventListener('click', openAdd);
+    closeModalBtn.addEventListener('click', closeModal);
+    editorBackdrop.addEventListener('click', (e) => {
+      if (e.target === editorBackdrop) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !editorBackdrop.hidden) closeModal();
     });
 
+    // ---- export ----
     exportExcelBtn.addEventListener('click', () => {
       if (!auth) return;
       const original = exportExcelBtn.textContent;
       exportExcelBtn.textContent = 'Exporting…';
       exportExcelBtn.disabled = true;
-      statusEl.textContent = '';
       fetch('/api/export/menu', { headers: authHeaders() })
-        .then(res => {
-          if (!res.ok) return res.json().then(err => Promise.reject(err));
-          return res.blob();
-        })
+        .then(res => res.ok ? res.blob() : res.json().then(err => Promise.reject(err)))
         .then(blob => {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
@@ -907,28 +879,41 @@
           a.click();
           a.remove();
           URL.revokeObjectURL(url);
-          statusEl.textContent = 'Menu exported to Excel';
+          showToast('Menu exported to Excel');
         })
-        .catch(err => {
-          statusEl.textContent = err?.error || 'Failed to export menu';
-        })
+        .catch(err => showToast(err?.error || 'Failed to export menu', true))
         .finally(() => {
           exportExcelBtn.textContent = original;
           exportExcelBtn.disabled = false;
         });
     });
 
-    loadMenu();
-
-    imageEl.addEventListener('change', () => {
-      const file = imageEl.files[0];
-      if (!file) {
-        imagePreview.textContent = 'No image';
+    // ---- import ----
+    importBtn.addEventListener('click', () => importFile.click());
+    importFile.addEventListener('change', () => {
+      const file = importFile.files[0];
+      if (!file) return;
+      if (!confirm(`Import "${file.name}"? This updates menu items by name.`)) {
+        importFile.value = '';
         return;
       }
-      const url = URL.createObjectURL(file);
-      imagePreview.innerHTML = `<img src="${url}" alt="Preview" />`;
+      const original = importBtn.textContent;
+      importBtn.textContent = 'Importing…';
+      importBtn.disabled = true;
+      const formData = new FormData();
+      formData.append('file', file);
+      fetch('/api/import/menu', { method: 'POST', headers: authHeaders(), body: formData })
+        .then(res => res.ok ? res.json() : res.json().then(err => Promise.reject(err)))
+        .then(data => { showToast(data.message || 'Imported'); loadMenu(); })
+        .catch(err => showToast(err?.error || 'Failed to import', true))
+        .finally(() => {
+          importBtn.textContent = original;
+          importBtn.disabled = false;
+          importFile.value = '';
+        });
     });
+
+    loadMenu();
   </script>
 </body>
 </html>

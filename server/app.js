@@ -19,6 +19,8 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/ingredients', manager, require('./routes/ingredients'));
 app.use('/api/products', manager, require('./routes/products'));
 app.use('/api/recipes', manager, require('./routes/recipes'));
+app.use('/api/export', manager, require('./routes/export'));
+app.use('/api/import', manager, require('./routes/import'));
 // app.use('/api/suppliers', manager, require('./routes/suppliers'));
 // app.use('/api/purchases', manager, require('./routes/purchases'));
 // app.use('/api/inventory', manager, require('./routes/inventory'));

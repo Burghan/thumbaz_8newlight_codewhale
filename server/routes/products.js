@@ -28,10 +28,8 @@ function serialize(row) {
     utility_cost: row.utility_cost,
     wifi_cost: row.packaging_cost,        // legacy field name used by menu.html
     std_cost_per_item: row.ingredient_cogs, // recipe COGS (latest-price based)
-    active: row.active,
-    // fields the current UI reads but the clean schema doesn't model yet:
-    brand: null, variant_name: row.variant, barcode: null,
-    special_price: null, stock: null, favorite: 0, image_url: null, notes: null
+    notes: row.notes,
+    active: row.active
   };
 }
 
@@ -59,11 +57,12 @@ router.post('/', (req, res) => {
   const b = req.body || {};
   if (!b.name || !String(b.name).trim()) return res.status(400).json({ error: 'Name required' });
   const info = db.prepare(
-    `INSERT INTO products (name, category, variant, labor_cost, utility_cost, packaging_cost, active)
-     VALUES (?,?,?,?,?,?,1)`
+    `INSERT INTO products (name, category, variant, labor_cost, utility_cost, packaging_cost, notes, active)
+     VALUES (?,?,?,?,?,?,?,1)`
   ).run(
     String(b.name).trim(), (b.category || '').trim() || null, (b.variant || '').trim() || null,
-    Math.round(Number(b.labor_cost || 0)), Math.round(Number(b.utility_cost || 0)), Math.round(Number(b.wifi_cost || 0))
+    Math.round(Number(b.labor_cost || 0)), Math.round(Number(b.utility_cost || 0)), Math.round(Number(b.wifi_cost || 0)),
+    (b.notes || '').trim() || null
   );
   setPrice(info.lastInsertRowid, b.selling_price ?? b.price);
   res.json({ message: 'Product added', id: info.lastInsertRowid });
@@ -75,11 +74,11 @@ router.put('/:id', (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Product not found' });
   db.prepare(
     `UPDATE products SET name = ?, category = ?, variant = ?, labor_cost = ?, utility_cost = ?,
-       packaging_cost = ?, updated_at = datetime('now') WHERE id = ?`
+       packaging_cost = ?, notes = ?, updated_at = datetime('now') WHERE id = ?`
   ).run(
     String(b.name || '').trim(), (b.category || '').trim() || null, (b.variant || '').trim() || null,
     Math.round(Number(b.labor_cost || 0)), Math.round(Number(b.utility_cost || 0)), Math.round(Number(b.wifi_cost || 0)),
-    req.params.id
+    (b.notes || '').trim() || null, req.params.id
   );
   setPrice(req.params.id, b.selling_price ?? b.price);
   res.json({ message: 'Product updated' });
@@ -88,6 +87,11 @@ router.put('/:id', (req, res) => {
 router.patch('/:id/archive', (req, res) => {
   db.prepare('UPDATE products SET active = 0 WHERE id = ?').run(req.params.id);
   res.json({ message: 'Product archived' });
+});
+
+router.patch('/:id/restore', (req, res) => {
+  db.prepare('UPDATE products SET active = 1 WHERE id = ?').run(req.params.id);
+  res.json({ message: 'Product restored' });
 });
 
 router.delete('/:id', (req, res) => {
