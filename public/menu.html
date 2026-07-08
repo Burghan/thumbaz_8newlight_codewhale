@@ -155,9 +155,11 @@
       }
     }
 
-    /* content fills the viewport; the list grows to the bottom of the page */
-    .content { display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; }
-    .menu-list-card { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 240px; }
+    /* Freeze the topbar + dashboard; only the menu list scrolls. */
+    .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; }
+    .topbar, .page-sub, .stats { flex: 0 0 auto; }
+    .menu-list-card { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 180px; overflow: hidden; }
+    .menu-controls { flex: 0 0 auto; }
     .list-scroll {
       flex: 1 1 auto;
       min-height: 0;
@@ -336,8 +338,9 @@
 
     /* category manager */
     .cat-form { display: flex; gap: 8px; margin-bottom: 14px; }
-    .cat-form input { margin: 0; }
+    .cat-form input { margin: 0; flex: 1; }
     .cat-form button { margin: 0; width: auto; min-height: 44px; padding: 8px 16px; }
+    .cat-list { max-height: 48vh; overflow: auto; }
 
     /* keep content full-width when the sidebar overlays */
     body.sidebar-open .content { margin-left: 0 !important; }
@@ -541,16 +544,17 @@
 
   <!-- Category manager modal -->
   <div class="modal-backdrop" id="catBackdrop" hidden>
-    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="catTitle">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="catTitle">
       <div class="modal-head">
         <span class="card-title" id="catTitle">🏷 Menu Categories</span>
         <button type="button" class="icon-btn" id="closeCat" aria-label="Close">✕</button>
       </div>
       <form id="cat-form" class="cat-form">
-        <input id="catName" placeholder="New category name" autocomplete="off" required />
-        <button type="submit">Add</button>
+        <input id="catName" placeholder="Category name" autocomplete="off" required />
+        <button type="submit" id="catSaveBtn">Add Category</button>
+        <button type="button" id="catCancelBtn" class="secondary" style="display:none;">Cancel</button>
       </form>
-      <div class="table-wrap">
+      <div class="table-wrap cat-list">
         <table>
           <thead><tr><th>Category</th><th class="num">Items</th><th>Actions</th></tr></thead>
           <tbody id="catRows"><tr><td colspan="3">Loading…</td></tr></tbody>
@@ -600,6 +604,9 @@
     const catName = document.getElementById('catName');
     const catRows = document.getElementById('catRows');
     const catStatus = document.getElementById('catStatus');
+    const catSaveBtn = document.getElementById('catSaveBtn');
+    const catCancelBtn = document.getElementById('catCancelBtn');
+    let editingCatId = null;
     const statCount = document.getElementById('statCount');
     const statMargin = document.getElementById('statMargin');
     const statCosted = document.getElementById('statCosted');
@@ -976,12 +983,16 @@
           cats.forEach(c => {
             const tr = document.createElement('tr');
             const safeName = String(c.name).replace(/"/g, '&quot;');
+            // Delete is offered only when the category holds no menu items.
+            const delBtn = c.product_count === 0
+              ? `<button type="button" class="row-btn danger" data-cat-action="delete" data-id="${c.id}">Delete</button>`
+              : '';
             tr.innerHTML = `
               <td>${c.name}</td>
               <td class="num">${c.product_count}</td>
               <td>
-                <button type="button" class="row-btn" data-cat-action="edit" data-id="${c.id}" data-name="${safeName}">Rename</button>
-                <button type="button" class="row-btn danger" data-cat-action="delete" data-id="${c.id}">Delete</button>
+                <button type="button" class="row-btn" data-cat-action="edit" data-id="${c.id}" data-name="${safeName}">Edit</button>
+                ${delBtn}
               </td>`;
             catRows.appendChild(tr);
           });
@@ -989,11 +1000,19 @@
         .catch(() => {});
     }
 
-    function openCatModal() { catStatus.textContent = ''; catBackdrop.hidden = false; loadCategories().then(() => catName.focus()); }
-    function closeCatModal() { catBackdrop.hidden = true; catForm.reset(); catStatus.textContent = ''; }
+    function resetCatForm() {
+      editingCatId = null;
+      catForm.reset();
+      catSaveBtn.textContent = 'Add Category';
+      catCancelBtn.style.display = 'none';
+    }
+
+    function openCatModal() { resetCatForm(); catStatus.textContent = ''; catBackdrop.hidden = false; loadCategories().then(() => catName.focus()); }
+    function closeCatModal() { catBackdrop.hidden = true; resetCatForm(); catStatus.textContent = ''; }
 
     manageCatsBtn.addEventListener('click', openCatModal);
     closeCat.addEventListener('click', closeCatModal);
+    catCancelBtn.addEventListener('click', resetCatForm);
     catBackdrop.addEventListener('click', (e) => { if (e.target === catBackdrop) closeCatModal(); });
 
     catForm.addEventListener('submit', (e) => {
@@ -1001,17 +1020,24 @@
       const name = catName.value.trim();
       if (!name) return;
       catStatus.textContent = 'Saving…';
-      fetch('/api/categories', {
-        method: 'POST',
+      const url = editingCatId ? `/api/categories/${editingCatId}` : '/api/categories';
+      const method = editingCatId ? 'PUT' : 'POST';
+      const wasEditing = !!editingCatId;
+      fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ name })
       })
         .then(res => res.json())
         .then(data => {
           catStatus.textContent = data.message || data.error || '';
-          if (!data.error) { catForm.reset(); loadCategories(); }
+          if (!data.error) {
+            resetCatForm();
+            loadCategories();
+            if (wasEditing) loadMenu(); // rename cascades to products
+          }
         })
-        .catch(() => { catStatus.textContent = 'Failed to add category'; });
+        .catch(() => { catStatus.textContent = 'Failed to save category'; });
     });
 
     catRows.addEventListener('click', (e) => {
@@ -1021,27 +1047,16 @@
       const action = btn.getAttribute('data-cat-action');
 
       if (action === 'edit') {
-        const current = btn.getAttribute('data-name') || '';
-        const input = prompt('Rename category:', current);
-        if (input === null) return;
-        const name = input.trim();
-        if (!name || name === current) return;
-        fetch(`/api/categories/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify({ name })
-        })
-          .then(res => res.json())
-          .then(data => {
-            catStatus.textContent = data.message || data.error || '';
-            if (!data.error) { loadCategories(); loadMenu(); }
-          })
-          .catch(() => { catStatus.textContent = 'Failed to rename category'; });
+        editingCatId = id;
+        catName.value = btn.getAttribute('data-name') || '';
+        catSaveBtn.textContent = 'Update Category';
+        catCancelBtn.style.display = '';
+        catName.focus();
         return;
       }
 
       if (action === 'delete') {
-        if (!confirm('Delete this category?')) return;
+        if (!confirm('Delete this empty category?')) return;
         fetch(`/api/categories/${id}`, { method: 'DELETE', headers: authHeaders() })
           .then(res => res.json())
           .then(data => {
