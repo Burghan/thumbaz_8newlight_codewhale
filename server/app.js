@@ -6,16 +6,22 @@ const db = require('./db');
 // Bring the schema up to date before serving.
 runMigrations();
 
+const { attachSession, requireRole, sessionGate } = require('./middleware/auth');
+
 const app = express();
 app.use(express.json());
+app.use('/api', attachSession);
+
+const manager = requireRole(['admin', 'manager']);
 
 // --- API routes (added domain by domain) ---
-app.use('/api/ingredients', require('./routes/ingredients'));
-app.use('/api/products', require('./routes/products'));
-app.use('/api/recipes', require('./routes/recipes'));
-// app.use('/api/suppliers', require('./routes/suppliers'));
-// app.use('/api/purchases', require('./routes/purchases'));
-// app.use('/api/inventory', require('./routes/inventory'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/ingredients', manager, require('./routes/ingredients'));
+app.use('/api/products', manager, require('./routes/products'));
+app.use('/api/recipes', manager, require('./routes/recipes'));
+// app.use('/api/suppliers', manager, require('./routes/suppliers'));
+// app.use('/api/purchases', manager, require('./routes/purchases'));
+// app.use('/api/inventory', manager, require('./routes/inventory'));
 
 app.get('/api/health', (_req, res) => {
   const counts = ['ingredients', 'products', 'recipes', 'suppliers', 'purchases']
@@ -26,7 +32,8 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'OK', db: db.dbPath, counts });
 });
 
-// --- static back-office UI ---
+// --- static back-office UI (guarded) ---
+app.use(sessionGate);
 const publicDir = path.join(__dirname, '../public');
 app.use(express.static(publicDir, {
   setHeaders(res, filePath) {
