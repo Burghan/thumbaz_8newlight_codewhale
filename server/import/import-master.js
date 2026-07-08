@@ -156,11 +156,12 @@ function applyImport({ ingredients, products, recipes }) {
     db.exec('DELETE FROM recipes; DELETE FROM product_prices; DELETE FROM inventory; DELETE FROM products; DELETE FROM ingredients;');
 
     const insIng = db.prepare(`INSERT INTO ingredients
-      (name, category, base_unit, purchase_unit, conv_purchase_to_base, std_cost_per_base_micro, active)
-      VALUES (?,?,?,?,?,?,1)`);
+      (name, category, base_unit, purchase_unit, conv_purchase_to_base, last_purchase_price, std_cost_per_base_micro, active)
+      VALUES (?,?,?,?,?,?,?,1)`);
     const keyToIngId = new Map();
     for (const i of ingredients) {
-      const r = insIng.run(i.name, i.category, i.base_unit || 'pcs', i.purchase_unit, i.conv_purchase_to_base, i.std_cost_per_base_micro);
+      const r = insIng.run(i.name, i.category, i.base_unit || 'pcs', i.purchase_unit, i.conv_purchase_to_base,
+        i.last_price ? Math.round(i.last_price) : null, i.std_cost_per_base_micro);
       keyToIngId.set(i.key, r.lastInsertRowid);
     }
 
@@ -172,7 +173,7 @@ function applyImport({ ingredients, products, recipes }) {
       }
     }
     for (const [key, m] of missing) {
-      const r = insIng.run(m.name, null, m.base_unit || 'pcs', null, null, 0);
+      const r = insIng.run(m.name, null, m.base_unit || 'pcs', null, null, null, 0);
       keyToIngId.set(key, r.lastInsertRowid);
     }
 

@@ -10,10 +10,10 @@ const app = express();
 app.use(express.json());
 
 // --- API routes (added domain by domain) ---
-// app.use('/api/ingredients', require('./routes/ingredients'));
+app.use('/api/ingredients', require('./routes/ingredients'));
+app.use('/api/products', require('./routes/products'));
+app.use('/api/recipes', require('./routes/recipes'));
 // app.use('/api/suppliers', require('./routes/suppliers'));
-// app.use('/api/products', require('./routes/products'));
-// app.use('/api/recipes', require('./routes/recipes'));
 // app.use('/api/purchases', require('./routes/purchases'));
 // app.use('/api/inventory', require('./routes/inventory'));
 
