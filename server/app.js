@@ -18,6 +18,7 @@ const manager = requireRole(['admin', 'manager']);
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/ingredients', manager, require('./routes/ingredients'));
 app.use('/api/products', manager, require('./routes/products'));
+app.use('/api/categories', manager, require('./routes/categories'));
 app.use('/api/recipes', manager, require('./routes/recipes'));
 app.use('/api/export', manager, require('./routes/export'));
 app.use('/api/import', manager, require('./routes/import'));

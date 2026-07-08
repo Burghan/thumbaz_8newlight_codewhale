@@ -155,8 +155,13 @@
       }
     }
 
+    /* content fills the viewport; the list grows to the bottom of the page */
+    .content { display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; }
+    .menu-list-card { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 240px; }
     .list-scroll {
-      max-height: 280px;
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none;
       overflow: auto;
     }
 
@@ -281,7 +286,7 @@
     .money-neg { color: var(--danger); font-weight: 600; }
     tr.loss td { background: #fbecea; }
 
-    .menu-controls .control.search { flex: 1 1 220px; max-width: none; }
+    .menu-controls .control.search { flex: 0 1 200px; max-width: 220px; }
     .menu-controls label { color: var(--brand-ink); }
     .menu-controls .toggle { color: var(--brand-ink); }
     .menu-controls .toggle input { width: auto; min-height: auto; }
@@ -310,23 +315,29 @@
     /* ---- slide-over modal ---- */
     .modal-backdrop {
       position: fixed; inset: 0; background: rgba(46, 72, 100, 0.35);
-      display: flex; justify-content: flex-end; z-index: 1200;
-      animation: fade 0.15s ease;
+      display: flex; align-items: center; justify-content: center; padding: 16px;
+      z-index: 1200; animation: fade 0.15s ease;
     }
     .modal-backdrop[hidden] { display: none; }
     .modal {
-      width: min(560px, 94vw); height: 100%; overflow-y: auto;
-      background: var(--card); border-left: 1px solid var(--border);
-      box-shadow: -16px 0 40px rgba(46, 72, 100, 0.25);
-      padding: 20px; animation: slideIn 0.2s ease;
+      width: min(680px, 96vw); max-height: 90vh; overflow-y: auto;
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      box-shadow: 0 24px 60px rgba(46, 72, 100, 0.30);
+      padding: 22px; animation: pop 0.16s ease;
     }
+    .modal.modal-sm { width: min(480px, 96vw); }
     .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
     .modal .grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
     .modal .grid .full { grid-column: 1 / -1; }
     .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
     .modal-actions button { margin-top: 0; flex: 1; }
-    @keyframes slideIn { from { transform: translateX(30px); opacity: 0.5; } to { transform: none; opacity: 1; } }
+    @keyframes pop { from { transform: translateY(8px) scale(0.98); opacity: 0.5; } to { transform: none; opacity: 1; } }
     @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+    /* category manager */
+    .cat-form { display: flex; gap: 8px; margin-bottom: 14px; }
+    .cat-form input { margin: 0; }
+    .cat-form button { margin: 0; width: auto; min-height: 44px; padding: 8px 16px; }
 
     /* keep content full-width when the sidebar overlays */
     body.sidebar-open .content { margin-left: 0 !important; }
@@ -404,6 +415,7 @@
       <button class="icon-btn" id="menuToggle" aria-label="Open menu">☰</button>
       <h1>Menu Items</h1>
       <div class="spacer"></div>
+      <button type="button" class="secondary" id="manageCatsBtn">🏷 Categories</button>
       <button type="button" class="secondary" id="importBtn">⬆ Import</button>
       <button type="button" class="secondary" id="exportExcelBtn">⬇ Export</button>
       <button type="button" id="addBtn">＋ Add Menu Item</button>
@@ -486,7 +498,8 @@
           </div>
           <div>
             <label for="category">Menu Category</label>
-            <input id="category" placeholder="Coffee Regular" />
+            <input id="category" list="categoryOptions" placeholder="Coffee Regular" autocomplete="off" />
+            <datalist id="categoryOptions"></datalist>
           </div>
           <div>
             <label for="variant">Variant Name</label>
@@ -526,6 +539,27 @@
     </div>
   </div>
 
+  <!-- Category manager modal -->
+  <div class="modal-backdrop" id="catBackdrop" hidden>
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="catTitle">
+      <div class="modal-head">
+        <span class="card-title" id="catTitle">🏷 Menu Categories</span>
+        <button type="button" class="icon-btn" id="closeCat" aria-label="Close">✕</button>
+      </div>
+      <form id="cat-form" class="cat-form">
+        <input id="catName" placeholder="New category name" autocomplete="off" required />
+        <button type="submit">Add</button>
+      </form>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Category</th><th class="num">Items</th><th>Actions</th></tr></thead>
+          <tbody id="catRows"><tr><td colspan="3">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="status" id="catStatus"></div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/auth.js"></script>
@@ -558,6 +592,14 @@
     const showArchived = document.getElementById('showArchived');
     const exportExcelBtn = document.getElementById('exportExcelBtn');
     const searchMenu = document.getElementById('searchMenu');
+    const categoryOptions = document.getElementById('categoryOptions');
+    const manageCatsBtn = document.getElementById('manageCatsBtn');
+    const catBackdrop = document.getElementById('catBackdrop');
+    const closeCat = document.getElementById('closeCat');
+    const catForm = document.getElementById('cat-form');
+    const catName = document.getElementById('catName');
+    const catRows = document.getElementById('catRows');
+    const catStatus = document.getElementById('catStatus');
     const statCount = document.getElementById('statCount');
     const statMargin = document.getElementById('statMargin');
     const statCosted = document.getElementById('statCosted');
@@ -858,7 +900,9 @@
       if (e.target === editorBackdrop) closeModal();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !editorBackdrop.hidden) closeModal();
+      if (e.key !== 'Escape') return;
+      if (!editorBackdrop.hidden) closeModal();
+      if (!catBackdrop.hidden) closeCatModal();
     });
 
     // ---- export ----
@@ -913,7 +957,103 @@
         });
     });
 
+    // ---- category CRUD ----
+    function loadCategories() {
+      return fetch('/api/categories', { headers: authHeaders() })
+        .then(res => res.ok ? res.json() : [])
+        .then(cats => {
+          categoryOptions.innerHTML = '';
+          cats.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.name;
+            categoryOptions.appendChild(opt);
+          });
+          if (!cats.length) {
+            catRows.innerHTML = '<tr><td colspan="3">No categories yet</td></tr>';
+            return;
+          }
+          catRows.innerHTML = '';
+          cats.forEach(c => {
+            const tr = document.createElement('tr');
+            const safeName = String(c.name).replace(/"/g, '&quot;');
+            tr.innerHTML = `
+              <td>${c.name}</td>
+              <td class="num">${c.product_count}</td>
+              <td>
+                <button type="button" class="row-btn" data-cat-action="edit" data-id="${c.id}" data-name="${safeName}">Rename</button>
+                <button type="button" class="row-btn danger" data-cat-action="delete" data-id="${c.id}">Delete</button>
+              </td>`;
+            catRows.appendChild(tr);
+          });
+        })
+        .catch(() => {});
+    }
+
+    function openCatModal() { catStatus.textContent = ''; catBackdrop.hidden = false; loadCategories().then(() => catName.focus()); }
+    function closeCatModal() { catBackdrop.hidden = true; catForm.reset(); catStatus.textContent = ''; }
+
+    manageCatsBtn.addEventListener('click', openCatModal);
+    closeCat.addEventListener('click', closeCatModal);
+    catBackdrop.addEventListener('click', (e) => { if (e.target === catBackdrop) closeCatModal(); });
+
+    catForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = catName.value.trim();
+      if (!name) return;
+      catStatus.textContent = 'Saving…';
+      fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ name })
+      })
+        .then(res => res.json())
+        .then(data => {
+          catStatus.textContent = data.message || data.error || '';
+          if (!data.error) { catForm.reset(); loadCategories(); }
+        })
+        .catch(() => { catStatus.textContent = 'Failed to add category'; });
+    });
+
+    catRows.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-cat-action]');
+      if (!btn) return;
+      const id = btn.getAttribute('data-id');
+      const action = btn.getAttribute('data-cat-action');
+
+      if (action === 'edit') {
+        const current = btn.getAttribute('data-name') || '';
+        const input = prompt('Rename category:', current);
+        if (input === null) return;
+        const name = input.trim();
+        if (!name || name === current) return;
+        fetch(`/api/categories/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ name })
+        })
+          .then(res => res.json())
+          .then(data => {
+            catStatus.textContent = data.message || data.error || '';
+            if (!data.error) { loadCategories(); loadMenu(); }
+          })
+          .catch(() => { catStatus.textContent = 'Failed to rename category'; });
+        return;
+      }
+
+      if (action === 'delete') {
+        if (!confirm('Delete this category?')) return;
+        fetch(`/api/categories/${id}`, { method: 'DELETE', headers: authHeaders() })
+          .then(res => res.json())
+          .then(data => {
+            catStatus.textContent = data.message || data.error || '';
+            if (!data.error) loadCategories();
+          })
+          .catch(() => { catStatus.textContent = 'Failed to delete category'; });
+      }
+    });
+
     loadMenu();
+    loadCategories();
   </script>
 </body>
 </html>
