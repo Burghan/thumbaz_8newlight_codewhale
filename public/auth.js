@@ -1,6 +1,6 @@
 const AUTH_KEY = 'pos_auth';
 const THEME_KEY = 'pos_theme';
-const DEFAULT_THEME = 'black-orange';
+const DEFAULT_THEME = 'newlight';
 const ROLE_HOME = {
   admin: '/dashboard.html',
   manager: '/dashboard.html',

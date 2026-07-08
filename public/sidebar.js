@@ -94,6 +94,9 @@
         group.remove();
         return;
       }
+      children.forEach(link => {
+        if (link.getAttribute('href') === currentPath) link.classList.add('active');
+      });
       const hasActive = Array.from(children).some(link => link.getAttribute('href') === currentPath);
       if (hasActive) {
         group.classList.add('open');

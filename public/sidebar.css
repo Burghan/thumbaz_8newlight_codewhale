@@ -225,3 +225,43 @@ body.sidebar-open .menu-toggle {
     left: 10px;
   }
 }
+
+/* ============================================================
+   New Light brand — blue sidebar with cream text.
+   Overrides the hardcoded dark values above.
+   ============================================================ */
+.menu-toggle { background: var(--brand); color: #fff; box-shadow: var(--shadow-sm); }
+
+.sidebar {
+  background: var(--brand);
+  border-right: 1px solid rgba(0, 0, 0, 0.10);
+  box-shadow: 6px 0 24px rgba(46, 72, 100, 0.18);
+}
+
+.sidebar h2 { color: rgba(255, 255, 255, 0.72); }
+
+.sidebar-brand { border-bottom: 1px solid rgba(255, 255, 255, 0.22); }
+.sidebar-brand .brand-logo { background: var(--cream); color: var(--brand-ink); }
+.sidebar-brand .brand-title { color: #ffffff; font-family: var(--font-brand); font-weight: 700; letter-spacing: 0.02em; }
+.sidebar-brand .brand-subtitle { color: rgba(255, 255, 255, 0.78); }
+
+.sidebar a,
+.sidebar a .label { color: #eef2f8 !important; }
+.sidebar a { background: transparent; }
+.sidebar a .icon svg { stroke: rgba(255, 255, 255, 0.85); }
+
+.nav-group { background: rgba(255, 255, 255, 0.06); }
+.nav-toggle { background: transparent; color: #eef2f8; }
+.nav-toggle .chevron svg { stroke: rgba(255, 255, 255, 0.80); }
+.sidebar a.nav-sub { background: rgba(255, 255, 255, 0.05); }
+
+.sidebar a:hover,
+.sidebar a:hover .label { color: #ffffff !important; }
+.sidebar a:hover { background: rgba(255, 255, 255, 0.16); }
+
+.sidebar a.active,
+.sidebar a.active .label { color: #ffffff !important; }
+.sidebar a.active {
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 3px 0 0 var(--cream);
+}
