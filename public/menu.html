@@ -36,9 +36,9 @@
 
     .card {
       background: var(--card);
-      padding: 16px;
-      border-radius: 12px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+      padding: 18px;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
       border: 1px solid var(--border);
     }
 
@@ -90,21 +90,21 @@
     }
 
     .row-btn.danger {
-      background: #9c3b33;
+      background: var(--danger);
     }
 
-    .editing-row {
-      outline: 2px solid var(--accent);
-      box-shadow: 0 0 0 2px rgba(240, 132, 27, 0.25);
+    .editing-row td {
+      background: #eaf0f7 !important;
+      box-shadow: inset 0 0 0 2px var(--brand);
     }
 
     .editing-banner {
-      margin-bottom: 10px;
-      padding: 10px 12px;
+      margin-bottom: 12px;
+      padding: 10px 14px;
       border-radius: 10px;
-      background: rgba(240, 132, 27, 0.12);
-      border: 1px solid rgba(240, 132, 27, 0.4);
-      color: var(--accent);
+      background: #eef2f8;
+      border: 1px solid var(--brand);
+      color: var(--brand-ink);
       font-weight: 600;
     }
 
@@ -114,7 +114,8 @@
       height: 100px;
       border-radius: 10px;
       border: 1px dashed var(--border);
-      background: #12151b;
+      background: var(--cream-soft);
+      margin-top: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -140,11 +141,13 @@
     }
 
     .status {
-      margin-top: 8px;
+      margin-top: 10px;
       font-size: 13px;
-      color: #b00020;
+      color: var(--muted);
       min-height: 18px;
     }
+
+    .status.error { color: var(--danger); }
 
     @media (max-width: 720px) {
       .grid {
@@ -178,8 +181,8 @@
     }
 
     .editor-card {
-      border: 1px solid rgba(240, 132, 27, 0.35);
-      background: linear-gradient(140deg, rgba(21, 18, 14, 0.9), rgba(18, 16, 12, 0.9));
+      border: 1px solid var(--border);
+      background: var(--card);
       max-width: none;
       margin: 0;
     }
@@ -232,11 +235,56 @@
       display: inline-block;
       padding: 2px 8px;
       border-radius: 999px;
-      background: rgba(180, 180, 180, 0.15);
-      color: #b9b9b9;
+      background: #eceef2;
+      color: var(--muted);
       font-size: 11px;
       margin-left: 6px;
     }
+
+    /* ---- UX enhancements ---- */
+    .page-sub { color: var(--muted); font-size: 14px; margin: 2px 0 16px; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 760px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+    .stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      box-shadow: var(--shadow-sm);
+    }
+    .stat .label {
+      font-size: 12px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600;
+    }
+    .stat .value {
+      font-family: var(--font-brand);
+      font-size: 26px; font-weight: 700; color: var(--brand-ink); margin-top: 4px;
+    }
+    .stat.warn .value { color: var(--danger); }
+    .stat.good .value { color: var(--positive); }
+
+    .card-title {
+      font-family: var(--font-brand);
+      font-size: 16px; font-weight: 700; color: var(--brand-ink); margin: 0 0 12px;
+    }
+
+    .list-scroll table thead th { position: sticky; top: 0; z-index: 2; }
+
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .money-pos { color: var(--positive); font-weight: 600; }
+    .money-neg { color: var(--danger); font-weight: 600; }
+    tr.loss td { background: #fbecea; }
+
+    .menu-controls .control.search { flex: 1 1 220px; max-width: none; }
+    .menu-controls label { color: var(--brand-ink); }
+    .menu-controls .toggle { color: var(--brand-ink); }
+    .menu-controls .toggle input { width: auto; min-height: auto; }
   </style>
 </head>
 <body class="theme-cafe">
@@ -302,10 +350,22 @@
 </div>
 
 <h1>📋 Menu Items</h1>
+<p class="page-sub">Pricing, cost (HPP) and margin for every menu item — HPP is driven by the latest ingredient prices.</p>
+
+<div class="stats">
+  <div class="stat"><div class="label">Menu Items</div><div class="value" id="statCount">–</div></div>
+  <div class="stat"><div class="label">Avg Margin</div><div class="value" id="statMargin">–</div></div>
+  <div class="stat"><div class="label">With Recipe</div><div class="value" id="statCosted">–</div></div>
+  <div class="stat" id="statLossCard"><div class="label">Below Cost</div><div class="value" id="statLoss">–</div></div>
+</div>
 
     <div class="cards">
       <div class="card menu-list-card">
         <div class="menu-controls">
+          <div class="control search">
+            <label for="searchMenu">Search</label>
+            <input id="searchMenu" type="search" placeholder="Search menu name…" />
+          </div>
           <div class="control">
             <label for="filterCategory">Filter Category</label>
             <select id="filterCategory">
@@ -347,18 +407,21 @@
                 <th data-col="labor_cost" class="col-hidden">Labor</th>
                 <th data-col="utility_cost" class="col-hidden">Utilities</th>
                 <th data-col="wifi_cost" class="col-hidden">Wifi</th>
-                <th>HPP Total</th>
+                <th class="num">HPP Total</th>
+                <th class="num">Profit</th>
+                <th class="num">Margin</th>
                 <th data-col="notes">Notes</th>
               </tr>
             </thead>
             <tbody id="rows">
-              <tr><td colspan="11">Loading…</td></tr>
+              <tr><td colspan="13">Loading…</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
       <div class="card editor-card" id="menuEditor">
+        <div class="card-title">✏️ Add / Edit Menu Item</div>
         <div class="editing-banner" id="editBanner" style="display:none;">Editing menu item</div>
         <form id="menu-form">
           <div class="grid">
@@ -468,6 +531,12 @@
     const showArchived = document.getElementById('showArchived');
     const archiveDuplicatesBtn = document.getElementById('archiveDuplicatesBtn');
     const exportExcelBtn = document.getElementById('exportExcelBtn');
+    const searchMenu = document.getElementById('searchMenu');
+    const statCount = document.getElementById('statCount');
+    const statMargin = document.getElementById('statMargin');
+    const statCosted = document.getElementById('statCosted');
+    const statLoss = document.getElementById('statLoss');
+    const statLossCard = document.getElementById('statLossCard');
 
     let editingId = null;
     let menuData = [];
@@ -481,17 +550,47 @@
       return `Rp. ${whole}.${parts[1]}`;
     }
 
+    function updateStats(data) {
+      const items = (data || []).filter(p => Number(p.active) === 1);
+      let marginSum = 0, marginN = 0, costed = 0, loss = 0;
+      items.forEach(p => {
+        const price = Number(p.price || 0);
+        const hpp = Number(p.std_cost_per_item || 0)
+          + Number(p.labor_cost || 0)
+          + Number(p.utility_cost || 0)
+          + Number(p.wifi_cost || 0);
+        if (Number(p.std_cost_per_item || 0) > 0) costed++;
+        if (price > 0) {
+          marginSum += (price - hpp) / price * 100;
+          marginN++;
+          if (price < hpp) loss++;
+        }
+      });
+      statCount.textContent = items.length;
+      statMargin.textContent = marginN ? `${Math.round(marginSum / marginN)}%` : '–';
+      statCosted.textContent = costed;
+      statLoss.textContent = loss;
+      statLossCard.classList.toggle('warn', loss > 0);
+      statLossCard.classList.toggle('good', loss === 0 && items.length > 0);
+    }
+
     function renderMenuRows(data) {
+      updateStats(data);
       rowsEl.innerHTML = '';
       if (!data.length) {
-        rowsEl.innerHTML = '<tr><td colspan="9">No menu items yet</td></tr>';
+        rowsEl.innerHTML = '<tr><td colspan="13">No menu items yet</td></tr>';
         return;
       }
 
       const filterValue = String(filterCategory.value || '').toLowerCase();
+      const searchValue = String(searchMenu.value || '').trim().toLowerCase();
       let filtered = data;
       if (filterValue) {
-        filtered = data.filter(p => String(p.category || '').toLowerCase() === filterValue);
+        filtered = filtered.filter(p => String(p.category || '').toLowerCase() === filterValue);
+      }
+      if (searchValue) {
+        filtered = filtered.filter(p =>
+          `${p.name || ''} ${p.variant || ''} ${p.category || ''}`.toLowerCase().includes(searchValue));
       }
 
       const sortValue = sortMenu.value || 'name-asc';
@@ -512,25 +611,31 @@
         return nameA.localeCompare(nameB);
       });
 
+      if (!filtered.length) {
+        rowsEl.innerHTML = '<tr><td colspan="13">No items match your search</td></tr>';
+        return;
+      }
+
       filtered.forEach(p => {
         const tr = document.createElement('tr');
-        const priceLabel = formatRupiah(p.price);
-        const specialPriceLabel = formatRupiah(p.special_price);
-        const costLabel = formatRupiah(p.std_cost_per_item);
-        const laborLabel = formatRupiah(p.labor_cost);
-        const utilityLabel = formatRupiah(p.utility_cost);
-        const wifiLabel = formatRupiah(p.wifi_cost);
+        const price = Number(p.price || 0);
         const hppTotal = Number(p.std_cost_per_item || 0)
           + Number(p.labor_cost || 0)
           + Number(p.utility_cost || 0)
           + Number(p.wifi_cost || 0);
-        const hppTotalLabel = formatRupiah(hppTotal);
+        const profit = price - hppTotal;
+        const hasPrice = price > 0;
+        const margin = hasPrice ? (profit / price) * 100 : null;
+        const profitCls = profit < 0 ? 'money-neg' : 'money-pos';
+        const marginCls = margin === null ? '' : (margin < 0 ? 'money-neg' : 'money-pos');
+        const marginStr = margin === null ? '—' : `${margin.toFixed(0)}%`;
         const isActive = Number(p.active) === 1;
         const nameLabel = p.variant ? `${p.name}, ${p.variant}` : (p.name || '');
         const statusLabel = isActive ? '' : '<span class="pill-archived">Archived</span>';
         const actionBtn = isActive
           ? `<button type="button" class="row-btn danger" data-action="archive" data-id="${p.id}">Archive</button>`
           : `<button type="button" class="row-btn danger" data-action="delete" data-id="${p.id}">Delete</button>`;
+        if (hasPrice && profit < 0) tr.classList.add('loss');
         tr.innerHTML = `
           <td>${nameLabel}${statusLabel}</td>
           <td>
@@ -538,13 +643,15 @@
             ${actionBtn}
           </td>
           <td data-col="variant">${p.variant || ''}</td>
-          <td>${priceLabel}</td>
-          <td>${specialPriceLabel}</td>
-          <td>${costLabel}</td>
-          <td data-col="labor_cost" class="col-hidden">${laborLabel}</td>
-          <td data-col="utility_cost" class="col-hidden">${utilityLabel}</td>
-          <td data-col="wifi_cost" class="col-hidden">${wifiLabel}</td>
-          <td>${hppTotalLabel}</td>
+          <td class="num">${formatRupiah(p.price)}</td>
+          <td class="num">${formatRupiah(p.special_price)}</td>
+          <td class="num">${formatRupiah(p.std_cost_per_item)}</td>
+          <td data-col="labor_cost" class="col-hidden num">${formatRupiah(p.labor_cost)}</td>
+          <td data-col="utility_cost" class="col-hidden num">${formatRupiah(p.utility_cost)}</td>
+          <td data-col="wifi_cost" class="col-hidden num">${formatRupiah(p.wifi_cost)}</td>
+          <td class="num">${formatRupiah(hppTotal)}</td>
+          <td class="num ${profitCls}">${formatRupiah(profit)}</td>
+          <td class="num ${marginCls}">${marginStr}</td>
           <td>${p.notes || ''}</td>
         `;
         rowsEl.appendChild(tr);
@@ -757,6 +864,7 @@
 
     filterCategory.addEventListener('change', () => renderMenuRows(menuData));
     sortMenu.addEventListener('change', () => renderMenuRows(menuData));
+    searchMenu.addEventListener('input', () => renderMenuRows(menuData));
     showArchived.addEventListener('change', loadMenu);
 
     archiveDuplicatesBtn.addEventListener('click', () => {
