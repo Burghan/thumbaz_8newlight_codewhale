@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>System Report – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    body { font-family: inherit; margin: 0; padding: 0; background: transparent; color: var(--ink); }
+    .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; padding: 16px; }
+    .topbar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .topbar h1 { margin: 0; flex: 1; font-size: 20px; }
+    .topbar button, .topbar select, .topbar input { width: auto; margin: 0; min-height: 32px; font-size: 13px; padding: 6px 12px; border-radius: 8px; }
+    button { background: var(--brand); color: #fff; border: none; cursor: pointer; font-weight: 600; }
+    .main-scroll { flex: 1 1 auto; overflow: auto; }
+    .card { background: var(--card); padding: 16px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 8px 20px rgba(41,26,18,0.16); margin-bottom: 14px; }
+    h2 { margin: 0 0 8px; font-size: 16px; color: var(--accent); }
+    h3 { margin: 0 0 6px; font-size: 14px; color: var(--brand-ink); }
+
+    /* KPI Cards */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    @media(max-width:760px){ .kpi-grid{grid-template-columns:repeat(2,1fr);} }
+    .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; box-shadow: var(--shadow-sm); }
+    .kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .kpi .value { font-family: var(--font-brand); font-size: 28px; font-weight: 700; color: var(--brand-ink); margin-top: 4px; }
+    .kpi .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .kpi.good .value { color: #2e7d32; }
+    .kpi.warn .value { color: var(--danger); }
+
+    /* Charts */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--accent); font-size: 11px; text-transform: uppercase; position: sticky; top: 0; background: var(--card); }
+    .num { text-align: right; }
+    .pos { color: #2e7d32; font-weight: 600; }
+    .neg { color: var(--danger); font-weight: 600; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media(max-width:800px){ .two-col { grid-template-columns: 1fr; } }
+    
+    .bar-wrap { height: 8px; background: rgba(0,0,0,0.06); border-radius: 4px; overflow: hidden; margin-top: 4px; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+  </style>
+</head>
+<body class="theme-cafe">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Navigation</div></div></div>
+    <a href="/dashboard.html">Dashboard</a><a href="/pos.html">POS</a><a href="/inventory.html">Inventory</a>
+    <div class="nav-group"><button class="nav-toggle" type="button"><span>📋 Product</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button><div class="nav-children"><a href="/menu.html" class="nav-sub">Menu Items</a><a href="/receipe.html" class="nav-sub">Recipe</a><a href="/ingredients.html" class="nav-sub">Ingredients</a></div></div>
+    <div class="nav-group"><button class="nav-toggle" type="button"><span>💰 Purchase</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button><div class="nav-children"><a href="/purchase.html" class="nav-sub">Purchases</a><a href="/expenses.html" class="nav-sub">Expenses</a><a href="/supplier.html" class="nav-sub">Suppliers</a></div></div>
+    <div class="nav-group"><button class="nav-toggle" type="button"><span>👥 Employees</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button><div class="nav-children"><a href="/employees.html" class="nav-sub">Users</a><a href="/payroll.html" class="nav-sub">Payroll</a><a href="/clock.html" class="nav-sub">Attendance</a></div></div>
+    <a href="/system-report.html">System Report</a><a href="/import-center.html">Import Center</a><a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content">
+    <div class="topbar">
+      <button id="menuToggle" class="menu-toggle">☰</button>
+      <h1>📊 System Report</h1>
+      <select id="reportMonth"></select>
+    </div>
+
+    <div class="main-scroll">
+      <!-- KPI Dashboard -->
+      <h2>📈 KPI Dashboard</h2>
+      <div class="kpi-grid">
+        <div class="kpi" id="kpiRevenue"><div class="label">Revenue</div><div class="value">–</div><div class="sub">vs Target Rp 20M</div></div>
+        <div class="kpi" id="kpiCOGS"><div class="label">COGS %</div><div class="value">–</div><div class="sub">Target ≤ 35%</div></div>
+        <div class="kpi" id="kpiLabor"><div class="label">Labor Cost %</div><div class="value">–</div><div class="sub">Target ≤ 30%</div></div>
+        <div class="kpi" id="kpiProfit"><div class="label">Net Profit %</div><div class="value">–</div><div class="sub">Target 10-20%</div></div>
+      </div>
+
+      <!-- Cashflow -->
+      <div class="two-col">
+        <div class="card">
+          <h2>💰 Cashflow</h2>
+          <table><thead><tr><th>Date</th><th>Description</th><th class="num">In</th><th class="num">Out</th><th class="num">Balance</th></tr></thead>
+          <tbody id="cashflowRows"><tr><td colspan="5">Loading…</td></tr></tbody></table>
+        </div>
+
+        <!-- Forecast -->
+        <div class="card">
+          <h2>🔮 Revenue Forecast</h2>
+          <table><thead><tr><th>Month</th><th class="num">Target</th><th class="num">Actual</th><th class="num">Growth</th><th>Status</th></tr></thead>
+          <tbody id="forecastRows"><tr><td colspan="5">Loading…</td></tr></tbody></table>
+        </div>
+      </div>
+
+      <!-- Budget vs Actual -->
+      <div class="card" style="margin-top:14px;">
+        <h2>📊 Budget vs Actual</h2>
+        <table><thead><tr><th>Category</th><th class="num">Budget</th><th class="num">Actual</th><th class="num">Diff</th><th>% Used</th></tr></thead>
+        <tbody id="budgetRows"><tr><td colspan="5">Loading…</td></tr></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin','manager']);
+    if (!auth) throw new Error('Unauthorized');
+    const h = authHeaders(); const opts = { headers: h, credentials: 'same-origin' };
+
+    function formatRp(v) { return v ? 'Rp ' + Math.round(v).toLocaleString('id-ID') : '—'; }
+    function pct(v) { return v != null ? v.toFixed(1) + '%' : '—'; }
+
+    // Month selector
+    function buildMonths() {
+      const sel = document.getElementById('reportMonth');
+      const months = []; const now = new Date();
+      for (let i=0;i<12;i++) { const d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')); }
+      sel.innerHTML = months.map(m=>`<option value="${m}">${m}</option>`).join('');
+      sel.value = months[0];
+    }
+
+    async function loadAll() {
+      const month = document.getElementById('reportMonth').value;
+      
+      // 1. Revenue & Sales
+      const sales = await fetch(`/api/reports/daily?month=${month}`, opts).then(r=>r.json());
+      const revenue = sales.reduce((s,d)=>s+(d.revenue||0), 0);
+      const targetRevenue = 20000000;
+      const revPct = targetRevenue > 0 ? (revenue/targetRevenue*100) : 0;
+      
+      // 2. COGS from sales
+      const cogs = sales.reduce((s,d)=>s+(d.cost||0), 0);
+      const cogsPct = revenue > 0 ? (cogs/revenue*100) : 0;
+      
+      // 3. Expenses
+      const expData = await fetch(`/api/expenses?month=${month}`, opts).then(r=>r.json());
+      const totalExp = expData.reduce((s,e)=>s+(e.amount||0), 0);
+      
+      // 4. Payroll
+      const payrollData = await fetch(`/api/attendance/history?month=${month}`, opts).then(r=>r.json()).catch(()=>[]);
+      const users = await fetch('/api/users', opts).then(r=>r.json());
+      let totalLabor = 0;
+      users.filter(u=>u.active).forEach(u => {
+        const userAtt = payrollData.filter(a=>String(a.user_id)===String(u.id));
+        const days = new Set(userAtt.map(a=>a.clock_in?a.clock_in.slice(0,10):null).filter(Boolean));
+        const saved = payrollData.find(a=>String(a.user_id)===String(u.id)&&a.overtime)||{};
+        totalLabor += days.size*(u.rate||0) + (saved.overtime||0) + (saved.bonus||0);
+      });
+      const laborPct = revenue > 0 ? (totalLabor/revenue*100) : 0;
+      
+      // 5. Net Profit
+      const netProfit = revenue - cogs - totalExp - totalLabor;
+      const netPct = revenue > 0 ? (netProfit/revenue*100) : 0;
+
+      // Update KPI cards
+      document.getElementById('kpiRevenue').innerHTML = 
+        `<div class="label">Revenue</div><div class="value ${revPct>=80?'good':'warn'}">${formatRp(revenue)}</div><div class="sub">${pct(revPct)} of Target Rp 20M</div>`;
+      document.getElementById('kpiCOGS').innerHTML = 
+        `<div class="label">COGS %</div><div class="value ${cogsPct<=35?'good':'warn'}">${pct(cogsPct)}</div><div class="sub">Target ≤ 35%</div>`;
+      document.getElementById('kpiLabor').innerHTML = 
+        `<div class="label">Labor Cost %</div><div class="value ${laborPct<=30?'good':'warn'}">${pct(laborPct)}</div><div class="sub">Target ≤ 30%</div>`;
+      document.getElementById('kpiProfit').innerHTML = 
+        `<div class="label">Net Profit %</div><div class="value ${netPct>=10?'good':'warn'}">${pct(netPct)}</div><div class="sub">Target 10-20%</div>`;
+
+      // Cashflow
+      const cfRows = document.getElementById('cashflowRows');
+      cfRows.innerHTML = '<tr><td colspan="5">Loading cashflow…</td></tr>';
+      
+      // Aggregate sales + expenses by date
+      const byDate = {};
+      sales.forEach(d => { if(!byDate[d.date]) byDate[d.date]={rev:0,exp:0}; byDate[d.date].rev += d.revenue||0; });
+      expData.forEach(e => { if(!byDate[e.date]) byDate[e.date]={rev:0,exp:0}; byDate[e.date].exp += e.amount||0; });
+      
+      let balance = 500000; // opening
+      cfRows.innerHTML = '';
+      Object.keys(byDate).sort().forEach(date => {
+        const d = byDate[date];
+        balance += d.rev - d.exp;
+        cfRows.innerHTML += `<tr><td>${date}</td><td>Sales + Expenses</td><td class="num pos">${d.rev?formatRp(d.rev):'—'}</td><td class="num neg">${d.exp?formatRp(d.exp):'—'}</td><td class="num">${formatRp(balance)}</td></tr>`;
+      });
+
+      // Forecast
+      const forecastRows = document.getElementById('forecastRows');
+      const allMonthly = await fetch('/api/reports/daily?month='+month, opts).then(r=>r.json()).catch(()=>[]);
+      const growth = 0.05;
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      forecastRows.innerHTML = '';
+      let prevActual = revenue;
+      months.forEach((m,i) => {
+        const target = targetRevenue;
+        const actual = i===6 ? revenue : (prevActual * (1+growth));
+        const g = i===6 ? 0 : growth;
+        const status = actual >= target ? '<span class="pos">✓ On Track</span>' : '<span class="neg">❌ Below</span>';
+        forecastRows.innerHTML += `<tr><td>${m}</td><td class="num">${formatRp(target)}</td><td class="num">${formatRp(actual)}</td><td class="num">${pct(g*100)}</td><td>${i===6?status:'<span style="color:var(--muted);">Forecast</span>'}</td></tr>`;
+        prevActual = actual;
+      });
+
+      // Budget vs Actual
+      const budgetRows = document.getElementById('budgetRows');
+      const budgetCategories = [
+        { name: 'Revenue', budget: 20000000, actual: revenue },
+        { name: 'COGS', budget: targetRevenue*0.35, actual: cogs },
+        { name: 'Expenses', budget: targetRevenue*0.15, actual: totalExp },
+        { name: 'Labor', budget: targetRevenue*0.30, actual: totalLabor },
+        { name: 'Net Profit', budget: targetRevenue*0.20, actual: netProfit },
+      ];
+      budgetRows.innerHTML = '';
+      budgetCategories.forEach(c => {
+        const diff = c.actual - c.budget;
+        const used = c.budget>0 ? (c.actual/c.budget*100) : 0;
+        const cls = diff>=0 ? 'pos' : 'neg';
+        budgetRows.innerHTML += `<tr><td>${c.name}</td><td class="num">${formatRp(c.budget)}</td><td class="num">${formatRp(c.actual)}</td><td class="num ${cls}">${diff>=0?'+':''}${formatRp(Math.abs(diff))}</td><td>${pct(used)}</td></tr>`;
+      });
+    }
+
+    document.getElementById('reportMonth').addEventListener('change', loadAll);
+    buildMonths();
+    if (auth) loadAll();
+  </script>
+</body>
+</html>

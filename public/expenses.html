@@ -7,194 +7,106 @@
   <link rel="stylesheet" href="/sidebar.css" />
   <link rel="stylesheet" href="/theme.css" />
   <style>
-    body {
-      font-family: inherit;
-      background: transparent;
-      margin: 0;
-      padding: 0;
-      color: var(--ink);
-    }
-    h1 {
-      margin-bottom: 6px;
-    }
-    .page-header {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px 12px;
-      align-items: center;
-      margin-bottom: 14px;
-    }
-    .page-subtitle {
-      font-size: 16px;
-      color: var(--accent);
-    }
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: #1c212b;
-      color: var(--accent);
-      font-size: 12px;
-      font-weight: 700;
-    }
+    body { font-family: inherit; margin: 0; padding: 0; background: transparent; color: var(--ink); }
+    .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; }
+    .topbar, .page-sub, .stats, .filter-bar { flex: 0 0 auto; }
+    .main-area { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 380px; gap: 12px; min-height: 0; overflow: hidden; }
+    @media(max-width:800px){ .main-area { grid-template-columns: 1fr; } }
 
-    .card {
-      background: var(--card);
-      padding: 16px;
-      border-radius: 12px;
-      max-width: 520px;
-      box-shadow: 0 8px 20px rgba(41, 26, 18, 0.16);
-      border: 1px solid var(--border);
-    }
-    .card.wide {
-      max-width: 100%;
-    }
-    .cards {
-      display: grid;
-      gap: 12px;
-      grid-template-columns: 1fr;
-    }
-    label {
-      display: block;
-      margin-top: 10px;
-    }
-    select, input, textarea {
-      width: 100%;
-      padding: 12px;
-      font-size: 14px;
-      min-height: 44px;
-      border-radius: 6px;
-    }
-    button {
-      margin-top: 14px;
-      width: 100%;
-      padding: 12px;
-      min-height: 48px;
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
-      letter-spacing: 0.3px;
-      cursor: pointer;
-    }
-    .status { margin-top: 10px; font-size: 14px; }
-    @media (min-width: 900px) {
-      .cards {
-        grid-template-columns: 1fr 1.3fr;
-        align-items: start;
-      }
-    }
+    .topbar { display: flex; align-items: center; gap: 10px; }
+    .topbar h1 { margin: 0; flex: 1; font-size: 20px; }
+    .topbar button { width: auto; margin-top: 0; }
+    .page-sub { color: var(--muted); font-size: 14px; margin: 2px 0 12px; }
+
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; box-shadow: var(--shadow-sm); }
+    .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .stat .value { font-family: var(--font-brand); font-size: 24px; font-weight: 700; color: var(--brand-ink); margin-top: 2px; }
+
+    .card { background: var(--card); padding: 14px; border-radius: 12px; box-shadow: 0 8px 20px rgba(41,26,18,0.16); border: 1px solid var(--border); }
+    .stat-card { display: flex; flex-direction: column; overflow: hidden; }
+    .table-wrap { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .list-scroll { overflow: auto; flex: 1 1 auto; min-height: 0; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { position: sticky; top: 0; background: var(--card); color: var(--accent); font-size: 11px; text-transform: uppercase; z-index: 1; }
+    .num { text-align: right; }
+
+    label { display: block; margin-top: 6px; font-size: 12px; color: var(--accent); }
+    select, input { width: 100%; padding: 8px 10px; font-size: 13px; min-height: 36px; border-radius: 8px; box-sizing: border-box; }
+    button { background: var(--brand); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; padding: 10px 14px; font-size: 13px; width: 100%; margin-top: 8px; }
+    button.secondary { background: var(--card); color: var(--brand-700); border: 1px solid var(--brand); }
+    .icon-btn { background: var(--card); color: var(--brand-ink); border: 1px solid var(--border); font-size: 18px; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; min-height: auto; }
+    .status { font-size: 12px; color: var(--muted); margin-top: 4px; }
   </style>
 </head>
 <body class="theme-cafe">
-  <button class="menu-toggle" id="menuToggle">☰ Menu</button>
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-      <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
-      <div class="brand-text">
-        <div class="brand-title">8 NewLight Coffee Bar</div>
-        <div class="brand-subtitle">Navigation</div>
-      </div>
-    </div>
+      <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Navigation</div></div></div>
     <a href="/dashboard.html">Dashboard</a>
     <a href="/pos.html">POS</a>
-  <div class="nav-group">
-    <button class="nav-toggle" type="button" aria-expanded="false">
-      <span>Employees</span>
-      <span class="chevron" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-      </span>
-    </button>
-    <div class="nav-children">
-      <a href="/employees.html" class="nav-sub">Employees</a>
-      <a href="/clock.html" class="nav-sub">Clock</a>
-    </div>
-  </div>
     <a href="/inventory.html">Inventory</a>
     <div class="nav-group">
-      <button class="nav-toggle" type="button" aria-expanded="false">
-        <span>Product</span>
-        <span class="chevron" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-        </span>
-      </button>
+      <button class="nav-toggle" type="button"><span>📋 Product</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
       <div class="nav-children">
         <a href="/menu.html" class="nav-sub">Menu Items</a>
-        <a href="/receipe.html" class="nav-sub">Ingredients / Recipe</a>
+        <a href="/receipe.html" class="nav-sub">Recipe</a>
+        <a href="/ingredients.html" class="nav-sub">Ingredients</a>
       </div>
     </div>
     <div class="nav-group">
-      <button class="nav-toggle" type="button" aria-expanded="false">
-        <span>Purchase</span>
-        <span class="chevron" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-        </span>
-      </button>
+      <button class="nav-toggle" type="button"><span>💰 Purchase</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
       <div class="nav-children">
-        <a href="/purchase.html" class="nav-sub">Ingredient Stock</a>
+        <a href="/purchase.html" class="nav-sub">Purchases</a>
         <a href="/expenses.html" class="nav-sub">Expenses</a>
         <a href="/supplier.html" class="nav-sub">Suppliers</a>
       </div>
     </div>
-    <a href="/chart.html">Daily Chart</a>
-    <a href="/report.html">Reports</a>
-    <a href="/setup.html">Setup</a>
-  <a href="/logout.html">Logout</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>👥 Employees</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/employees.html" class="nav-sub">Users</a>
+        <a href="/payroll.html" class="nav-sub">Payroll</a>
+        <a href="/clock.html" class="nav-sub">Attendance</a>
+      </div>
+    </div>
+    <a href="/system-report.html">System Report</a>
+    <a href="/import-center.html">Import Center</a>
+    <a href="/logout.html">Logout</a>
   </aside>
 
   <div class="content">
-    <div class="page-brand">
-      <img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" />
-      <div class="page-brand-text">8 NewLight Coffee</div>
-    </div>
-
-    <div class="page-header">
+    <div class="topbar">
+      <button class="icon-btn" id="menuToggle" aria-label="Open menu">☰</button>
       <h1>💸 Expenses</h1>
-      <span class="pill">Operating Costs</span>
-      <div class="page-subtitle">Track non-stock expenses that affect P&amp;L.</div>
+      <div style="flex:1;"></div>
+      <button id="refreshBtn" class="secondary">🔄 Refresh</button>
+    </div>
+    <p class="page-sub">Operational expenses — utilities, rent, supplies, maintenance, etc.</p>
+
+    <div class="stats">
+      <div class="stat"><div class="label">This Month</div><div class="value" id="statTotal">–</div></div>
+      <div class="stat"><div class="label">Count</div><div class="value" id="statCount">–</div></div>
+      <div class="stat"><div class="label">Top Category</div><div class="value" id="statTop">–</div></div>
     </div>
 
-    <div class="cards">
-      <div class="card">
-        <div class="section-title">New Expense</div>
-        <label>Expense Type</label>
-        <select id="expense_type">
-          <option value="">Select</option>
-          <option value="Electricity bill">Electricity bill</option>
-          <option value="Rent">Rent</option>
-          <option value="Internet bill">Internet bill</option>
-          <option value="Other">Other</option>
-        </select>
-
-        <label>Total Cost</label>
-        <input id="cost" type="number" step="1" placeholder="0" />
-
-        <label>Notes</label>
-        <textarea id="notes" placeholder="Details or reference"></textarea>
-
-        <button id="save">Save Expense</button>
-        <div class="status" id="status"></div>
+    <div class="main-area">
+      <div class="card stat-card">
+        <div class="table-wrap"><div class="list-scroll">
+          <table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th class="num">Amount</th></tr></thead>
+          <tbody id="rows"><tr><td colspan="4">Loading…</td></tr></tbody></table>
+        </div></div>
       </div>
 
-      <div class="card wide">
-        <div class="section-title">Expense List</div>
-        <div class="page-subtitle">Latest expenses first.</div>
-        <div class="table-wrap">
-          <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Total Cost</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
-          <tbody id="rows">
-            <tr><td colspan="4">Loading...</td></tr>
-          </tbody>
-          </table>
-        </div>
+      <div class="card">
+        <strong style="color:var(--accent);">Record Expense</strong>
+        <label>Date</label><input id="expDate" type="date" />
+        <label>Category</label><select id="expCat"><option value="Utilities">Utilities</option><option value="Rent">Rent</option><option value="Supplies">Supplies</option><option value="Maintenance">Maintenance</option><option value="Marketing">Marketing</option><option value="Other">Other</option></select>
+        <label>Description</label><input id="expDesc" placeholder="What was paid" />
+        <label>Amount (Rp)</label><input id="expAmt" type="number" step="1" placeholder="0" />
+        <button id="saveExp">Save Expense</button>
+        <div class="status" id="status"></div>
       </div>
     </div>
   </div>
@@ -202,71 +114,36 @@
   <script src="/auth.js"></script>
   <script src="/sidebar.js"></script>
   <script>
-    const auth = requireRole(['admin', 'manager']);
-    const status = document.getElementById('status');
-    const rows = document.getElementById('rows');
-    const expenseTypeEl = document.getElementById('expense_type');
+    const auth = requireRole(['admin','manager']);
+    function formatRp(v){ return 'Rp '+Math.round(Number(v||0)).toLocaleString('id-ID'); }
 
-    function formatRupiah(value) {
-      const num = Number(value || 0);
-      const parts = num.toFixed(2).split('.');
-      const whole = parts[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.');
-      return `Rp. ${whole}.${parts[1]}`;
+    async function loadAll(){
+      if(!auth)return;
+      const h=authHeaders();const opts={headers:h,credentials:'same-origin'};
+      const exp=await fetch('/api/expenses?month='+new Date().toISOString().slice(0,7),opts).then(r=>r.json());
+      const tb=document.getElementById('rows');tb.innerHTML='';
+      if(!exp.length){tb.innerHTML='<tr><td colspan="4">No expenses this month</td></tr>';}
+      let total=0;
+      exp.forEach(e=>{total+=e.amount;tb.innerHTML+=`<tr><td>${e.date}</td><td>${e.category}</td><td>${e.description||''}</td><td class="num">${formatRp(e.amount)}</td></tr>`;});
+      document.getElementById('statTotal').textContent=formatRp(total);
+      document.getElementById('statCount').textContent=exp.length;
+      const byCat={};exp.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+e.amount;});
+      let top='—',max=0;
+      for(const[k,v]of Object.entries(byCat)){if(v>max){max=v;top=k;}}
+      document.getElementById('statTop').textContent=top!=='—'?`${top} ${formatRp(max)}`:'—';
     }
 
-    function loadExpenses() {
-      if (!auth) return;
-      fetch('/api/purchases', { headers: authHeaders() })
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then(data => {
-          rows.innerHTML = '';
-          const expenses = data.filter(p => p.category === 'expense');
-          if (!expenses.length) {
-            rows.innerHTML = '<tr><td colspan="4">No expenses yet</td></tr>';
-            return;
-          }
-          expenses.forEach(p => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td>${p.date}</td>
-              <td>${p.expense_type || ''}</td>
-              <td>${formatRupiah(p.total_cost)}</td>
-              <td>${p.notes || ''}</td>
-            `;
-            rows.appendChild(tr);
-          });
-        })
-        .catch(() => {
-          rows.innerHTML = '<tr><td colspan="4">Failed to load expenses</td></tr>';
-        });
-    }
-
-    document.getElementById('save').addEventListener('click', () => {
-      if (!auth) return;
-      const payload = {
-        category: 'expense',
-        expense_type: expenseTypeEl.value,
-        total_cost: document.getElementById('cost').value,
-        notes: document.getElementById('notes').value
-      };
-      fetch('/api/purchases', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify(payload)
-      })
-        .then(r => r.json())
-        .then(d => {
-          status.textContent = d.message || d.error || 'Saved';
-          if (!d.error) {
-            loadExpenses();
-          }
-        })
-        .catch(() => {
-          status.textContent = 'Failed to save expense';
-        });
+    document.getElementById('saveExp').addEventListener('click',async()=>{
+      const payload={date:document.getElementById('expDate').value, category:document.getElementById('expCat').value, description:document.getElementById('expDesc').value, amount:document.getElementById('expAmt').value};
+      document.getElementById('status').textContent='Saving…';
+      const r=await fetch('/api/expenses',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify(payload)});
+      const d=await r.json();
+      document.getElementById('status').textContent=d.message||d.error||'Saved';
+      if(!d.error){document.getElementById('expDesc').value='';document.getElementById('expAmt').value='';loadAll();}
     });
-
-    loadExpenses();
+    document.getElementById('expDate').value=new Date().toISOString().slice(0,10);
+    document.getElementById('refreshBtn').addEventListener('click',loadAll);
+    if(auth)loadAll();
   </script>
 </body>
 </html>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clock – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    body { font-family: inherit; margin: 0; padding: 0; background: transparent; color: var(--ink); }
+    .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; padding: 20px; box-sizing: border-box; }
+    .topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+    .topbar h1 { margin: 0; flex: 1; font-size: 20px; }
+    .clock-area { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 700px; }
+    @media(max-width:600px){ .clock-area { grid-template-columns: 1fr; } }
+
+    .card { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 8px 20px rgba(41,26,18,0.16); text-align: center; }
+    .card h2 { margin: 0 0 12px; font-size: 18px; color: var(--accent); }
+    .time-display { font-size: 48px; font-weight: 700; font-family: var(--font-brand); color: var(--brand-ink); margin: 10px 0; }
+    .clock-btn { width: 100%; padding: 16px; font-size: 18px; border-radius: 14px; border: none; cursor: pointer; font-weight: 700; color: #fff; margin-top: 12px; }
+    .clock-btn.in { background: #2e7d32; }
+    .clock-btn.out { background: var(--danger); }
+    .clock-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    video, canvas { width: 100%; max-width: 320px; border-radius: 12px; margin: 8px auto; display: block; }
+    .photo-preview { width: 120px; height: 120px; border-radius: 12px; object-fit: cover; margin: 8px auto; border: 2px solid var(--border); }
+    .status { margin-top: 8px; font-size: 14px; font-weight: 600; min-height: 20px; }
+    .status.ok { color: #2e7d32; }
+    .today-list { margin-top: 20px; max-width: 700px; }
+    .today-list h3 { color: var(--accent); margin-bottom: 8px; }
+    .att-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--card); border-radius: 10px; margin-bottom: 6px; border: 1px solid var(--border); font-size: 13px; }
+    .att-row img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; margin: 0 6px; }
+    .att-row .in { color: #2e7d32; font-weight: 600; }
+    .att-row .out { color: var(--danger); font-weight: 600; }
+
+    select, input { padding: 10px 14px; font-size: 15px; border-radius: 10px; min-height: 44px; width: 100%; box-sizing: border-box; }
+    label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--accent); }
+
+    #cameraModal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    #cameraModal.hidden { display: none; }
+    #cameraModal video { max-width: 90vw; max-height: 60vh; }
+    #cameraModal button { margin: 10px; padding: 12px 24px; font-size: 16px; border-radius: 10px; }
+  </style>
+</head>
+<body class="theme-cafe">
+      <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Navigation</div></div></div>
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/pos.html">POS</a>
+    <a href="/inventory.html">Inventory</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>📋 Product</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/menu.html" class="nav-sub">Menu Items</a>
+        <a href="/receipe.html" class="nav-sub">Recipe</a>
+        <a href="/ingredients.html" class="nav-sub">Ingredients</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>💰 Purchase</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/purchase.html" class="nav-sub">Purchases</a>
+        <a href="/expenses.html" class="nav-sub">Expenses</a>
+        <a href="/supplier.html" class="nav-sub">Suppliers</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>👥 Employees</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/employees.html" class="nav-sub">Users</a>
+        <a href="/payroll.html" class="nav-sub">Payroll</a>
+        <a href="/clock.html" class="nav-sub">Attendance</a>
+      </div>
+    </div>
+    <a href="/system-report.html">System Report</a>
+    <a href="/import-center.html">Import Center</a>
+    <a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content" style="overflow:auto;">
+    <div class="topbar">
+      <button class="icon-btn" id="menuToggle" style="background:var(--card);color:var(--brand-ink);border:1px solid var(--border);width:32px;height:32px;border-radius:8px;font-size:18px;min-height:auto;margin:0;padding:0;">☰</button>
+      <h1>⏰ Clock In/Out</h1>
+      <div style="flex:1;"></div>
+      <div class="time-display" id="liveClock" style="font-size:24px;margin:0;">--:--</div>
+    </div>
+
+    <div class="clock-area">
+      <!-- Clock In -->
+      <div class="card" id="cardIn">
+        <h2>🟢 Clock In</h2>
+        <label>Employee</label>
+        <select id="empSelect"></select>
+        <img class="photo-preview" id="photoInPreview" src="" style="display:none;" alt="Photo" />
+        <button class="clock-btn in" id="clockInBtn">📸 Take Photo & Clock In</button>
+        <div class="status" id="statusIn"></div>
+      </div>
+
+      <!-- Clock Out -->
+      <div class="card" id="cardOut">
+        <h2>🔴 Clock Out</h2>
+        <img class="photo-preview" id="photoOutPreview" src="" style="display:none;" alt="Photo" />
+        <button class="clock-btn out" id="clockOutBtn">📸 Take Photo & Clock Out</button>
+        <div class="status" id="statusOut"></div>
+      </div>
+    </div>
+
+    <!-- Camera Modal -->
+    <div id="cameraModal" class="hidden">
+      <video id="cameraVideo" autoplay playsinline></video>
+      <canvas id="cameraCanvas" style="display:none;"></canvas>
+      <div>
+        <button class="clock-btn in" id="cameraCapture" style="width:auto;margin:8px;">📸 Capture</button>
+        <button class="clock-btn" style="background:var(--muted);width:auto;margin:8px;" id="cameraClose">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Today's Attendance -->
+    <div class="today-list">
+      <h3>📋 Today's Attendance</h3>
+      <div id="todayList">Loading…</div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin','manager','staff']);
+    const empSelect = document.getElementById('empSelect');
+    fetch('/api/users', {headers:authHeaders(),credentials:'same-origin'}).then(r=>r.json()).then(async users=>{users.filter(u=>u.active).forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.name;empSelect.appendChild(o);});
+    // Auto-select current logged-in user
+    try { const me = await fetch('/api/auth/me', {headers:authHeaders(),credentials:'same-origin'}).then(r=>r.json()); if (me && me.id) empSelect.value = me.id; } catch {}
+  });
+
+    // Populate employee list
+    
+
+    // Live clock
+    function updateClock() { document.getElementById('liveClock').textContent = new Date().toLocaleTimeString('id-ID'); }
+    setInterval(updateClock, 1000); updateClock();
+
+    // Camera logic
+    const modal = document.getElementById('cameraModal');
+    const video = document.getElementById('cameraVideo');
+    const canvas = document.getElementById('cameraCanvas');
+    let pendingAction = null; // 'in' or 'out'
+
+    async function openCamera(action) {
+      pendingAction = action;
+      modal.classList.remove('hidden');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        video.srcObject = stream;
+      } catch(e) {
+        alert('Camera not available. Clocking without photo.');
+        modal.classList.add('hidden');
+        doClock(pendingAction, null);
+      }
+    }
+
+    function closeCamera() {
+      if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
+      modal.classList.add('hidden');
+      pendingAction = null;
+    }
+
+    document.getElementById('cameraClose').addEventListener('click', closeCamera);
+
+    document.getElementById('cameraCapture').addEventListener('click', () => {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const photo = canvas.toDataURL('image/jpeg', 0.8);
+      closeCamera();
+      doClock(pendingAction, photo);
+    });
+
+    async function doClock(action, photo) {
+      const name = empSelect.value;
+      if (!name) return alert('Select an employee');
+      const statusEl = document.getElementById(action === 'in' ? 'statusIn' : 'statusOut');
+
+      if (action === 'in') {
+        document.getElementById('clockInBtn').disabled = true;
+        document.getElementById('clockInBtn').textContent = '⏳ Saving…';
+      } else {
+        document.getElementById('clockOutBtn').disabled = true;
+        document.getElementById('clockOutBtn').textContent = '⏳ Saving…';
+      }
+
+      try {
+        const r = await fetch(`/api/attendance/clock-${action}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() }, credentials: 'same-origin',
+          body: JSON.stringify({ user_id: name, photo })
+        });
+        const d = await r.json();
+        statusEl.textContent = `✅ ${d.message} — ${new Date(d.time).toLocaleTimeString('id-ID')}`;
+        statusEl.className = 'status ok';
+        if (photo && action === 'in') {
+          document.getElementById('photoInPreview').src = photo;
+          document.getElementById('photoInPreview').style.display = '';
+        }
+        if (photo && action === 'out') {
+          document.getElementById('photoOutPreview').src = photo;
+          document.getElementById('photoOutPreview').style.display = '';
+        }
+        loadToday();
+      } catch { statusEl.textContent = '❌ Failed'; statusEl.className = 'status'; }
+      finally {
+        if (action === 'in') { document.getElementById('clockInBtn').disabled = false; document.getElementById('clockInBtn').textContent = '📸 Take Photo & Clock In'; }
+        else { document.getElementById('clockOutBtn').disabled = false; document.getElementById('clockOutBtn').textContent = '📸 Take Photo & Clock Out'; }
+      }
+    }
+
+    document.getElementById('clockInBtn').addEventListener('click', () => openCamera('in'));
+    document.getElementById('clockOutBtn').addEventListener('click', () => openCamera('out'));
+
+    async function loadToday() {
+      try {
+        const data = await fetch('/api/attendance/today', { headers: authHeaders(), credentials: 'same-origin' }).then(r => r.json());
+        const el = document.getElementById('todayList');
+        if (!data.length) { el.innerHTML = '<div style="color:var(--muted);">No attendance recorded today</div>'; return; }
+        el.innerHTML = data.map(a => `
+          <div class="att-row">
+            <strong>${a.employee_name}</strong>
+            <span class="in">🟢 ${a.clock_in ? new Date(a.clock_in+'Z').toLocaleTimeString('id-ID') : '—'}</span>
+            ${a.photo_in ? `<img src="${a.photo_in}">` : ''}
+            <span class="out">🔴 ${a.clock_out ? new Date(a.clock_out+'Z').toLocaleTimeString('id-ID') : '—'}</span>
+            ${a.photo_out ? `<img src="${a.photo_out}">` : ''}
+          </div>`).join('');
+      } catch {}
+    }
+
+    if (auth) loadToday();
+  </script>
+</body>
+</html>

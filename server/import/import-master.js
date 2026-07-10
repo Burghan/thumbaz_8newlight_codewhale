@@ -1,215 +1,185 @@
-// Reconcile + import master data from Menu-Ingredient-Receipe.xlsx.
-//
-//   node server/import/import-master.js [--file data/Menu-Ingredient-Receipe.xlsx] [--apply]
-//
-// Default is DRY RUN: it matches everything by normalized name and prints a
-// reconciliation report without touching the database. Pass --apply to write.
+const ExcelJS = require('exceljs');
+const fs = require('fs');
 const path = require('path');
 const db = require('../db');
-const runMigrations = require('../migrate');
-const { loadWorkbook, readSheet, normName, normUnit } = require('../lib/xlsx');
 
-// Recipe product name (normalized) -> menu product name (normalized).
-// Resolves the 3 variant/synonym mismatches; base recipes attach to the Regular variant.
-const PRODUCT_OVERRIDES = {
-  'americano cold': 'americano ice',
-  'midnight dirty': 'midnight dirty - regular',
-  'spanish latte': 'spanish latte - regular'
-};
-
-function arg(name, fallback) {
-  const i = process.argv.indexOf(name);
-  return i !== -1 && i + 1 < process.argv.length ? process.argv[i + 1] : fallback;
-}
-const FILE = path.resolve(arg('--file', 'data/Menu-Ingredient-Receipe.xlsx'));
-const APPLY = process.argv.includes('--apply');
-const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-
-async function build() {
-  const wb = await loadWorkbook(FILE);
-
-  // --- Ingredients master ---
-  const ingRows = readSheet(wb.getWorksheet('Ingredients'));
-  const ingredients = ingRows.map(r => {
-    const name = r['Nama Bahan Baku'];
-    const baseUnit = normUnit(r['Ingredient_unit']);
-    const price = num(r['Harga Beli Terakhir (Rp)']);
-    const pkg = num(r['Volume/Isi Kemasan']);
-    const costPerBase = pkg > 0 ? price / pkg : 0; // rupiah per base unit
-    return {
-      name, key: normName(name),
-      category: r['Ingredients Category'] || null,
-      base_unit: baseUnit,
-      purchase_unit: 'pack',
-      conv_purchase_to_base: pkg || null,
-      last_price: price,
-      std_cost_per_base: costPerBase,
-      std_cost_per_base_micro: Math.round(costPerBase * 1e6)
-    };
-  }).filter(i => i.key);
-  const ingByKey = new Map(ingredients.map(i => [i.key, i]));
-
-  // --- Product menu ---
-  const menuRows = readSheet(wb.getWorksheet('Product_Menu'));
-  const products = menuRows.map(r => ({
-    name: (r['Menu_name'] || '').toString().trim(),
-    key: normName(r['Menu_name']),
-    category: r['Product_Category'] || null,
-    price: num(r['price']),
-    labor_cost: num(r['labor_cost']),
-    utility_cost: num(r['utility_cost']),
-    packaging_cost: num(r['wifi_cost']),
-    std_cost_per_item: num(r['std_cost_per_item']),
-    active: num(r['active']) === 1 ? 1 : (r['active'] == null ? 1 : 0)
-  })).filter(p => p.key);
-  const prodByKey = new Map(products.map(p => [p.key, p]));
-
-  // --- Recipe lines ---
-  const recRows = readSheet(wb.getWorksheet('Receipe'));
-  const recipes = recRows.map(r => ({
-    product_name: (r['product_name'] || '').toString().trim(),
-    product_key: normName(r['product_name']),
-    ingredient_name: (r['ingredient_name'] || '').toString().trim(),
-    ingredient_key: normName(r['ingredient_name']),
-    quantity: num(r['quantity']),
-    base_unit: normUnit(r['base_unit'])
-  })).filter(r => r.product_key && r.ingredient_key);
-
-  return { ingredients, ingByKey, products, prodByKey, recipes };
+// Column mapping helper
+function headerMap(ws) {
+  const row = ws.getRow(1);
+  const map = {};
+  row.eachCell((cell, col) => {
+    if (cell.value) map[normName(cell.value)] = col;
+  });
+  return map;
 }
 
-// Match a recipe product name to a menu product: exact, else unique prefix.
-function matchProduct(recipeKey, prodByKey) {
-  if (prodByKey.has(recipeKey)) return { key: recipeKey, how: 'exact' };
-  const prefixed = [...prodByKey.keys()].filter(k => k.startsWith(recipeKey + ' ') || k.startsWith(recipeKey + ' -'));
-  if (prefixed.length === 1) return { key: prefixed[0], how: 'prefix' };
-  if (prefixed.length > 1) return { key: null, how: 'ambiguous', candidates: prefixed };
-  return { key: null, how: 'unmatched' };
+function normName(v) {
+  if (v == null) return '';
+  if (typeof v === 'number') v = String(v);
+  if (v instanceof Date) v = v.toISOString().slice(0, 10);
+  return String(v).trim().toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9 ]/g, '');
 }
 
 async function main() {
-  const { ingredients, ingByKey, products, prodByKey, recipes } = await build();
+  const fname = process.argv[2] || 'data/JUNI_NEWLIGHT_SYSTEM_REPORT.xlsx';
+  const filePath = path.resolve(fname);
+  const apply = process.argv.includes('--apply');
 
-  console.log(`FILE: ${FILE}`);
-  console.log(`MODE: ${APPLY ? 'APPLY' : 'DRY RUN'}\n`);
-  console.log(`Ingredients master : ${ingredients.length}`);
-  console.log(`Menu products      : ${products.length}`);
-  console.log(`Recipe lines       : ${recipes.length}\n`);
+  console.log(`📂 Reading: ${filePath}`);
+  if (!fs.existsSync(filePath)) { console.error('File not found:', filePath); process.exit(1); }
 
-  // Ingredient reconciliation
-  const missingIng = [...new Set(recipes.filter(r => !ingByKey.has(r.ingredient_key)).map(r => r.ingredient_name))];
-  const noCost = ingredients.filter(i => i.std_cost_per_base <= 0).map(i => i.name);
-  console.log(`Recipe ingredients missing from master (${missingIng.length}): would be AUTO-CREATED with cost 0`);
-  missingIng.forEach(n => console.log('   +', n));
-  console.log(`\nMaster ingredients with no cost (${noCost.length}):`);
-  noCost.forEach(n => console.log('   ~', n));
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(filePath);
 
-  // Product reconciliation for recipes
-  const recProducts = [...new Set(recipes.map(r => r.product_key))];
-  const prodMatch = {};
-  recProducts.forEach(k => { prodMatch[k] = matchProduct(k, prodByKey); });
-  const exact = recProducts.filter(k => prodMatch[k].how === 'exact');
-  const prefix = recProducts.filter(k => prodMatch[k].how === 'prefix');
-  const ambiguous = recProducts.filter(k => prodMatch[k].how === 'ambiguous');
-  const unmatched = recProducts.filter(k => prodMatch[k].how === 'unmatched');
-  const nameOf = (key) => recipes.find(r => r.product_key === key).product_name;
+  console.log('Sheets:', wb.worksheets.map(s => s.name).join(', '));
 
-  console.log(`\nRecipe→Menu product matching (${recProducts.length} recipe products):`);
-  console.log(`   exact  : ${exact.length}`);
-  console.log(`   prefix : ${prefix.length}` + (prefix.length ? '  ->  ' + prefix.map(k => `${nameOf(k)} ⇒ ${prodMatch[k].key}`).join(' | ') : ''));
-  console.log(`   AMBIGUOUS (${ambiguous.length}): ${ambiguous.map(k => `${nameOf(k)} ⇒ [${prodMatch[k].candidates.join(', ')}]`).join(' | ') || '-'}`);
-  console.log(`   UNMATCHED (${unmatched.length}): ${unmatched.map(nameOf).join(', ') || '-'}`);
+  // 1. Import Sales Detail
+  let salesWs = wb.getWorksheet('Sales Detail') || wb.getWorksheet('Daily Sales');
+  if (salesWs) {
+    const hdr = headerMap(salesWs);
+    console.log('\n📊 Sales Detail columns:', Object.keys(hdr).join(', '));
 
-  const menuNoRecipe = products.filter(p => !recProducts.some(k => (prodMatch[k].key || k) === p.key));
-  console.log(`\nMenu products with NO recipe (${menuNoRecipe.length}): ${menuNoRecipe.map(p => p.name).join(', ')}`);
+    const dateCol = hdr.tanggal || hdr.date;
+    const nameCol = hdr.product || hdr.produk || hdr.nama || hdr.menu;
+    const qtyCol = hdr.quantity || hdr.jumlah || hdr.qty;
+    const priceCol = hdr.price || hdr.harga;
 
-  if (!APPLY) {
-    console.log('\n--- DRY RUN: nothing written. Re-run with --apply once mappings look right. ---');
-    return;
-  }
+    if (dateCol && nameCol) {
+      // Build product map
+      const prodMap = new Map();
+      db.prepare('SELECT id, name FROM products WHERE active=1').all().forEach(p => {
+        prodMap.set(normName(p.name), p);
+        // Also store with variant patterns
+        prodMap.set(normName(p.name).replace(/\s*-\s*/g, ', '), p);
+      });
 
-  const result = applyImport({ ingredients, products, recipes });
-  console.log('\n=== APPLIED ===');
-  console.log(`ingredients written : ${result.ingCount} (incl. ${result.autoCreated} auto-created @ cost 0)`);
-  console.log(`products written    : ${result.prodCount}`);
-  console.log(`recipe links written: ${result.linked}` + (result.skippedProd ? ` (skipped ${result.skippedProd} — unresolved product)` : ''));
-  if (result.unresolvedProducts.length) console.log('unresolved products :', result.unresolvedProducts.join(', '));
+      let imported = 0, skipped = 0;
+      const unmatched = new Set();
 
-  // COGS sanity check from the imported recipes
-  const cogs = db.prepare(`
-    SELECT p.name,
-           ROUND(SUM(r.quantity * i.std_cost_per_base_micro) / 1e6) AS cogs_rp,
-           COUNT(*) AS ingredients
-    FROM recipes r
-    JOIN ingredients i ON i.id = r.ingredient_id
-    JOIN products p ON p.id = r.product_id
-    GROUP BY p.id ORDER BY p.name LIMIT 8
-  `).all();
-  console.log('\nSample recipe COGS (Rp):');
-  cogs.forEach(c => console.log(`   ${c.name}: ${c.cogs_rp} (${c.ingredients} ingredients)`));
-}
+      if (apply) {
+        const insTxn = db.prepare("INSERT INTO transactions (transacted_at, payment_method) VALUES (?,'cash')");
+        const insItem = db.prepare("INSERT INTO transaction_items (transaction_id, product_id, quantity, unit_price, line_total, hpp_at_sale) VALUES (?,?,?,?,?,0)");
 
-function applyImport({ ingredients, products, recipes }) {
-  runMigrations();
-  const tx = db.transaction(() => {
-    // Fresh, deterministic import (FK-safe delete order).
-    db.exec('DELETE FROM recipes; DELETE FROM product_prices; DELETE FROM inventory; DELETE FROM products; DELETE FROM ingredients;');
+        db.transaction(() => {
+          salesWs.eachRow((row, i) => {
+            if (i === 1) return; // skip header
+            const dateRaw = row.getCell(dateCol).value;
+            const nameRaw = row.getCell(nameCol).value;
+            if (!dateRaw || !nameRaw) return;
 
-    const insIng = db.prepare(`INSERT INTO ingredients
-      (name, category, base_unit, purchase_unit, conv_purchase_to_base, last_purchase_price, std_cost_per_base_micro, active)
-      VALUES (?,?,?,?,?,?,?,1)`);
-    const keyToIngId = new Map();
-    for (const i of ingredients) {
-      const r = insIng.run(i.name, i.category, i.base_unit || 'pcs', i.purchase_unit, i.conv_purchase_to_base,
-        i.last_price ? Math.round(i.last_price) : null, i.std_cost_per_base_micro);
-      keyToIngId.set(i.key, r.lastInsertRowid);
-    }
+            let dateStr = typeof dateRaw === 'number' ? String(dateRaw) : (dateRaw instanceof Date ? dateRaw.toISOString().slice(0, 10) : String(dateRaw).trim());
+            const nameKey = normName(nameRaw);
+            const product = prodMap.get(nameKey);
 
-    // Auto-create recipe ingredients missing from the master (cost 0), unit from the recipe line.
-    const missing = new Map();
-    for (const rec of recipes) {
-      if (!keyToIngId.has(rec.ingredient_key) && !missing.has(rec.ingredient_key)) {
-        missing.set(rec.ingredient_key, { name: rec.ingredient_name, base_unit: rec.base_unit || 'pcs' });
+            if (!product) { unmatched.add(normName(nameRaw)); skipped++; return; }
+
+            const qty = qtyCol ? (Number(row.getCell(qtyCol).value) || 1) : 1;
+            const price = priceCol ? Math.round(Number(row.getCell(priceCol).value) || 0) : 0;
+
+            const txn = insTxn.run(dateStr);
+            insItem.run(txn.lastInsertRowid, product.id, qty, price, qty * price);
+            imported++;
+          });
+        })();
+        console.log(`  ✅ Imported ${imported} sales records, ${skipped} skipped`);
+        if (unmatched.size) console.log(`  ⚠ Unmatched products: ${[...unmatched].join(', ')}`);
+      } else {
+        // Dry run
+        let count = 0;
+        salesWs.eachRow((row, i) => { if (i > 1 && row.getCell(dateCol).value && row.getCell(nameCol).value) count++; });
+        console.log(`  🔍 Dry run: ${count} rows found`);
       }
     }
-    for (const [key, m] of missing) {
-      const r = insIng.run(m.name, null, m.base_unit || 'pcs', null, null, null, 0);
-      keyToIngId.set(key, r.lastInsertRowid);
+  }
+
+  // 2. Import Ingredients
+  let ingWs = wb.getWorksheet('Ingredients');
+  if (ingWs) {
+    const hdr = headerMap(ingWs);
+    console.log('\n🧪 Ingredients columns:', Object.keys(hdr).join(', '));
+
+    const nameCol = hdr.name || hdr.nama || hdr.ingredient || hdr['nama bahan baku'] || hdr['ingredient name'];
+    const priceCol = hdr.last_purchase_price || hdr['harga beli terakhir (rp)'] || hdr.price || hdr.harga;
+    const costCol = hdr.std_cost_per_base || hdr.cost || hdr['hpp per unit'];
+
+    if (nameCol) {
+      const ingMap = new Map();
+      db.prepare('SELECT id, name FROM ingredients WHERE active=1').all().forEach(i => {
+        ingMap.set(normName(i.name), i);
+      });
+
+      if (apply) {
+        let updated = 0;
+        db.transaction(() => {
+          ingWs.eachRow((row, i) => {
+            if (i === 1) return;
+            const nameRaw = row.getCell(nameCol).value;
+            if (!nameRaw) return;
+            const ing = ingMap.get(normName(nameRaw));
+            if (!ing) return;
+
+            if (priceCol) {
+              const price = Math.round(Number(row.getCell(priceCol).value) || 0);
+              if (price > 0) db.prepare("UPDATE ingredients SET last_purchase_price = ?, updated_at = datetime('now') WHERE id = ?").run(price, ing.id);
+            }
+            if (costCol) {
+              const cost = Number(row.getCell(costCol).value) || 0;
+              if (cost > 0) db.prepare("UPDATE ingredients SET std_cost_per_base_micro = ?, updated_at = datetime('now') WHERE id = ?").run(Math.round(cost * 1e6), ing.id);
+            }
+            updated++;
+          });
+        })();
+        console.log(`  ✅ Updated ${updated} ingredients`);
+      } else {
+        let count = 0;
+        ingWs.eachRow((row, i) => { if (i > 1 && row.getCell(nameCol).value) count++; });
+        console.log(`  🔍 Dry run: ${count} ingredient rows found`);
+      }
     }
+  }
 
-    // Opening inventory rows (0 stock) so purchasing works later.
-    const insInv = db.prepare(`INSERT INTO inventory (ingredient_id, quantity_base, avg_cost_micro) VALUES (?,0,?)`);
-    for (const i of ingredients) insInv.run(keyToIngId.get(i.key), i.std_cost_per_base_micro);
-    for (const key of missing.keys()) insInv.run(keyToIngId.get(key), 0);
+  // 3. Import Recipes (Menu sheet)
+  let menuWs = wb.getWorksheet('Menu') || wb.getWorksheet('Recipes') || wb.getWorksheet('Recipe');
+  if (menuWs) {
+    const hdr = headerMap(menuWs);
+    console.log('\n📋 Menu/Recipe columns:', Object.keys(hdr).join(', '));
+    
+    const prodCol = hdr.product || hdr.menu || hdr.nama || hdr['nama produk'] || hdr['menu item'];
+    const ingCol = hdr.ingredient || hdr.bahan || hdr['nama bahan'] || hdr['bahan baku'];
+    const qtyCol = hdr.quantity || hdr.qty || hdr.jumlah || hdr['qty'];
 
-    // Products + current price.
-    const insProd = db.prepare(`INSERT INTO products
-      (name, category, variant, labor_cost, utility_cost, packaging_cost, active) VALUES (?,?,?,?,?,?,?)`);
-    const insPrice = db.prepare(`INSERT INTO product_prices (product_id, price) VALUES (?,?)`);
-    const keyToProdId = new Map();
-    for (const p of products) {
-      const r = insProd.run(p.name, p.category, null, Math.round(p.labor_cost), Math.round(p.utility_cost), Math.round(p.packaging_cost), p.active);
-      keyToProdId.set(p.key, r.lastInsertRowid);
-      if (p.price > 0) insPrice.run(r.lastInsertRowid, Math.round(p.price));
+    if (prodCol && ingCol && apply) {
+      const prodMap = new Map();
+      db.prepare('SELECT id, name FROM products WHERE active=1').all().forEach(p => prodMap.set(normName(p.name), p));
+      const ingMap = new Map();
+      db.prepare('SELECT id, name FROM ingredients WHERE active=1').all().forEach(i => ingMap.set(normName(i.name), i));
+
+      const upsert = db.prepare('INSERT OR REPLACE INTO recipes (product_id, ingredient_id, quantity) VALUES (?,?,?)');
+      let imported = 0, skipped = 0;
+
+      db.transaction(() => {
+        menuWs.eachRow((row, i) => {
+          if (i === 1) return;
+          const prod = prodMap.get(normName(row.getCell(prodCol).value));
+          const ing = ingMap.get(normName(row.getCell(ingCol).value));
+          if (!prod || !ing) { skipped++; return; }
+          const qty = qtyCol ? (Number(row.getCell(qtyCol).value) || 0) : 1;
+          upsert.run(prod.id, ing.id, qty);
+          imported++;
+        });
+      })();
+      console.log(`  ✅ Imported ${imported} recipe lines, ${skipped} skipped`);
+    } else if (prodCol && ingCol) {
+      let count = 0;
+      menuWs.eachRow((row, i) => { if (i > 1 && row.getCell(prodCol).value) count++; });
+      console.log(`  🔍 Dry run: ${count} recipe rows found`);
     }
+  }
 
-    // Recipes (apply the 3 product overrides).
-    const insRec = db.prepare(`INSERT INTO recipes (product_id, ingredient_id, quantity)
-      VALUES (?,?,?) ON CONFLICT(product_id, ingredient_id) DO UPDATE SET quantity = excluded.quantity`);
-    let linked = 0, skippedProd = 0;
-    const unresolvedProducts = new Set();
-    for (const rec of recipes) {
-      const prodKey = PRODUCT_OVERRIDES[rec.product_key] || rec.product_key;
-      const pid = keyToProdId.get(prodKey);
-      const iid = keyToIngId.get(rec.ingredient_key);
-      if (!pid) { skippedProd++; unresolvedProducts.add(rec.product_name); continue; }
-      insRec.run(pid, iid, rec.quantity);
-      linked++;
-    }
-
-    return { ingCount: keyToIngId.size, autoCreated: missing.size, prodCount: keyToProdId.size, linked, skippedProd, unresolvedProducts: [...unresolvedProducts] };
-  });
-  return tx();
+  if (!apply) console.log('\n💡 Run with --apply to execute the import');
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+main().catch(e => {
+  console.error('❌ Import failed:', e.message);
+  process.exit(1);
+});

@@ -16,15 +16,27 @@ const manager = requireRole(['admin', 'manager']);
 
 // --- API routes (added domain by domain) ---
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', manager, require('./routes/users'));
 app.use('/api/ingredients', manager, require('./routes/ingredients'));
+app.get('/api/ingredients/list', (req, res) => res.redirect('/api/ingredients'));
 app.use('/api/products', manager, require('./routes/products'));
 app.use('/api/categories', manager, require('./routes/categories'));
+app.use('/api/ingredient-categories', manager, require('./routes/ingredient-categories'));
 app.use('/api/recipes', manager, require('./routes/recipes'));
 app.use('/api/export', manager, require('./routes/export'));
+app.use('/api/invoices', manager, require('./routes/invoices'));
 app.use('/api/import', manager, require('./routes/import'));
-// app.use('/api/suppliers', manager, require('./routes/suppliers'));
-// app.use('/api/purchases', manager, require('./routes/purchases'));
-// app.use('/api/inventory', manager, require('./routes/inventory'));
+app.use('/api/suppliers', manager, require('./routes/suppliers'));
+app.use('/api/purchases', manager, require('./routes/purchases'));
+app.use('/api/expenses', manager, require('./routes/expenses'));
+app.use('/api/attendance', manager, require('./routes/attendance'));
+app.use('/api/inventory', manager, require('./routes/inventory'));
+app.use('/api/receipt', manager, require('./routes/receipt'));
+app.use('/api/transactions', manager, require('./routes/transactions'));
+app.use('/api/sales', manager, require('./routes/sales'));
+app.get('/api/modifiers', (req, res) => res.json([]));
+app.get('/api/clock/status', (req, res) => res.json({active:false,employee:null}));
+app.use('/api/reports', manager, require('./routes/reports'));
 
 app.get('/api/health', (_req, res) => {
   const counts = ['ingredients', 'products', 'recipes', 'suppliers', 'purchases']
@@ -48,7 +60,7 @@ app.use(express.static(publicDir, {
 
 app.get('/health', (_req, res) => res.json({ status: 'OK' }));
 
-const PORT = Number(process.env.PORT || 3100);
+const PORT = Number(process.env.PORT || 3101);
 app.listen(PORT, () => {
   console.log(`🚀 thumbaz_8newlight back-office at http://localhost:${PORT}`);
   console.log(`📦 db: ${db.dbPath}`);

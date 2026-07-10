@@ -7,213 +7,108 @@
   <link rel="stylesheet" href="/sidebar.css" />
   <link rel="stylesheet" href="/theme.css" />
   <style>
-    body {
-      font-family: inherit;
-      margin: 0;
-      padding: 0;
-      color: var(--ink);
-      background: transparent;
-    }
-    h1 {
-      font-size: 20px;
-      margin-bottom: 12px;
-    }
-    .cards {
-      display: grid;
-      gap: 12px;
-      grid-template-columns: 1fr;
-    }
-    .card {
-      background: var(--card);
-      padding: 16px;
-      border-radius: 12px;
-      box-shadow: 0 8px 20px rgba(41, 26, 18, 0.16);
-      border: 1px solid var(--border);
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(160px, 1fr));
-      gap: 10px;
-    }
-    label {
-      display: block;
-      margin-top: 10px;
-    }
-    input, textarea {
-      width: 100%;
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-size: 14px;
-      min-height: 44px;
-      box-sizing: border-box;
-    }
-    textarea {
-      min-height: 72px;
-      resize: vertical;
-    }
-    button {
-      margin-top: 14px;
-      width: 100%;
-      padding: 12px;
-      min-height: 48px;
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
-      letter-spacing: 0.3px;
-      cursor: pointer;
-    }
-    .row-btn {
-      margin: 0 6px 0 0;
-      padding: 6px 10px;
-      min-height: 32px;
-      font-size: 12px;
-      border-radius: 6px;
-      width: auto;
-      cursor: pointer;
-    }
-    .row-btn.danger {
-      background: #9c3b33;
-    }
-    .status {
-      margin-top: 8px;
-      font-size: 13px;
-      color: #b00020;
-      min-height: 18px;
-    }
-    body.no-menu-toggle .menu-toggle {
-      display: none;
-    }
-    @media (max-width: 720px) {
-      .grid {
-        grid-template-columns: 1fr;
-      }
-    }
-    @media (min-width: 900px) {
-      .cards {
-        grid-template-columns: 1fr 1.4fr;
-        align-items: start;
-      }
-    }
+    body { font-family: inherit; margin: 0; padding: 0; background: transparent; color: var(--ink); }
+    .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; }
+    .topbar, .page-sub { flex: 0 0 auto; }
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px; flex: 0 0 auto; }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
+    .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .stat .value { font-family: var(--font-brand); font-size: 24px; font-weight: 700; color: var(--brand-ink); margin-top: 2px; }
+    .main-area { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 380px; gap: 12px; min-height: 0; overflow: hidden; }
+    @media(max-width:800px){ .main-area { grid-template-columns: 1fr; } }
+    .topbar { display: flex; align-items: center; gap: 10px; }
+    .topbar h1 { margin: 0; flex: 1; font-size: 20px; }
+    .topbar button { width: auto; margin-top: 0; }
+    .page-sub { color: var(--muted); font-size: 14px; margin: 2px 0 12px; }
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px; flex: 0 0 auto; }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
+    .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .stat .value { font-family: var(--font-brand); font-size: 24px; font-weight: 700; color: var(--brand-ink); margin-top: 2px; }
+    .card { background: var(--card); padding: 14px; border-radius: 12px; box-shadow: 0 8px 20px rgba(41,26,18,0.16); border: 1px solid var(--border); }
+    .table-wrap { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .list-scroll { overflow: auto; flex: 1 1 auto; min-height: 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { position: sticky; top: 0; background: var(--card); color: var(--accent); font-size: 11px; text-transform: uppercase; z-index: 1; }
+    label { display: block; margin-top: 6px; font-size: 12px; color: var(--accent); }
+    select, input, textarea { width: 100%; padding: 8px 10px; font-size: 13px; min-height: 36px; border-radius: 8px; box-sizing: border-box; }
+    button { background: var(--brand); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; padding: 10px 14px; font-size: 13px; width: 100%; margin-top: 8px; }
+    button.secondary { background: var(--card); color: var(--brand-700); border: 1px solid var(--brand); }
+    .icon-btn { background: var(--card); color: var(--brand-ink); border: 1px solid var(--border); font-size: 18px; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; min-height: auto; }
+    .status { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .row-btn { margin: 0 4px 0 0; padding: 4px 8px; min-height: 28px; font-size: 11px; border-radius: 6px; width: auto; cursor: pointer; }
+    .row-btn.danger { background: var(--danger); color: #fff; }
+    .stat-card { display: flex; flex-direction: column; overflow: hidden; }
   </style>
 </head>
-<body class="no-menu-toggle theme-cafe">
-  <button class="menu-toggle" id="menuToggle">☰ Menu</button>
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-      <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
-      <div class="brand-text">
-        <div class="brand-title">8 NewLight Coffee Bar</div>
-        <div class="brand-subtitle">Navigation</div>
-      </div>
-    </div>
+<body class="theme-cafe">
+      <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Navigation</div></div></div>
     <a href="/dashboard.html">Dashboard</a>
     <a href="/pos.html">POS</a>
-  <div class="nav-group">
-    <button class="nav-toggle" type="button" aria-expanded="false">
-      <span>Employees</span>
-      <span class="chevron" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-      </span>
-    </button>
-    <div class="nav-children">
-      <a href="/employees.html" class="nav-sub">Employees</a>
-      <a href="/clock.html" class="nav-sub">Clock</a>
-    </div>
-  </div>
     <a href="/inventory.html">Inventory</a>
-  <div class="nav-group">
-    <button class="nav-toggle" type="button" aria-expanded="false">
-      <span>Product</span>
-      <span class="chevron" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-      </span>
-    </button>
-    <div class="nav-children">
-      <a href="/menu.html" class="nav-sub">Menu Items</a>
-      <a href="/receipe.html" class="nav-sub">Ingredients / Recipe</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>📋 Product</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/menu.html" class="nav-sub">Menu Items</a>
+        <a href="/receipe.html" class="nav-sub">Recipe</a>
+        <a href="/ingredients.html" class="nav-sub">Ingredients</a>
+      </div>
     </div>
-  </div>
-  <div class="nav-group">
-    <button class="nav-toggle" type="button" aria-expanded="false">
-      <span>Purchase</span>
-      <span class="chevron" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-      </span>
-    </button>
-    <div class="nav-children">
-      <a href="/purchase.html" class="nav-sub">Ingredient Stock</a>
-      <a href="/expenses.html" class="nav-sub">Expenses</a>
-      <a href="/supplier.html" class="nav-sub">Suppliers</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>💰 Purchase</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/purchase.html" class="nav-sub">Purchases</a>
+        <a href="/expenses.html" class="nav-sub">Expenses</a>
+        <a href="/supplier.html" class="nav-sub">Suppliers</a>
+      </div>
     </div>
-  </div>
-    <a href="/chart.html">Daily Chart</a>
-    <a href="/report.html">Reports</a>
-    <a href="/setup.html">Setup</a>
-  <a href="/logout.html">Logout</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>👥 Employees</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/employees.html" class="nav-sub">Users</a>
+        <a href="/payroll.html" class="nav-sub">Payroll</a>
+        <a href="/clock.html" class="nav-sub">Attendance</a>
+      </div>
+    </div>
+    <a href="/system-report.html">System Report</a>
+    <a href="/import-center.html">Import Center</a>
+    <a href="/logout.html">Logout</a>
   </aside>
 
   <div class="content">
-    <div class="page-brand">
-  <img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" />
-  <div class="page-brand-text">8 NewLight Coffee</div>
-</div>
+    <div class="topbar">
+      <button class="icon-btn" id="menuToggle" aria-label="Open menu">☰</button>
+      <h1>🏪 Suppliers</h1>
+      <div style="flex:1;"></div>
+      <button id="addSupplierBtn">＋ Add Supplier</button>
+    </div>
+    <p class="page-sub">Supplier directory — manage contacts for purchasing.</p>
 
-<h1>🏷️ Suppliers</h1>
+    <div class="stats">
+      <div class="stat"><div class="label">Total Suppliers</div><div class="value" id="statTotal">–</div></div>
+      <div class="stat"><div class="label">Active</div><div class="value" id="statActive">–</div></div>
+    </div>
 
-    <div class="cards">
-      <div class="card">
-        <form id="supplier-form">
-          <div class="grid">
-            <div>
-              <label for="name">Supplier Name</label>
-              <input id="name" placeholder="Coffee Beans Co." required />
-            </div>
-            <div>
-              <label for="contact_name">Contact Person</label>
-              <input id="contact_name" placeholder="Jane Doe" />
-            </div>
-            <div>
-              <label for="phone">Phone</label>
-              <input id="phone" placeholder="+62 812 3456 7890" />
-            </div>
-            <div>
-              <label for="email">Email</label>
-              <input id="email" type="email" placeholder="hello@supplier.com" />
-            </div>
-            <div>
-              <label for="address">Address</label>
-              <input id="address" placeholder="Jl. Kemang 12, Jakarta" />
-            </div>
-            <div>
-              <label for="notes">Notes</label>
-              <textarea id="notes" placeholder="Delivery days, terms, etc."></textarea>
-            </div>
-          </div>
-          <button type="submit" id="saveBtn">Save Supplier</button>
-          <button type="button" id="cancelBtn" class="secondary">Cancel Edit</button>
-          <div class="status" id="status"></div>
-        </form>
+    <div class="main-area">
+      <div class="card stat-card">
+        <div class="table-wrap"><div class="list-scroll">
+          <table><thead><tr><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Actions</th></tr></thead>
+          <tbody id="rows"><tr><td colspan="5">Loading…</td></tr></tbody></table>
+        </div></div>
       </div>
 
-      <div class="card">
-        <div class="table-wrap">
-          <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Contact</th>
-              <th>Phone</th>
-              <th>Email</th>
-              <th>Address</th>
-              <th>Notes</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="rows">
-            <tr><td colspan="7">Loading…</td></tr>
-          </tbody>
-          </table>
-        </div>
+      <div class="card" id="supplierForm">
+        <strong style="color:var(--accent);" id="formTitle">Add Supplier</strong>
+        <label>Name</label><input id="supName" placeholder="Supplier name" required />
+        <label>Contact Person</label><input id="supContact" placeholder="Contact name" />
+        <label>Phone</label><input id="supPhone" placeholder="Phone number" />
+        <label>Email</label><input id="supEmail" placeholder="email@example.com" />
+        <label>Address</label><textarea id="supAddress" placeholder="Address" style="min-height:60px;"></textarea>
+        <label>Notes</label><input id="supNotes" placeholder="Notes" />
+        <button id="saveSupplier">Save Supplier</button>
+        <button class="secondary" id="cancelSupplier" style="display:none;">Cancel</button>
+        <div class="status" id="status"></div>
       </div>
     </div>
   </div>
@@ -221,138 +116,73 @@
   <script src="/auth.js"></script>
   <script src="/sidebar.js"></script>
   <script>
-    const auth = requireRole(['admin', 'manager']);
-    const rowsEl = document.getElementById('rows');
-    const statusEl = document.getElementById('status');
-
-    const nameEl = document.getElementById('name');
-    const contactEl = document.getElementById('contact_name');
-    const phoneEl = document.getElementById('phone');
-    const emailEl = document.getElementById('email');
-    const addressEl = document.getElementById('address');
-    const notesEl = document.getElementById('notes');
-    const saveBtn = document.getElementById('saveBtn');
-    const cancelBtn = document.getElementById('cancelBtn');
-
+    const auth = requireRole(['admin','manager']);
     let editingId = null;
-    const supplierMap = new Map();
 
-    function loadSuppliers() {
-      if (!auth) return;
-      fetch('/api/suppliers', { headers: authHeaders() })
-        .then(res => res.json())
-        .then(data => {
-          rowsEl.innerHTML = '';
-          supplierMap.clear();
-          if (!data.length) {
-            rowsEl.innerHTML = '<tr><td colspan="7">No suppliers yet</td></tr>';
-            return;
-          }
-          data.forEach(s => {
-            supplierMap.set(String(s.id), s);
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td>${s.name || ''}</td>
-              <td>${s.contact_name || ''}</td>
-              <td>${s.phone || ''}</td>
-              <td>${s.email || ''}</td>
-              <td>${s.address || ''}</td>
-              <td>${s.notes || ''}</td>
-              <td>
-                <button type="button" class="row-btn" data-action="edit" data-id="${s.id}">Edit</button>
-                <button type="button" class="row-btn danger" data-action="archive" data-id="${s.id}">Archive</button>
-              </td>
-            `;
-            rowsEl.appendChild(tr);
-          });
-        })
-        .catch(() => {
-          rowsEl.innerHTML = '<tr><td colspan="7">Failed to load suppliers</td></tr>';
-        });
+    async function loadAll() {
+      if(!auth)return;
+      const data = await fetch('/api/suppliers',{headers:authHeaders(),credentials:'same-origin'}).then(r=>r.json());
+      const tb = document.getElementById('rows'); tb.innerHTML = '';
+      document.getElementById("statTotal").textContent = data.length;
+      document.getElementById("statActive").textContent = data.filter(s=>s.active).length;
+      if(!data.length){tb.innerHTML='<tr><td colspan="5">No suppliers yet</td></tr>';return;}
+      document.getElementById("statTotal").textContent = data.length;
+      document.getElementById("statActive").textContent = data.filter(s=>s.active).length;
+      data.forEach(s=>{
+        tb.innerHTML += `<tr><td>${s.name}</td><td>${s.contact_name||''}</td><td>${s.phone||''}</td><td>${s.email||''}</td>
+      document.getElementById("statTotal").textContent = data.length;
+      document.getElementById("statActive").textContent = data.filter(s=>s.active).length;
+          <td><button class="row-btn" data-edit="${s.id}">Edit</button><button class="row-btn danger" data-archive="${s.id}">Archive</button></td></tr>`;
+      });
     }
 
-    rowsEl.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-action]');
-      if (!btn) return;
-      const id = btn.getAttribute('data-id');
-      const action = btn.getAttribute('data-action');
-
-      if (action === 'edit') {
-        const record = supplierMap.get(String(id));
-        if (!record) return;
-        editingId = id;
-        nameEl.value = record.name || '';
-        contactEl.value = record.contact_name || '';
-        phoneEl.value = record.phone || '';
-        emailEl.value = record.email || '';
-        addressEl.value = record.address || '';
-        notesEl.value = record.notes || '';
-        saveBtn.textContent = 'Update Supplier';
-        statusEl.textContent = 'Editing mode';
+    document.getElementById('rows').addEventListener('click', e => {
+      const btn = e.target.closest('button[data-edit], button[data-archive]'); if(!btn)return;
+      const id = btn.getAttribute('data-edit') || btn.getAttribute('data-archive');
+      if(btn.hasAttribute('data-archive')) {
+        if(!confirm('Archive this supplier?'))return;
+        fetch(`/api/suppliers/${id}/archive`,{method:'PATCH',headers:authHeaders()}).then(r=>r.json()).then(()=>loadAll());
         return;
       }
-
-      if (action === 'archive') {
-        if (!confirm('Archive this supplier?')) return;
-        fetch(`/api/suppliers/${id}/archive`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', ...authHeaders() }
-        })
-          .then(res => res.json())
-          .then(data => {
-            statusEl.textContent = data.message || data.error || 'Archived';
-            loadSuppliers();
-          })
-          .catch(() => {
-            statusEl.textContent = 'Failed to archive supplier';
-          });
-      }
+      editingId = id;
+      fetch('/api/suppliers',{headers:authHeaders()}).then(r=>r.json()).then(data=>{
+        const s = data.find(x=>String(x.id)===String(id)); if(!s)return;
+        document.getElementById('supName').value = s.name||'';
+        document.getElementById('supContact').value = s.contact_name||'';
+        document.getElementById('supPhone').value = s.phone||'';
+        document.getElementById('supEmail').value = s.email||'';
+        document.getElementById('supAddress').value = s.address||'';
+        document.getElementById('supNotes').value = s.notes||'';
+        document.getElementById('formTitle').textContent = 'Edit Supplier';
+        document.getElementById('cancelSupplier').style.display = '';
+        document.getElementById('supplierForm').scrollIntoView({behavior:'smooth'});
+      });
     });
 
-    document.getElementById('supplier-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (!auth) return;
-
-      const payload = {
-        name: nameEl.value.trim(),
-        contact_name: contactEl.value.trim(),
-        phone: phoneEl.value.trim(),
-        email: emailEl.value.trim(),
-        address: addressEl.value.trim(),
-        notes: notesEl.value.trim()
-      };
-
-      statusEl.textContent = 'Saving…';
+    document.getElementById('saveSupplier').addEventListener('click', async () => {
+      const payload = { name: document.getElementById('supName').value, contact_name: document.getElementById('supContact').value, phone: document.getElementById('supPhone').value, email: document.getElementById('supEmail').value, address: document.getElementById('supAddress').value, notes: document.getElementById('supNotes').value };
+      if(!payload.name.trim()){document.getElementById('status').textContent='Name required';return;}
+      document.getElementById('status').textContent = 'Saving…';
       const url = editingId ? `/api/suppliers/${editingId}` : '/api/suppliers';
-      const method = editingId ? 'PUT' : 'POST';
-      fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify(payload)
-      })
-        .then(res => res.json())
-        .then(data => {
-          statusEl.textContent = data.message || data.error || 'Saved';
-          if (!data.error) {
-            e.target.reset();
-            editingId = null;
-            saveBtn.textContent = 'Save Supplier';
-            loadSuppliers();
-          }
-        })
-        .catch(() => {
-          statusEl.textContent = 'Failed to save supplier';
-        });
+      const r = await fetch(url, { method: editingId?'PUT':'POST', headers:{'Content-Type':'application/json',...authHeaders()}, body:JSON.stringify(payload) });
+      const d = await r.json();
+      document.getElementById('status').textContent = d.message||d.error||'Saved';
+      if(!d.error){ cancelForm(); loadAll(); }
     });
 
-    cancelBtn.addEventListener('click', () => {
+    function cancelForm() {
       editingId = null;
-      document.getElementById('supplier-form').reset();
-      saveBtn.textContent = 'Save Supplier';
-      statusEl.textContent = '';
+      document.getElementById('formTitle').textContent = 'Add Supplier';
+      document.getElementById('cancelSupplier').style.display = 'none';
+      ['supName','supContact','supPhone','supEmail','supAddress','supNotes'].forEach(id=>document.getElementById(id).value='');
+      document.getElementById('status').textContent = '';
+    }
+    document.getElementById('cancelSupplier').addEventListener('click', cancelForm);
+    document.getElementById('addSupplierBtn').addEventListener('click', ()=>{
+      cancelForm();
+      document.getElementById('supplierForm').scrollIntoView({behavior:'smooth'});
     });
-
-    loadSuppliers();
+    if(auth)loadAll();
   </script>
 </body>
 </html>

@@ -43,7 +43,7 @@ function sessionGate(req, res, next) {
     const to = req.path === '/' ? '/login.html' : `/login.html?next=${encodeURIComponent(req.path)}`;
     return res.redirect(to);
   }
-  if (req.path === '/') return res.redirect(s.user.role === 'staff' ? '/clock.html' : '/dashboard.html');
+  if (req.path === '/') return res.redirect(s.user.role === 'staff' ? '/clock.html' : '/system-report.html');
   next();
 }
 

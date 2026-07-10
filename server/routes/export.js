@@ -86,4 +86,90 @@ router.get('/menu', async (_req, res) => {
   res.end();
 });
 
+// GET /api/export/recipes — recipe data with costs.
+router.get('/recipes', async (_req, res) => {
+  const rows = db.prepare(`
+    SELECT p.name AS product, p.variant, p.category,
+           i.name AS ingredient, r.quantity, i.base_unit AS unit,
+           CAST(i.std_cost_per_base_micro AS REAL)/1e6 AS cost_per_base,
+           CAST(r.quantity * i.std_cost_per_base_micro AS REAL)/1e6 AS line_cost,
+           (SELECT price FROM product_prices pp WHERE pp.product_id=p.id AND pp.effective_to IS NULL ORDER BY pp.id DESC LIMIT 1) AS price,
+           p.labor_cost, p.utility_cost, p.packaging_cost
+    FROM recipes r
+    JOIN products p ON p.id=r.product_id
+    JOIN ingredients i ON i.id=r.ingredient_id
+    WHERE p.active=1
+    ORDER BY p.category, p.name, i.name
+  `).all();
+
+  const wb = new ExcelJS.Workbook(); wb.creator = 'thumbaz_8newlight';
+  const ws = wb.addWorksheet('Recipes');
+  ws.columns = [
+    { header: 'Product', key: 'product', width: 26 },
+    { header: 'Variant', key: 'variant', width: 14 },
+    { header: 'Category', key: 'category', width: 18 },
+    { header: 'Ingredient', key: 'ingredient', width: 26 },
+    { header: 'Qty', key: 'quantity', width: 10 },
+    { header: 'Unit', key: 'unit', width: 8 },
+    { header: 'Cost/Unit', key: 'cost_per_base', width: 12 },
+    { header: 'Line Cost', key: 'line_cost', width: 14 },
+    { header: 'HPP Total', key: 'hpp_total', width: 14 },
+    { header: 'Price', key: 'price', width: 14 },
+    { header: 'Margin %', key: 'margin', width: 10 }
+  ];
+  rows.forEach(r => {
+    const hpp = (r.line_cost||0) + (r.labor_cost||0) + (r.utility_cost||0) + (r.packaging_cost||0);
+    const margin = r.price > 0 ? Math.round((r.price - hpp) / r.price * 100) : '';
+    ws.addRow({ product: r.product, variant: r.variant||'', category: r.category||'', ingredient: r.ingredient, quantity: r.quantity, unit: r.unit, cost_per_base: r.cost_per_base, line_cost: r.line_cost, hpp_total: hpp, price: r.price||0, margin });
+  });
+  ws.getRow(1).font = { bold: true };
+
+  const today = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename=recipe_export_${today}.xlsx`);
+  await wb.xlsx.write(res);
+  res.end();
+});
+
+
 module.exports = router;
+
+// GET /api/export/sales-daily — export today's sales as XLSX.
+router.get('/sales-daily', async (req, res) => {
+  const date = req.query.date || new Date().toISOString().slice(0,10);
+  const rows = db.prepare(`
+    SELECT t.id AS txn_id, t.transacted_at AS date, t.payment_method,
+           p.name AS product, ti.quantity, ti.unit_price, ti.line_total
+    FROM transactions t
+    JOIN transaction_items ti ON ti.transaction_id = t.id
+    JOIN products p ON p.id = ti.product_id
+    WHERE t.transacted_at = ?
+    ORDER BY t.id, p.name`).all(date);
+
+  const wb = new ExcelJS.Workbook(); wb.creator = 'thumbaz_8newlight';
+  const ws = wb.addWorksheet('Sales');
+  ws.columns = [
+    { header: 'Txn #', key: 'txn_id', width: 10 },
+    { header: 'Date', key: 'date', width: 14 },
+    { header: 'Payment', key: 'payment_method', width: 12 },
+    { header: 'Product', key: 'product', width: 28 },
+    { header: 'Qty', key: 'quantity', width: 8 },
+    { header: 'Price', key: 'unit_price', width: 12 },
+    { header: 'Line Total', key: 'line_total', width: 14 }
+  ];
+  rows.forEach(r => ws.addRow(r));
+  ws.getRow(1).font = { bold: true };
+
+  // Summary sheet
+  const ws2 = wb.addWorksheet('Summary');
+  const total = rows.reduce((s,r)=>s+r.line_total,0);
+  ws2.addRow(['Total Sales', '', '', '', '', '', total]);
+  ws2.addRow(['Date', date, '', '', '', '', '']);
+  ws2.addRow(['Transactions', new Set(rows.map(r=>r.txn_id)).size, '', '', '', '', '']);
+  ws2.getRow(1).font = { bold: true };
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename=sales_${date}.xlsx`);
+  await wb.xlsx.write(res);
+  res.end();
+});

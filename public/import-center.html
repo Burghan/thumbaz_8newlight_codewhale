@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Import Center – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    body { font-family: inherit; margin: 0; padding: 0; background: transparent; color: var(--ink); }
+    .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; }
+    .topbar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
+    .topbar h1 { margin: 0; flex: 1; font-size: 20px; }
+    .topbar button { width: auto; margin-top: 0; }
+    .page-sub { flex: 0 0 auto; color: var(--muted); font-size: 13px; margin: 2px 0 12px; }
+    .main-scroll { flex: 1 1 auto; overflow: auto; padding-right: 4px; display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 14px; }
+    .card { background: var(--card); padding: 18px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 8px 20px rgba(41,26,18,0.16); }
+    .card h2 { margin: 0 0 10px; font-size: 16px; color: var(--accent); }
+    .card .desc { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+    .format-box { background: rgba(0,0,0,0.03); border-radius: 8px; padding: 10px 14px; font-family: Consolas, monospace; font-size: 12px; line-height: 1.6; margin-bottom: 12px; }
+    .format-box .col { color: var(--brand-600); }
+    .format-box .opt { color: var(--muted); }
+    button { background: var(--brand); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; padding: 10px 16px; font-size: 13px; width: 100%; }
+    button.secondary { background: var(--card); color: var(--brand-700); border: 1px solid var(--brand); }
+    .icon-btn { background: var(--card); color: var(--brand-ink); border: 1px solid var(--border); font-size: 18px; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; min-height: auto; }
+    .status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 18px; }
+    .btn-row { display: flex; gap: 8px; }
+    .btn-row button { flex: 1; }
+    .sample-link { font-size: 11px; color: var(--accent); cursor: pointer; text-decoration: underline; }
+  </style>
+</head>
+<body class="theme-cafe">
+      <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Navigation</div></div></div>
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/pos.html">POS</a>
+    <a href="/inventory.html">Inventory</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>📋 Product</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/menu.html" class="nav-sub">Menu Items</a>
+        <a href="/receipe.html" class="nav-sub">Recipe</a>
+        <a href="/ingredients.html" class="nav-sub">Ingredients</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>💰 Purchase</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/purchase.html" class="nav-sub">Purchases</a>
+        <a href="/expenses.html" class="nav-sub">Expenses</a>
+        <a href="/supplier.html" class="nav-sub">Suppliers</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>👥 Employees</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/employees.html" class="nav-sub">Users</a>
+        <a href="/payroll.html" class="nav-sub">Payroll</a>
+        <a href="/clock.html" class="nav-sub">Attendance</a>
+      </div>
+    </div>
+    <a href="/system-report.html">System Report</a>
+    <a href="/import-center.html">Import Center</a>
+    <a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content">
+    <div class="topbar">
+      <button class="icon-btn" id="menuToggle" aria-label="Open menu">☰</button>
+      <h1>📥 Import Center</h1>
+    </div>
+    <p class="page-sub">Import data from XLSX/CSV files. Each card shows the expected column format.</p>
+
+    <div class="main-scroll">
+
+      <!-- SALES IMPORT -->
+      <div class="card">
+        <h2>💰 Sales Import</h2>
+        <div class="desc">Import daily sales transactions from POS export or the JUNE report.</div>
+        <div class="format-box">
+          <div><span class="col">Date</span> — e.g. 2026-07-01</div>
+          <div><span class="col">Product</span> — menu item name (must match)</div>
+          <div><span class="col">Quantity</span> — number sold</div>
+          <div><span class="opt">Price</span> — (optional) unit price</div>
+          <div><span class="opt">Payment Method</span> — (optional) cash/qris/transfer</div>
+        </div>
+        <div class="btn-row">
+          <input type="file" id="salesFile" accept=".xlsx,.xls" hidden />
+          <button id="salesImportBtn">⬆ Upload Sales XLSX</button>
+        </div>
+        <div class="status" id="salesStatus"></div>
+      </div>
+
+      <!-- PURCHASE IMPORT -->
+      <div class="card">
+        <h2>📦 Purchase Import</h2>
+        <div class="desc">Import bulk ingredient purchases — updates inventory and last purchase price.</div>
+        <div class="format-box">
+          <div><span class="col">Ingredient</span> — must match ingredient name</div>
+          <div><span class="col">Quantity</span> — amount purchased (in purchase unit)</div>
+          <div><span class="col">Total Cost</span> — total amount paid (Rp)</div>
+        </div>
+        <div class="btn-row">
+          <input type="file" id="purchaseFile" accept=".xlsx,.xls" hidden />
+          <button id="purchaseImportBtn">⬆ Upload Purchase XLSX</button>
+        </div>
+        <div class="status" id="purchaseStatus"></div>
+        <br><a class="sample-link" id="downloadPurchaseTemplate">⬇ Download Template</a>
+      </div>
+
+      <!-- EXPENSES IMPORT -->
+      <div class="card">
+        <h2>🧾 Expenses Import</h2>
+        <div class="desc">Import operational expenses (utilities, rent, supplies, etc.).</div>
+        <div class="format-box">
+          <div><span class="col">Date</span> — e.g. 2026-07-01</div>
+          <div><span class="col">Category</span> — e.g. Utilities, Rent, Supplies</div>
+          <div><span class="col">Description</span> — what was paid</div>
+          <div><span class="col">Amount</span> — amount spent (Rp)</div>
+        </div>
+        <div class="btn-row">
+          <input type="file" id="expenseFile" accept=".xlsx,.xls" hidden />
+          <button id="expenseImportBtn">⬆ Upload Expenses XLSX</button>
+        </div>
+        <div class="status" id="expenseStatus"></div>
+        <br><a class="sample-link" id="downloadExpenseTemplate">⬇ Download Template</a>
+      </div>
+
+      <!-- MASTER REPORT IMPORT -->
+      <div class="card">
+        <h2>📊 Master Report Import</h2>
+        <div class="desc">Full JUNE system report — auto-detects Sales, Ingredients, and Recipe sheets. <br>**Sheets:** <code>Sales Detail</code>, <code>Ingredients</code>, <code>Menu</code></div>
+        <div class="btn-row">
+          <input type="file" id="masterFile" accept=".xlsx" hidden />
+          <button id="masterImportBtn" class="secondary">⬆ Upload JUNE Report</button>
+        </div>
+        <div class="status" id="masterStatus"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin','manager']);
+    const h = authHeaders();
+
+    function importer(btnId, fileId, statusId, endpoint) {
+      document.getElementById(btnId).addEventListener('click', ()=>document.getElementById(fileId).click());
+      document.getElementById(fileId).addEventListener('change', async ()=>{
+        const f = document.getElementById(fileId).files[0]; if (!f) return;
+        document.getElementById(statusId).textContent = 'Importing…';
+        const fd = new FormData(); fd.append('file', f);
+        try {
+          const r = await fetch(endpoint, { method:'POST', headers:h, body:fd });
+          const d = await r.json();
+          document.getElementById(statusId).textContent = d.message || d.error || 'Done';
+        } catch { document.getElementById(statusId).textContent = 'Failed'; }
+      });
+    }
+
+    importer('salesImportBtn', 'salesFile', 'salesStatus', '/api/import/sales');
+    importer('purchaseImportBtn', 'purchaseFile', 'purchaseStatus', '/api/import/purchases');
+    importer('expenseImportBtn', 'expenseFile', 'expenseStatus', '/api/import/expenses');
+    importer('masterImportBtn', 'masterFile', 'masterStatus', '/api/import/master-report');
+
+    // Template downloads
+    function downloadTemplate(name, headers) {
+      return () => {
+        const csv = [headers.join(',')].join('\n');
+        const blob = new Blob([csv], { type:'text/csv' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = name+'.csv'; a.click();
+      };
+    }
+    document.getElementById('downloadPurchaseTemplate').addEventListener('click',
+      downloadTemplate('purchase_template', ['Ingredient','Quantity','Total Cost']));
+    document.getElementById('downloadExpenseTemplate').addEventListener('click',
+      downloadTemplate('expense_template', ['Date','Category','Description','Amount']));
+  </script>
+</body>
+</html>

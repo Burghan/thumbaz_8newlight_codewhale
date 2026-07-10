@@ -336,6 +336,13 @@
     @keyframes pop { from { transform: translateY(8px) scale(0.98); opacity: 0.5; } to { transform: none; opacity: 1; } }
     @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
+    /* resale section */
+    .resale-section { margin-top: 8px; padding: 12px; border-radius: 10px; background: rgba(240,132,27,0.08); border: 1px solid rgba(240,132,27,0.22); }
+    .resale-section label.check { margin-top: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
+    .resale-section label.check input[type=checkbox] { width: auto; min-height: auto; }
+    .resale-section .resale-cost-row { margin-top: 10px; }
+    .resale-badge { display: inline-block; background: var(--accent); color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; font-weight: 700; vertical-align: middle; }
+
     /* category manager */
     .cat-form { display: flex; gap: 8px; margin-bottom: 14px; }
     .cat-form input { margin: 0; flex: 1; }
@@ -359,58 +366,38 @@
 </head>
 <body class="theme-cafe">
   <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-    <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
-    <div class="brand-text">
-      <div class="brand-title">8 NewLight Coffee Bar</div>
-      <div class="brand-subtitle">Navigation</div>
-    </div>
-  </div>
+      <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Navigation</div></div></div>
     <a href="/dashboard.html">Dashboard</a>
     <a href="/pos.html">POS</a>
-  <div class="nav-group">
-    <button class="nav-toggle" type="button" aria-expanded="false">
-      <span>Employees</span>
-      <span class="chevron" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-      </span>
-    </button>
-    <div class="nav-children">
-      <a href="/employees.html" class="nav-sub">Employees</a>
-      <a href="/clock.html" class="nav-sub">Clock</a>
-    </div>
-  </div>
     <a href="/inventory.html">Inventory</a>
-  <div class="nav-group">
-    <button class="nav-toggle" type="button" aria-expanded="false">
-      <span>Product</span>
-      <span class="chevron" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-      </span>
-    </button>
-    <div class="nav-children">
-      <a href="/menu.html" class="nav-sub">Menu Items</a>
-      <a href="/receipe.html" class="nav-sub">Ingredients / Recipe</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>📋 Product</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/menu.html" class="nav-sub">Menu Items</a>
+        <a href="/receipe.html" class="nav-sub">Recipe</a>
+        <a href="/ingredients.html" class="nav-sub">Ingredients</a>
+      </div>
     </div>
-  </div>
-  <div class="nav-group">
-    <button class="nav-toggle" type="button" aria-expanded="false">
-      <span>Purchase</span>
-      <span class="chevron" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-      </span>
-    </button>
-    <div class="nav-children">
-      <a href="/purchase.html" class="nav-sub">Ingredient Stock</a>
-      <a href="/expenses.html" class="nav-sub">Expenses</a>
-      <a href="/supplier.html" class="nav-sub">Suppliers</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>💰 Purchase</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/purchase.html" class="nav-sub">Purchases</a>
+        <a href="/expenses.html" class="nav-sub">Expenses</a>
+        <a href="/supplier.html" class="nav-sub">Suppliers</a>
+      </div>
     </div>
-  </div>
-    <a href="/chart.html">Daily Chart</a>
-    <a href="/report.html">Reports</a>
-    <a href="/setup.html">Setup</a>
-  <a href="/logout.html">Logout</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>👥 Employees</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/employees.html" class="nav-sub">Users</a>
+        <a href="/payroll.html" class="nav-sub">Payroll</a>
+        <a href="/clock.html" class="nav-sub">Attendance</a>
+      </div>
+    </div>
+    <a href="/system-report.html">System Report</a>
+    <a href="/import-center.html">Import Center</a>
+    <a href="/logout.html">Logout</a>
   </aside>
 
   <div class="content">
@@ -516,6 +503,17 @@
             <label for="cost">HPP Ingredients <span class="hint">(auto from recipe)</span></label>
             <input id="cost" type="number" readonly title="Computed from the recipe using latest ingredient prices. Edit on the Recipe page." />
           </div>
+          <div class="full resale-section">
+            <label class="check">
+              <input type="checkbox" id="is_resale" />
+              <span>Resale Item <span class="hint">(no recipe — HPP = buying price)</span></span>
+            </label>
+            <div class="resale-cost-row" id="resaleCostRow" style="display:none;">
+              <label for="resale_cost">Buying Price per Item (Rp)</label>
+              <input id="resale_cost" type="number" step="1" placeholder="e.g. 3000" />
+              <span class="hint">This becomes the ingredient cost for HPP calculation.</span>
+            </div>
+          </div>
           <div>
             <label for="labor_cost">Labor</label>
             <input id="labor_cost" type="number" step="1" placeholder="3000" />
@@ -582,6 +580,9 @@
     const utilityCostEl = document.getElementById('utility_cost');
     const wifiCostEl = document.getElementById('wifi_cost');
     const notesEl = document.getElementById('notes');
+    const isResaleEl = document.getElementById('is_resale');
+    const resaleCostEl = document.getElementById('resale_cost');
+    const resaleCostRow = document.getElementById('resaleCostRow');
     const saveBtn = document.getElementById('saveBtn');
     const cancelBtn = document.getElementById('cancelBtn');
     const editorBackdrop = document.getElementById('editorBackdrop');
@@ -623,11 +624,21 @@
       setTimeout(() => nameEl.focus(), 50);
     }
 
+    function toggleResaleFields() {
+      const show = isResaleEl.checked;
+      resaleCostRow.style.display = show ? '' : 'none';
+      if (!show) resaleCostEl.value = '';
+      const hint = document.querySelector('#cost + .hint, label[for="cost"] .hint');
+      if (hint) hint.textContent = show ? '(auto from buying price)' : '(auto from recipe)';
+    }
+
     function closeModal() {
       editorBackdrop.hidden = true;
       editingId = null;
       menuForm.reset();
       costEl.value = '';
+      isResaleEl.checked = false;
+      resaleCostRow.style.display = 'none';
       saveBtn.textContent = 'Save Menu Item';
       statusEl.textContent = '';
       statusEl.classList.remove('error');
@@ -638,6 +649,8 @@
       menuForm.reset();
       editingId = null;
       costEl.value = '';
+      isResaleEl.checked = false;
+      resaleCostRow.style.display = 'none';
       saveBtn.textContent = 'Save Menu Item';
       statusEl.textContent = '';
       openModal('Add Menu Item');
@@ -732,6 +745,7 @@
         const marginStr = margin === null ? '—' : `${margin.toFixed(0)}%`;
         const isActive = Number(p.active) === 1;
         const nameLabel = p.variant ? `${p.name}, ${p.variant}` : (p.name || '');
+        const resaleBadge = p.is_resale ? '<span class="resale-badge">Resale</span>' : '';
         const statusLabel = isActive ? '' : '<span class="pill-archived">Archived</span>';
         const actionBtn = isActive
           ? `<button type="button" class="row-btn secondary" data-action="archive" data-id="${p.id}">Archive</button>`
@@ -739,7 +753,7 @@
              <button type="button" class="row-btn danger" data-action="delete" data-id="${p.id}">Delete</button>`;
         if (hasPrice && profit < 0) tr.classList.add('loss');
         tr.innerHTML = `
-          <td>${nameLabel}${statusLabel}</td>
+          <td>${nameLabel}${resaleBadge}${statusLabel}</td>
           <td>
             <button type="button" class="row-btn" data-action="edit" data-id="${p.id}">Edit</button>
             ${actionBtn}
@@ -808,6 +822,8 @@
         utilityCostEl.value = record.utility_cost ?? '';
         wifiCostEl.value = record.wifi_cost ?? '';
         notesEl.value = record.notes || '';
+        isResaleEl.checked = !!(record.is_resale);
+        toggleResaleFields();
         saveBtn.textContent = 'Update Menu Item';
         openModal(`Edit: ${record.name || 'Menu Item'}`);
         return;
@@ -861,6 +877,8 @@
         category: categoryEl.value.trim(),
         variant: variantEl.value.trim(),
         selling_price: priceEl.value,
+        is_resale: isResaleEl.checked,
+        resale_cost: isResaleEl.checked ? resaleCostEl.value : null,
         labor_cost: laborCostEl.value,
         utility_cost: utilityCostEl.value,
         wifi_cost: wifiCostEl.value,
@@ -892,6 +910,9 @@
         statusEl.classList.add('error');
       });
     });
+
+    // resale toggle
+    isResaleEl.addEventListener('change', toggleResaleFields);
 
     cancelBtn.addEventListener('click', closeModal);
 

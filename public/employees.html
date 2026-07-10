@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Employees – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    body { font-family: inherit; margin: 0; padding: 0; background: transparent; color: var(--ink); }
+    .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; padding: 16px; }
+    .topbar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
+    .topbar h1 { margin: 0; flex: 1; font-size: 20px; }
+    .main-scroll { flex: 1 1 auto; overflow: auto; }
+    .card { background: var(--card); padding: 16px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 8px 20px rgba(41,26,18,0.16); margin-bottom: 14px; }
+    h2 { margin: 0 0 8px; font-size: 16px; color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--accent); font-size: 11px; text-transform: uppercase; position: sticky; top: 0; background: var(--card); }
+    .num { text-align: right; }
+    .pill-active { background: #2e7d32; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 4px; }
+    .pill-inactive { background: var(--muted); color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 4px; }
+
+    button { background: var(--brand); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; padding: 8px 14px; font-size: 13px; }
+    .row-btn { padding: 4px 8px; font-size: 11px; border-radius: 6px; width: auto; margin: 0 3px 0 0; }
+    .row-btn.danger { background: var(--danger); color: #fff; }
+    select, input { padding: 8px 10px; font-size: 13px; border-radius: 8px; min-height: 36px; box-sizing: border-box; width: 100%; }
+    label { display: block; margin-top: 8px; font-size: 12px; color: var(--accent); }
+
+    .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .tab { padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; border: none; font-size: 13px; background: var(--coffee-700); color: var(--cream-50); }
+    .tab.active { background: var(--accent); color: #fff; }
+    .hidden-tab { display: none !important; }
+
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
+    .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .stat .value { font-family: var(--font-brand); font-size: 24px; font-weight: 700; color: var(--brand-ink); margin-top: 2px; }
+
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1200; display: flex; align-items: center; justify-content: center; }
+    .modal-backdrop[hidden] { display: none; }
+    .modal { background: var(--card); border-radius: 16px; padding: 24px; width: 90vw; max-width: 420px; box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .modal-head .title { font-size: 16px; font-weight: 700; }
+  </style>
+</head>
+<body class="theme-cafe">
+    <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Navigation</div></div></div>
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/pos.html">POS</a>
+    <a href="/inventory.html">Inventory</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>📋 Product</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/menu.html" class="nav-sub">Menu Items</a>
+        <a href="/receipe.html" class="nav-sub">Recipe</a>
+        <a href="/ingredients.html" class="nav-sub">Ingredients</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>💰 Purchase</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/purchase.html" class="nav-sub">Purchases</a>
+        <a href="/expenses.html" class="nav-sub">Expenses</a>
+        <a href="/supplier.html" class="nav-sub">Suppliers</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>👥 Employees</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/employees.html" class="nav-sub">Users</a>
+        <a href="/payroll.html" class="nav-sub">Payroll</a>
+        <a href="/clock.html" class="nav-sub">Attendance</a>
+      </div>
+    </div>
+    <a href="/system-report.html">System Report</a>
+    <a href="/import-center.html">Import Center</a>
+    <a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content">
+    <div class="topbar"> <button id="menuToggle" class="menu-toggle">☰</button><h1>👥 Employees</h1></div>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Total Users</div><div class="value" id="sTotal">–</div></div>
+      <div class="stat"><div class="label">Active</div><div class="value" id="sActive">–</div></div>
+      <div class="stat"><div class="label">Staff</div><div class="value" id="sStaff">–</div></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="users">🔑 Users</button>
+      <button class="tab" data-tab="attendance">📋 Attendance</button>
+    </div>
+
+    <div class="main-scroll" id="tabUsers">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <h2 style="margin:0;">User Management</h2>
+          <button id="addUserBtn" style="width:auto;">＋ Add User</button>
+        </div>
+        <table><thead><tr><th>Name</th><th>Role</th><th class="num">Rate</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="userRows"><tr><td colspan="5">Loading…</td></tr></tbody></table>
+      </div>
+    </div>
+
+    <div class="main-scroll hidden-tab" id="tabAttendance">
+      <div class="card">
+        <h2>📋 Today's Attendance</h2>
+        <div style="max-height:55vh;overflow:auto;">
+          <table><thead><tr><th>Employee</th><th>Date</th><th>Clock In</th><th>Clock Out</th><th class="num">Duration</th></tr></thead>
+          <tbody id="attRows"><tr><td colspan="5">Loading…</td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="userModal" hidden>
+      <div class="modal"><div class="modal-head"><span class="title" id="userModalTitle">Add User</span><button class="row-btn" id="closeUserModal">✕</button></div>
+        <label>Name</label><input id="userName" required />
+        <label>Role</label><select id="userRole"><option value="admin">Admin</option><option value="manager">Manager</option><option value="staff">Staff</option></select>
+        <label>Daily Rate (Rp)</label><input id="userRate" type="number" value="0" />
+        <label>Phone</label><input id="userPhone" placeholder="08xx" />
+        <label>PIN (leave blank to keep)</label><input id="userPin" type="password" maxlength="4" />
+        <button id="saveUser" style="margin-top:14px;">Save</button>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;" id="userStatus"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin']);
+    if (!auth) throw new Error('Unauthorized');
+    const h = authHeaders(); const opts = { headers: h, credentials: 'same-origin' };
+    let editingUserId = null;
+
+    document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', function() {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      this.classList.add('active');
+      const target = this.getAttribute('data-tab');
+      document.getElementById('tabUsers').classList.toggle('hidden-tab', target !== 'users');
+      document.getElementById('tabAttendance').classList.toggle('hidden-tab', target !== 'attendance');
+      if (target === 'attendance') loadAttendance();
+    }));
+
+    async function loadUsers() {
+      const users = await fetch('/api/users', opts).then(r=>r.json());
+      document.getElementById('sTotal').textContent = users.length;
+      document.getElementById('sActive').textContent = users.filter(u=>u.active).length;
+      document.getElementById('sStaff').textContent = users.filter(u=>u.role==='staff').length;
+      const tb = document.getElementById('userRows'); tb.innerHTML = '';
+      if (!users.length) { tb.innerHTML = '<tr><td colspan="5">No users</td></tr>'; return; }
+      users.forEach(u => {
+        tb.innerHTML += `<tr><td><strong>${u.name}</strong></td><td>${u.role}</td>
+          <td class="num">${u.rate?'Rp '+Number(u.rate).toLocaleString('id-ID'):'—'}</td>
+          <td>${u.active?'<span class="pill-active">Active</span>':'<span class="pill-inactive">Inactive</span>'}</td>
+          <td><button class="row-btn" data-edit="${u.id}">Edit</button>
+            <button class="row-btn ${u.active?'danger':''}" data-toggle="${u.id}">${u.active?'Deactivate':'Activate'}</button></td></tr>`;
+      });
+    }
+
+    document.getElementById('userRows').addEventListener('click', async e => {
+      const btn = e.target.closest('button[data-edit], button[data-toggle]'); if (!btn) return;
+      const id = btn.getAttribute('data-edit') || btn.getAttribute('data-toggle');
+      if (btn.hasAttribute('data-toggle')) {
+        await fetch(`/api/users/${id}/toggle`, { method:'PATCH', headers:h, credentials:'same-origin' });
+        loadUsers(); return;
+      }
+      const users = await fetch('/api/users', opts).then(r=>r.json());
+      const u = users.find(x=>String(x.id)===String(id)); if (!u) return;
+      editingUserId = id;
+      document.getElementById('userName').value = u.name;
+      document.getElementById('userRole').value = u.role;
+      document.getElementById('userRate').value = u.rate||0;
+      document.getElementById('userPhone').value = u.phone||'';
+      document.getElementById('userPin').value = '';
+      document.getElementById('userModalTitle').textContent = 'Edit User';
+      document.getElementById('userModal').hidden = false;
+    });
+
+    document.getElementById('addUserBtn').addEventListener('click', ()=>{
+      editingUserId = null;
+      document.getElementById('userName').value = '';
+      document.getElementById('userRole').value = 'staff';
+      document.getElementById('userRate').value = '0';
+      document.getElementById('userPhone').value = '';
+      document.getElementById('userPin').value = '';
+      document.getElementById('userModalTitle').textContent = 'Add User';
+      document.getElementById('userModal').hidden = false;
+    });
+
+    document.getElementById('closeUserModal').addEventListener('click', ()=>document.getElementById('userModal').hidden=true);
+    document.getElementById('userModal').addEventListener('click', e=>{if(e.target===document.getElementById('userModal'))document.getElementById('userModal').hidden=true;});
+
+    document.getElementById('saveUser').addEventListener('click', async ()=>{
+      const payload = { name: document.getElementById('userName').value, role: document.getElementById('userRole').value, rate: document.getElementById('userRate').value, phone: document.getElementById('userPhone').value, pin: document.getElementById('userPin').value };
+      if (!payload.name.trim()) return;
+      const url = editingUserId ? `/api/users/${editingUserId}` : '/api/users';
+      const r = await fetch(url, { method: editingUserId?'PUT':'POST', headers:{'Content-Type':'application/json',...h}, body:JSON.stringify(payload) });
+      const d = await r.json();
+      document.getElementById('userStatus').textContent = d.message||d.error||'Saved';
+      if (!d.error) { document.getElementById('userModal').hidden = true; loadUsers(); }
+    });
+
+    async function loadAttendance() {
+      const data = await fetch('/api/attendance/today', opts).then(r=>r.json()).catch(()=>[]);
+      const tb = document.getElementById('attRows'); tb.innerHTML = '';
+      if (!data.length) { tb.innerHTML = '<tr><td colspan="5">No attendance today</td></tr>'; return; }
+      data.forEach(a => {
+        let dur = ''; if (a.clock_in && a.clock_out) {
+          const ms = new Date(a.clock_out+'Z') - new Date(a.clock_in+'Z');
+          dur = `${Math.floor(ms/3600000)}h ${Math.floor((ms%3600000)/60000)}m`;
+        }
+        tb.innerHTML += `<tr><td><strong>${a.employee_name}</strong></td>
+          <td>${a.clock_in?new Date(a.clock_in+'Z').toLocaleDateString('id-ID'):'—'}</td>
+          <td>${a.clock_in?new Date(a.clock_in+'Z').toLocaleTimeString('id-ID'):'—'}</td>
+          <td>${a.clock_out?new Date(a.clock_out+'Z').toLocaleTimeString('id-ID'):'—'}</td>
+          <td class="num">${dur}</td></tr>`;
+      });
+    }
+
+    loadUsers();
+    loadAttendance();
+  </script>
+</body>
+</html>

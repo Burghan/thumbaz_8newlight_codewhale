@@ -15,16 +15,18 @@ router.post('/pin', (req, res) => {
   const key = name.toLowerCase();
   const a = attempts.get(key);
   if (a?.lockedUntil && a.lockedUntil > Date.now()) {
-    return res.status(429).json({ error: 'User locked', attempts: a.count, remaining: 0 });
+    const sec = Math.ceil((a.lockedUntil - Date.now()) / 1000);
+    return res.status(429).json({ error: `🔒 Too many attempts. Please wait ${Math.ceil(sec/60)} minute(s).`, seconds: sec });
   }
 
   const user = db.prepare('SELECT id, name, role, pin_hash FROM users WHERE LOWER(name) = ? AND active = 1').get(key);
   if (!user || !verifyPin(pin, user.pin_hash)) {
     const count = (a?.count || 0) + 1;
+    const left = MAX_ATTEMPTS - count;
     const lockedUntil = count >= MAX_ATTEMPTS ? Date.now() + LOCK_MS : null;
     attempts.set(key, { count, lockedUntil });
-    if (lockedUntil) return res.status(429).json({ error: 'User locked', attempts: count, remaining: 0 });
-    return res.status(401).json({ error: 'Invalid credentials', attempts: count, remaining: Math.max(0, MAX_ATTEMPTS - count) });
+    if (lockedUntil) return res.status(429).json({ error: `🔒 Locked for ${LOCK_MS/60000} minutes after ${count} failed attempts.` });
+    return res.status(401).json({ error: `❌ Wrong PIN. ${left} attempt(s) remaining.`, remaining: left });
   }
 
   attempts.delete(key);
@@ -42,5 +44,6 @@ router.post('/logout', (req, res) => {
 });
 
 router.get('/me', (req, res) => res.json(req.user || null));
+
 
 module.exports = router;

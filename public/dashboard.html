@@ -1,491 +1,333 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Dashboard – 8 NewLight Coffee</title>
-  <link rel="stylesheet" href="/sidebar.css" />
-  <link rel="stylesheet" href="/theme.css" />
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dashboard – 8 NewLight</title>
+<link rel="stylesheet" href="/sidebar.css"/><link rel="stylesheet" href="/theme.css"/>
+<style>
+  body { margin:0; color:var(--ink); }
+  .wrap { padding:16px; max-width:1180px; margin:0 auto; }
+  @media(min-width:900px){ .wrap{ padding:24px; } }
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      background: transparent;
-      color: var(--ink);
-    }
+  .head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+  .head h1 { margin:0; font-size:24px; }
+  .head .spacer { flex:1; }
+  .head .who { font-size:13px; color:var(--muted); }
+  .head select, .head button { margin:0; width:auto; min-height:40px; padding:8px 14px; font-size:14px; }
+  .head button { background:var(--brand); color:#fff; border:none; border-radius:10px; cursor:pointer; font-weight:600; }
+  .head .icon-btn { background:var(--card); color:var(--brand-ink); border:1px solid var(--border); }
+  .sub { color:var(--muted); font-size:14px; margin:2px 0 18px; }
 
+  .status { padding:40px; text-align:center; color:var(--muted); font-size:15px; }
+  .err { color:var(--danger); font-weight:600; }
 
-    h1 {
-      font-size: 20px;
-      margin-bottom: 12px;
-      color: var(--accent);
-    }
+  /* KPI hero */
+  .kpis { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:16px; }
+  @media(max-width:960px){ .kpis{ grid-template-columns:repeat(2,1fr); } }
+  .kpi { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px 18px; box-shadow:var(--shadow-sm); position:relative; }
+  .kpi.hero { border-left:4px solid var(--brand); }
+  .kpi .lbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
+  .kpi .val { font-family:var(--font-brand); font-size:25px; font-weight:700; color:var(--brand-ink); margin-top:6px; font-variant-numeric:tabular-nums; }
+  .kpi .val.neg { color:var(--danger); }
+  .kpi .delta { font-size:12px; margin-top:6px; font-weight:600; display:inline-flex; align-items:center; gap:4px; }
+  .delta.up { color:var(--positive); } .delta.down { color:var(--danger); }
+  .kpi .foot { font-size:11px; color:var(--muted); margin-top:2px; }
 
-    .page-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 10px;
-    }
-    .page-header h1 {
-      margin: 0;
-    }
-    .page-subtitle {
-      font-size: 12px;
-      color: var(--accent);
-    }
+  /* layout grids */
+  .grid2 { display:grid; grid-template-columns:1.6fr 1fr; gap:16px; margin-bottom:16px; }
+  .grid2b { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+  @media(max-width:900px){ .grid2, .grid2b { grid-template-columns:1fr; } }
+  .panel { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:18px; box-shadow:var(--shadow-sm); }
+  .panel h2 { font-size:15px; margin:0 0 14px; color:var(--brand-ink); }
+  .panel .h-note { font-weight:400; font-size:12px; color:var(--muted); }
 
-    .controls {
-      margin-bottom: 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
+  /* daily chart */
+  .chart { width:100%; height:200px; }
+  .chart rect.bar { fill:var(--brand); transition:fill .15s; }
+  .chart rect.bar.weekend { fill:var(--brand-700); }
+  .chart rect.bar:hover { fill:var(--brand-ink); }
+  .chart text.axis { fill:var(--muted); font-size:9px; }
+  .chart line.grid { stroke:var(--border-soft); stroke-width:1; }
 
-    select {
-      padding: 10px 12px;
-      font-size: 14px;
-      min-height: 44px;
-      border-radius: 8px;
-      border: 1px solid var(--accent);
-      background: #15181f;
-      color: var(--accent);
-    }
+  /* P&L waterfall bars */
+  .pnl-row { margin-bottom:12px; }
+  .pnl-row .top { display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; }
+  .pnl-row .top .name { color:var(--ink); font-weight:600; }
+  .pnl-row .top .amt { font-variant-numeric:tabular-nums; color:var(--brand-ink); font-weight:600; }
+  .pnl-row .top .amt.neg { color:var(--danger); }
+  .bar-track { height:10px; background:var(--cream-soft); border-radius:999px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:999px; }
+  .bar-fill.rev { background:var(--brand); }
+  .bar-fill.cogs { background:#b98a5e; }
+  .bar-fill.exp { background:#c1877e; }
+  .bar-fill.net { background:var(--positive); }
+  .bar-fill.net.neg { background:var(--danger); }
+  .pnl-foot { font-size:12px; color:var(--muted); margin-top:2px; }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-    }
+  /* top products */
+  .prod { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .prod .rank { flex:0 0 22px; height:22px; border-radius:50%; background:#eef2f8; color:var(--brand-700); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .prod .pname { flex:0 0 120px; font-size:13px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .prod .pbar { flex:1; height:8px; background:var(--cream-soft); border-radius:999px; overflow:hidden; }
+  .prod .pbar span { display:block; height:100%; background:var(--brand); border-radius:999px; }
+  .prod .pval { flex:0 0 auto; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
 
-    .card {
-      background: #fff;
-      padding: 14px;
-      border-radius: 10px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    }
-
-    .label {
-      font-size: 13px;
-      color: var(--accent);
-      margin-bottom: 6px;
-    }
-
-    .value {
-      font-size: 22px;
-      font-weight: bold;
-    }
-
-    .revenue { color: #2b6cb0; }
-    .cogs { color: #b00020; }
-    .profit { color: #2e7d32; }
-    .muted { color: #6b7280; }
-
-    .section-title {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 14px 0 8px;
-      color: var(--accent);
-    }
-
-    .pill {
-      display: inline-block;
-      padding: 4px 8px;
-      border-radius: 999px;
-      font-size: 12px;
-      background: #eef2f7;
-      color: #1f2937;
-    }
-
-    .table-meta {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 8px;
-    }
-
-    .heatmap {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 10px;
-    }
-    .heat-tile {
-      border-radius: 12px;
-      padding: 10px;
-      color: #fff;
-      min-height: 78px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      box-shadow: 0 6px 16px rgba(41, 26, 18, 0.18);
-    }
-    .heat-name {
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.01em;
-    }
-    .heat-value {
-      font-size: 16px;
-      font-weight: 700;
-    }
-    .heat-sub {
-      font-size: 11px;
-      opacity: 0.9;
-    }
-
-    .status {
-      margin-top: 10px;
-      font-size: 14px;
-      color: #b00020;
-    }
-
-    @media (max-width: 768px) {
-      .grid {
-        grid-template-columns: 1fr 1fr;
-      }
-    }
-
-    @media (max-width: 480px) {
-      .grid {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
+  /* alerts */
+  .alert { display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border-radius:12px; margin-bottom:10px; font-size:13px; }
+  .alert .ico { font-size:18px; line-height:1; flex:0 0 auto; }
+  .alert .msg { flex:1; }
+  .alert .msg b { color:var(--brand-ink); }
+  .alert.warn { background:#f7e6e3; border:1px solid #e7c3bc; }
+  .alert.info { background:#eef2f8; border:1px solid #d6e0ee; }
+  .alert.good { background:var(--positive-bg); border:1px solid #bcd8c6; }
+</style>
 </head>
-
-<body class=" theme-cafe">
-
-<button class="menu-toggle" id="menuToggle">☰ Menu</button>
+<body class="theme-cafe">
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
     <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
     <div class="brand-text">
       <div class="brand-title">8 NewLight Coffee Bar</div>
-      <div class="brand-subtitle">Navigation</div>
+      <div class="brand-subtitle">Back Office</div>
     </div>
   </div>
   <a href="/dashboard.html">Dashboard</a>
   <a href="/pos.html">POS</a>
-  <div class="nav-group">
-    <button class="nav-toggle" type="button" aria-expanded="false">
-      <span>Employees</span>
-      <span class="chevron" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-      </span>
-    </button>
-    <div class="nav-children">
-      <a href="/employees.html" class="nav-sub">Employees</a>
-      <a href="/clock.html" class="nav-sub">Clock</a>
-    </div>
-  </div>
+  <a href="/menu.html">Menu Items</a>
+  <a href="/receipe.html">Ingredients / Recipe</a>
+  <a href="/purchase.html">Purchasing</a>
   <a href="/inventory.html">Inventory</a>
-  <div class="nav-group">
-    <button class="nav-toggle" type="button" aria-expanded="false">
-      <span>Product</span>
-      <span class="chevron" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-      </span>
-    </button>
-    <div class="nav-children">
-      <a href="/menu.html" class="nav-sub">Menu Items</a>
-      <a href="/receipe.html" class="nav-sub">Ingredients / Recipe</a>
-    </div>
-  </div>
-  <div class="nav-group">
-    <button class="nav-toggle" type="button" aria-expanded="false">
-      <span>Purchase</span>
-      <span class="chevron" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-      </span>
-    </button>
-    <div class="nav-children">
-      <a href="/purchase.html" class="nav-sub">Ingredient Stock</a>
-      <a href="/expenses.html" class="nav-sub">Expenses</a>
-      <a href="/supplier.html" class="nav-sub">Suppliers</a>
-    </div>
-  </div>
-  <a href="/chart.html">Daily Chart</a>
-    <a href="/report.html">Reports</a>
-  <a href="/setup.html">Setup</a>
+  <a href="/expenses.html">Expenses</a>
+  <a href="/employees.html">Employees</a>
+  <a href="/report.html">Reports</a>
   <a href="/logout.html">Logout</a>
 </aside>
 
-<div class="content">
+<div class="wrap">
+  <div class="head">
+    <button class="icon-btn" id="menuToggle" aria-label="Menu">☰</button>
+    <h1 id="title">📊 Dashboard</h1>
+    <div class="spacer"></div>
+    <span class="who" id="who"></span>
+    <select id="month"></select>
+    <button id="refresh">🔄 Refresh</button>
+  </div>
+  <p class="sub" id="subtitle">Business performance overview</p>
 
-<div class="page-brand">
-  <img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" />
-  <div class="page-brand-text">8 NewLight Coffee</div>
+  <div class="status" id="status">⏳ Loading…</div>
+  <div id="view" style="display:none"></div>
 </div>
-
-<div class="page-header">
-  <h1>📊 Management Dashboard</h1>
-  <span class="pill" style="background:#1c212b;color:var(--accent);border:1px solid var(--accent);">Live KPIs</span>
-  <div class="page-subtitle">Monitor sales, margins, and stock health in one view.</div>
-</div>
-
-<div class="controls">
-  <label for="month" class="muted" style="color: var(--accent);">Month</label>
-  <select id="month"></select>
-</div>
-
-<div class="section-title">Key Metrics</div>
-<div class="grid">
-  <div class="card">
-    <div class="label">Revenue</div>
-    <div class="value revenue" id="revenue">Rp. 0.00</div>
-  </div>
-
-  <div class="card">
-    <div class="label">COGS</div>
-    <div class="value cogs" id="cogs">Rp. 0.00</div>
-  </div>
-
-  <div class="card">
-    <div class="label">Expenses</div>
-    <div class="value muted" id="expenses">Rp. 0.00</div>
-  </div>
-
-  <div class="card">
-    <div class="label">Profit</div>
-    <div class="value profit" id="profit">Rp. 0.00</div>
-  </div>
-
-  <div class="card">
-    <div class="label">Profit Margin</div>
-    <div class="value muted" id="profitMargin">0%</div>
-  </div>
-
-  <div class="card">
-    <div class="label">Total Sales</div>
-    <div class="value muted" id="totalSales">0</div>
-  </div>
-
-  <div class="card">
-    <div class="label">Net Profit</div>
-    <div class="value profit" id="netProfit">Rp. 0.00</div>
-  </div>
-</div>
-
-<div class="section-title">Quick Insight</div>
-<div class="grid">
-  <div class="card">
-    <div class="label">Average Sales</div>
-    <div class="value revenue" id="avgSales">Rp. 0.00</div>
-  </div>
-  <div class="card">
-    <div class="label">Average Profit</div>
-    <div class="value profit" id="avgProfit">Rp. 0.00</div>
-  </div>
-  <div class="card">
-    <div class="label">Average COGS</div>
-    <div class="value cogs" id="avgCogs">Rp. 0.00</div>
-  </div>
-</div>
-
-<div class="section-title">Low Stock Heatmap</div>
-<div class="card">
-  <div class="table-meta">
-    <span class="pill" id="lowStockCount">0 items</span>
-    <span class="muted" id="lowStockNote">Thresholds by unit</span>
-  </div>
-  <div class="heatmap" id="lowStockHeatmap">
-    <div class="heat-tile" style="background:#9a3412;">
-      <div class="heat-name">Loading…</div>
-      <div class="heat-value">--</div>
-      <div class="heat-sub">--</div>
-    </div>
-  </div>
-</div>
-
-<div class="status" id="status"></div>
 
 <script src="/auth.js"></script>
-<script>
-  const monthSelect = document.getElementById('month');
-  const revenueEl = document.getElementById('revenue');
-  const cogsEl = document.getElementById('cogs');
-  const expensesEl = document.getElementById('expenses');
-  const profitEl = document.getElementById('profit');
-  const netProfitEl = document.getElementById('netProfit');
-  const profitMarginEl = document.getElementById('profitMargin');
-  const totalSalesEl = document.getElementById('totalSales');
-  const avgSalesEl = document.getElementById('avgSales');
-  const avgProfitEl = document.getElementById('avgProfit');
-  const avgCogsEl = document.getElementById('avgCogs');
-  const lowStockHeatmap = document.getElementById('lowStockHeatmap');
-  const lowStockCount = document.getElementById('lowStockCount');
-  const lowStockNote = document.getElementById('lowStockNote');
-  const statusEl = document.getElementById('status');
-
-  const auth = requireRole(['admin', 'manager']);
-  const DEFAULT_MIN_STOCK = 200;
-  let unitThresholds = { Gr: 200, Ml: 500, Pcs: 5 };
-  let currentRevenue = 0;
-  let currentCogs = 0;
-  let currentProfit = 0;
-
-  function formatRupiah(value) {
-    const num = Number(value || 0);
-    const parts = num.toFixed(2).split('.');
-    const whole = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    return `Rp. ${whole}.${parts[1]}`;
-  }
-
-  function buildMonths() {
-    monthSelect.innerHTML = '';
-
-    const months = new Set();
-    const now = new Date();
-    for (let i = 0; i < 24; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.add(d.toISOString().slice(0, 7));
-    }
-
-    fetch('/api/reports/monthly-summary', { headers: authHeaders() })
-      .then(res => res.ok ? res.json() : [])
-      .then(rows => {
-        rows.forEach(row => {
-          if (row.month) months.add(row.month);
-        });
-      })
-      .catch(() => {})
-      .finally(() => {
-        const sorted = Array.from(months).sort().reverse();
-        sorted.forEach(value => {
-          const opt = document.createElement('option');
-          opt.value = value;
-          opt.textContent = value;
-          monthSelect.appendChild(opt);
-        });
-        monthSelect.value = monthSelect.options[0]?.value || '';
-        loadDashboard();
-      });
-  }
-
-  function loadThresholds() {
-    return fetch('/api/inventory/thresholds', { headers: authHeaders() })
-      .then(res => res.ok ? res.json() : [])
-      .then(rows => {
-        rows.forEach(row => {
-          unitThresholds[row.unit] = Number(row.threshold);
-        });
-        lowStockNote.textContent = `Thresholds: Gr ${unitThresholds.Gr} · Ml ${unitThresholds.Ml} · Pcs ${unitThresholds.Pcs}`;
-      })
-      .catch(() => {
-        lowStockNote.textContent = 'Thresholds by unit';
-      });
-  }
-
-  function loadDashboard() {
-    if (!auth) return;
-    const month = monthSelect.value;
-    if (!month) return;
-
-    statusEl.textContent = 'Loading…';
-
-    fetch(`/api/reports/monthly?month=${month}`, { headers: authHeaders() })
-      .then(res => res.json())
-      .then(data => {
-        const revenue = Number(data.revenue ?? 0);
-        const cogs = Number(data.cogs ?? 0);
-        const grossProfit = Number(data.gross_profit ?? data.profit ?? 0);
-        const netProfit = Number(data.net_profit ?? data.profit ?? 0);
-        const expenses = Number(data.expenses ?? 0);
-        const salesCount = Number(data.sales_count ?? 0);
-
-        currentRevenue = revenue;
-        currentCogs = cogs;
-        currentProfit = netProfit;
-
-        revenueEl.textContent = formatRupiah(revenue);
-        cogsEl.textContent = formatRupiah(cogs);
-        expensesEl.textContent = formatRupiah(expenses);
-        profitEl.textContent = formatRupiah(grossProfit);
-        netProfitEl.textContent = formatRupiah(netProfit);
-        profitMarginEl.textContent = revenue > 0 ? `${((netProfit / revenue) * 100).toFixed(1)}%` : '0%';
-        totalSalesEl.textContent = salesCount.toString();
-        statusEl.textContent = '';
-      })
-      .catch(() => {
-        statusEl.textContent = '❌ Failed to load dashboard';
-      });
-
-    fetch(`/api/reports/daily?month=${month}`, { headers: authHeaders() })
-      .then(res => res.json())
-      .then(days => {
-        const dayCount = days.length || 0;
-        avgSalesEl.textContent = dayCount ? formatRupiah(currentRevenue / dayCount) : 'Rp. 0.00';
-        avgProfitEl.textContent = dayCount ? formatRupiah(currentProfit / dayCount) : 'Rp. 0.00';
-        avgCogsEl.textContent = dayCount ? formatRupiah(currentCogs / dayCount) : 'Rp. 0.00';
-      });
-
-    loadThresholds()
-      .finally(() => {
-        fetch('/api/inventory/on-hand', { headers: authHeaders() })
-          .then(res => res.json())
-          .then(items => {
-            lowStockHeatmap.innerHTML = '';
-            if (!Array.isArray(items) || items.length === 0) {
-              lowStockHeatmap.innerHTML = '<div class="muted">No inventory data</div>';
-              lowStockCount.textContent = '0 items';
-              return;
-            }
-            const low = items
-              .map(item => {
-                const unitMin = item.unit && unitThresholds[item.unit] !== undefined
-                  ? unitThresholds[item.unit]
-                  : DEFAULT_MIN_STOCK;
-                const hasCustomMin = item.min_stock !== null && item.min_stock !== undefined
-                  && Number(item.min_stock) > 0;
-                const minStock = hasCustomMin ? Number(item.min_stock) : unitMin;
-                const qty = Number(item.quantity || 0);
-                return { ...item, minStock, qty };
-              })
-              .filter(item => item.qty < item.minStock)
-              .sort((a, b) => (a.qty - a.minStock) - (b.qty - b.minStock));
-
-            if (!low.length) {
-              lowStockHeatmap.innerHTML = '<div class="muted">All ingredients are above minimum stock</div>';
-              lowStockCount.textContent = '0 items';
-              return;
-            }
-
-            lowStockCount.textContent = `${low.length} item${low.length > 1 ? 's' : ''}`;
-            low.forEach(item => {
-              const shortfall = Math.max(0, item.minStock - item.qty);
-              const pct = item.minStock > 0 ? item.qty / item.minStock : 0;
-              let color = '#166534';
-              if (pct < 0.25) color = '#9a3412';
-              else if (pct < 0.5) color = '#c2410c';
-              else if (pct < 0.8) color = '#b45309';
-              const tile = document.createElement('div');
-              tile.className = 'heat-tile';
-              tile.style.background = color;
-              tile.innerHTML = `
-                <div class="heat-name">${item.name}</div>
-                <div class="heat-value">${item.qty.toFixed(2)} ${item.unit || ''}</div>
-                <div class="heat-sub">Min ${Number(item.minStock).toFixed(2)} · Short ${shortfall.toFixed(2)}</div>
-              `;
-              lowStockHeatmap.appendChild(tile);
-            });
-          })
-          .catch(() => {
-            lowStockHeatmap.innerHTML = '<div class="muted">Failed to load low stock alerts</div>';
-          });
-      });
-  }
-
-  buildMonths();
-  monthSelect.addEventListener('change', loadDashboard);
-</script>
-
-</div>
 <script src="/sidebar.js"></script>
+<script>
+  const A = requireRole(['admin','manager','staff']);
+  const statusEl = document.getElementById('status');
+  const viewEl = document.getElementById('view');
+  if (!A || !A.id) { statusEl.innerHTML = '<span class="err">❌ Not logged in</span>'; throw Error('no auth'); }
+
+  document.getElementById('who').textContent = `${A.name} · ${A.role}`;
+
+  // ---- helpers ----
+  const Rp = v => 'Rp ' + Math.round(v || 0).toLocaleString('id-ID');
+  const RpShort = v => {
+    const n = Math.abs(v || 0);
+    const s = v < 0 ? '-' : '';
+    if (n >= 1e9) return `${s}Rp ${(n/1e9).toFixed(1)} M`;
+    if (n >= 1e6) return `${s}Rp ${(n/1e6).toFixed(1)} jt`;
+    if (n >= 1e3) return `${s}Rp ${Math.round(n/1e3)} rb`;
+    return `${s}Rp ${Math.round(n)}`;
+  };
+  const pct = (a, b) => b ? Math.round((a/b)*100) : 0;
+  function deltaHTML(cur, prev, higherIsGood = true) {
+    if (prev === 0 || prev == null) return `<span class="foot">no prior data</span>`;
+    const change = Math.round((cur - prev) / Math.abs(prev) * 100);
+    const good = higherIsGood ? change >= 0 : change <= 0;
+    const arrow = change > 0 ? '▲' : (change < 0 ? '▼' : '–');
+    return `<span class="delta ${good ? 'up' : 'down'}">${arrow} ${Math.abs(change)}% <span class="foot" style="font-weight:400">vs last mo.</span></span>`;
+  }
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const jget = url => fetch(url, { headers: authHeaders(), credentials: 'same-origin' })
+    .then(r => r.ok ? r.json() : Promise.reject(new Error(`${url} → ${r.status}`)));
+
+  // month selector: last 6 months
+  const monthSel = document.getElementById('month');
+  (function fillMonths(){
+    const now = new Date();
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = d.toISOString().slice(0, 7);
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = d.toLocaleDateString('en', { month: 'long', year: 'numeric' });
+      monthSel.appendChild(opt);
+    }
+  })();
+
+  const isOwner = A.role === 'admin';
+  document.getElementById('title').textContent = isOwner ? '👑 Owner Dashboard' : '📊 Dashboard';
+  document.getElementById('subtitle').textContent = isOwner
+    ? 'Profit, sales trend and what needs your attention'
+    : 'Business performance overview';
+
+  // ---- daily revenue chart (inline SVG, no libs) ----
+  function dailyChart(days) {
+    if (!days.length) return '<div class="pnl-foot">No sales recorded this month.</div>';
+    const W = 640, H = 200, padL = 8, padB = 18, padT = 8;
+    const max = Math.max(...days.map(d => d.revenue), 1);
+    const bw = (W - padL) / days.length;
+    const gridVals = [0.25, 0.5, 0.75, 1];
+    let g = '';
+    gridVals.forEach(gv => {
+      const y = padT + (H - padT - padB) * (1 - gv);
+      g += `<line class="grid" x1="${padL}" y1="${y}" x2="${W}" y2="${y}"/>`;
+      g += `<text class="axis" x="0" y="${y - 2}">${RpShort(max * gv)}</text>`;
+    });
+    let bars = '';
+    days.forEach((d, i) => {
+      const h = (H - padT - padB) * (d.revenue / max);
+      const x = padL + i * bw;
+      const y = padT + (H - padT - padB) - h;
+      const dow = new Date(d.date + 'T00:00').getDay();
+      const wknd = (dow === 0 || dow === 6) ? ' weekend' : '';
+      const day = d.date.slice(8);
+      const label = (i % 3 === 0) ? `<text class="axis" x="${x + bw/2}" y="${H-4}" text-anchor="middle">${day}</text>` : '';
+      bars += `<rect class="bar${wknd}" x="${x + 1}" y="${y}" width="${Math.max(bw-2,1)}" height="${Math.max(h,0)}" rx="2"><title>${d.date}: ${Rp(d.revenue)} · ${d.order_count} orders</title></rect>${label}`;
+    });
+    return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${g}${bars}</svg>`;
+  }
+
+  function pnlRow(name, amount, ratio, cls, note) {
+    const neg = amount < 0;
+    return `<div class="pnl-row">
+      <div class="top"><span class="name">${name}</span><span class="amt ${neg?'neg':''}">${Rp(amount)}</span></div>
+      <div class="bar-track"><div class="bar-fill ${cls} ${neg?'neg':''}" style="width:${Math.min(Math.abs(ratio),100)}%"></div></div>
+      ${note ? `<div class="pnl-foot">${note}</div>` : ''}
+    </div>`;
+  }
+
+  // ---- owner view ----
+  async function loadOwner(month) {
+    const [sum, days, top, recipes, inv] = await Promise.all([
+      jget('/api/reports/monthly-summary?month=' + month),
+      jget('/api/reports/daily?month=' + month).catch(() => []),
+      jget('/api/reports/top-products?month=' + month).catch(() => []),
+      jget('/api/reports/recipe-costing').catch(() => []),
+      jget('/api/reports/inventory-valuation').catch(() => [])
+    ]);
+    const c = sum.current, p = sum.previous;
+    const grossCur = c.revenue - c.cost, grossPrev = p.revenue - p.cost;
+
+    // KPI hero
+    const kpis = `<div class="kpis">
+      <div class="kpi hero">
+        <div class="lbl">Revenue</div><div class="val">${Rp(c.revenue)}</div>
+        ${deltaHTML(c.revenue, p.revenue, true)}
+        <div class="foot">${c.order_count} orders</div>
+      </div>
+      <div class="kpi">
+        <div class="lbl">Gross Profit</div><div class="val ${grossCur<0?'neg':''}">${Rp(grossCur)}</div>
+        ${deltaHTML(grossCur, grossPrev, true)}
+        <div class="foot">after COGS ${Rp(c.cost)}</div>
+      </div>
+      <div class="kpi">
+        <div class="lbl">Expenses</div><div class="val">${Rp(c.expenses)}</div>
+        ${deltaHTML(c.expenses, p.expenses, false)}
+        <div class="foot">${pct(c.expenses, c.revenue)}% of revenue</div>
+      </div>
+      <div class="kpi hero">
+        <div class="lbl">Net Profit</div><div class="val ${c.profit<0?'neg':''}">${Rp(c.profit)}</div>
+        ${deltaHTML(c.profit, p.profit, true)}
+        <div class="foot">${c.profit<0?'operating at a loss':'net positive'}</div>
+      </div>
+      <div class="kpi">
+        <div class="lbl">Net Margin</div><div class="val ${c.margin_pct<0?'neg':''}">${c.margin_pct}%</div>
+        ${deltaHTML(c.margin_pct, p.margin_pct, true)}
+        <div class="foot">avg order ${Rp(c.order_count? c.revenue/c.order_count:0)}</div>
+      </div>
+    </div>`;
+
+    // chart + P&L
+    const rev = c.revenue || 1;
+    const mid = `<div class="grid2">
+      <div class="panel">
+        <h2>Daily Revenue <span class="h-note">— weekends darker</span></h2>
+        ${dailyChart(days)}
+      </div>
+      <div class="panel">
+        <h2>Where the money goes</h2>
+        ${pnlRow('Revenue', c.revenue, 100, 'rev')}
+        ${pnlRow('− Cost of goods (COGS)', c.cost, c.cost/rev*100, 'cogs', pct(c.cost,c.revenue)+'% of revenue')}
+        ${pnlRow('− Operating expenses', c.expenses, c.expenses/rev*100, 'exp', pct(c.expenses,c.revenue)+'% of revenue')}
+        ${pnlRow('= Net profit', c.profit, c.profit/rev*100, 'net', pct(c.profit,c.revenue)+'% margin')}
+      </div>
+    </div>`;
+
+    // top products
+    const topMax = Math.max(...top.map(t => t.revenue), 1);
+    const topHTML = top.length ? top.map((t, i) => `
+      <div class="prod">
+        <span class="rank">${i+1}</span>
+        <span class="pname" title="${esc(t.name)}">${esc(t.name)}</span>
+        <span class="pbar"><span style="width:${t.revenue/topMax*100}%"></span></span>
+        <span class="pval">${RpShort(t.revenue)} · ${t.qty}×</span>
+      </div>`).join('') : '<div class="pnl-foot">No sales this month.</div>';
+
+    // alerts
+    const lowStock = inv.filter(x => x.min_stock > 0 && x.quantity_base < x.min_stock);
+    const belowCost = recipes.filter(x => x.price > 0 && x.recipe_count > 0 && x.margin_pct < 0);
+    const invValue = inv.reduce((s, x) => s + (x.total_value || 0), 0);
+    let alerts = '';
+    if (c.profit < 0)
+      alerts += `<div class="alert warn"><span class="ico">🔴</span><span class="msg"><b>Net loss this month.</b> Expenses (${Rp(c.expenses)}) exceed gross profit (${Rp(grossCur)}). Review the biggest expense lines.</span></div>`;
+    if (belowCost.length)
+      alerts += `<div class="alert warn"><span class="ico">⚠️</span><span class="msg"><b>${belowCost.length} menu item(s) sold below cost.</b> ${belowCost.slice(0,3).map(x=>esc(x.name)).join(', ')}${belowCost.length>3?'…':''}</span></div>`;
+    if (lowStock.length)
+      alerts += `<div class="alert info"><span class="ico">📦</span><span class="msg"><b>${lowStock.length} ingredient(s) below minimum stock.</b> ${lowStock.slice(0,3).map(x=>esc(x.name)).join(', ')}${lowStock.length>3?'…':''} — time to reorder.</span></div>`;
+    const hasWarn = (c.profit < 0) || belowCost.length > 0;
+    if (!hasWarn)
+      alerts = `<div class="alert good"><span class="ico">✅</span><span class="msg"><b>All healthy.</b> Profitable month, no items below cost.</span></div>` + alerts;
+    alerts += `<div class="alert info"><span class="ico">🏷️</span><span class="msg"><b>${Rp(invValue)}</b> of cash is tied up in ingredient stock (${inv.length} items).</span></div>`;
+
+    const bottom = `<div class="grid2b">
+      <div class="panel"><h2>Top 5 Products <span class="h-note">by revenue</span></h2>${topHTML}</div>
+      <div class="panel"><h2>Needs attention</h2>${alerts}</div>
+    </div>`;
+
+    viewEl.innerHTML = kpis + mid + bottom;
+  }
+
+  // ---- simple view (manager / staff) ----
+  async function loadSimple(month) {
+    const h = await jget('/api/reports/monthly?month=' + month);
+    const p = (h.revenue||0) - (h.cogs||0) - (h.expenses||0);
+    viewEl.innerHTML = `<div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+      <div class="kpi hero"><div class="lbl">Revenue</div><div class="val">${Rp(h.revenue)}</div><div class="foot">${h.order_count||0} orders</div></div>
+      <div class="kpi"><div class="lbl">COGS</div><div class="val">${Rp(h.cogs)}</div><div class="foot">${pct(h.cogs,h.revenue)}% of revenue</div></div>
+      <div class="kpi"><div class="lbl">Expenses</div><div class="val">${Rp(h.expenses)}</div></div>
+      <div class="kpi hero"><div class="lbl">Net Profit</div><div class="val ${p<0?'neg':''}">${Rp(p)}</div><div class="foot">${pct(p,h.revenue)}% margin</div></div>
+    </div>`;
+  }
+
+  async function load() {
+    const month = monthSel.value;
+    statusEl.style.display = '';
+    viewEl.style.display = 'none';
+    statusEl.textContent = '⏳ Loading…';
+    try {
+      if (isOwner) await loadOwner(month);
+      else await loadSimple(month);
+      statusEl.style.display = 'none';
+      viewEl.style.display = '';
+    } catch (e) {
+      statusEl.innerHTML = '<span class="err">❌ ' + esc(e.message) + '</span>';
+    }
+  }
+
+  document.getElementById('refresh').addEventListener('click', load);
+  monthSel.addEventListener('change', load);
+  load();
+</script>
 </body>
 </html>

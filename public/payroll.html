@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Payroll – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    body { font-family: inherit; margin: 0; padding: 0; background: transparent; color: var(--ink); }
+    .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; padding: 16px; }
+    .topbar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
+    .topbar h1 { margin: 0; flex: 1; font-size: 20px; }
+    .main-scroll { flex: 1 1 auto; overflow: auto; }
+    .card { background: var(--card); padding: 16px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 8px 20px rgba(41,26,18,0.16); margin-bottom: 14px; }
+    h2 { margin: 0 0 8px; font-size: 16px; color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--accent); font-size: 11px; text-transform: uppercase; position: sticky; top: 0; background: var(--card); }
+    .num { text-align: right; }
+    button, select, input { padding: 8px 10px; font-size: 13px; border-radius: 8px; min-height: 36px; box-sizing: border-box; }
+    button { background: var(--brand); color: #fff; border: none; cursor: pointer; font-weight: 600; }
+    .row-btn { padding: 4px 8px; font-size: 11px; border-radius: 6px; width: auto; }
+    .summary-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 12px; }
+    .summary-item { font-size: 14px; } .summary-item span { font-weight: 700; color: var(--brand-ink); }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1200; display: flex; align-items: center; justify-content: center; }
+    .modal-backdrop[hidden] { display: none; }
+    .modal { background: var(--card); border-radius: 16px; padding: 24px; width: 90vw; max-width: 420px; box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .modal-head .title { font-size: 16px; font-weight: 700; }
+    label { display: block; margin-top: 8px; font-size: 12px; color: var(--accent); }
+  </style>
+</head>
+<body class="theme-cafe">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Navigation</div></div></div>
+    <a href="/dashboard.html">Dashboard</a><a href="/pos.html">POS</a><a href="/inventory.html">Inventory</a>
+    <div class="nav-group"><button class="nav-toggle" type="button"><span>📋 Product</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button><div class="nav-children"><a href="/menu.html" class="nav-sub">Menu Items</a><a href="/receipe.html" class="nav-sub">Recipe</a><a href="/ingredients.html" class="nav-sub">Ingredients</a></div></div>
+    <div class="nav-group"><button class="nav-toggle" type="button"><span>💰 Purchase</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button><div class="nav-children"><a href="/purchase.html" class="nav-sub">Purchases</a><a href="/expenses.html" class="nav-sub">Expenses</a><a href="/supplier.html" class="nav-sub">Suppliers</a></div></div>
+    <div class="nav-group"><button class="nav-toggle" type="button"><span>👥 Employees</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button><div class="nav-children"><a href="/employees.html" class="nav-sub">Users</a><a href="/payroll.html" class="nav-sub">Payroll</a><a href="/clock.html" class="nav-sub">Attendance</a></div></div>
+    <a href="/system-report.html">System Report</a><a href="/import-center.html">Import Center</a><a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content">
+    <div class="topbar"><button id="menuToggle" class="menu-toggle">☰</button><h1>💰 Payroll</h1></div>
+    <div class="stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;">
+      <div class="stat" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;">Total Staff</div><div style="font-size:24px;font-weight:700;color:var(--brand-ink);" id="pStatStaff">–</div></div>
+      <div class="stat" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;">Total Payroll</div><div style="font-size:24px;font-weight:700;color:var(--brand-ink);" id="pStatTotal">–</div></div>
+      <div class="stat" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;">Avg per Staff</div><div style="font-size:24px;font-weight:700;color:var(--brand-ink);" id="pStatAvg">–</div></div>
+    </div>
+    <div class="summary-row" id="payrollSummary"></div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h2 style="margin:0;">Monthly Payroll</h2>
+        <select id="payrollMonth" style="width:auto;min-height:30px;"></select>
+      </div>
+      <table><thead><tr><th>Name</th><th>Role</th><th class="num">Shifts</th><th class="num">Rate/Shift</th><th class="num">Base Pay</th><th class="num">Overtime</th><th class="num">Bonus</th><th class="num">Deduction</th><th class="num">Total</th><th>Edit</th></tr></thead>
+      <tbody id="payrollRows"><tr><td colspan="10">Select month above</td></tr></tbody></table>
+    </div>
+
+    <div class="modal-backdrop" id="payrollModal" hidden>
+      <div class="modal"><div class="modal-head"><span class="title">Edit Payroll</span><button class="row-btn" id="closePayrollModal">✕</button></div>
+        <label>Overtime (Rp)</label><input id="payOvertime" type="number" value="0" /><input type="hidden" id="payUserId" />
+        <label>Bonus (Rp)</label><input id="payBonus" type="number" value="0" />
+        <label>Deduction (Rp)</label><input id="payDeduction" type="number" value="0" />
+        <button id="savePayroll" style="margin-top:14px;">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin','manager']);
+    if (!auth) throw new Error('Unauthorized');
+    const h = authHeaders(); const opts = { headers: h, credentials: 'same-origin' };
+
+    function buildPayrollMonths() {
+      const sel = document.getElementById('payrollMonth');
+      const months = []; const now = new Date();
+      for (let i=0;i<6;i++) { const d = new Date(now.getFullYear(), now.getMonth()-i, 1); months.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')); }
+      sel.innerHTML = months.map(m=>'<option value="'+m+'">'+m+'</option>').join('');
+      sel.value = months[0]; loadPayroll();
+    }
+
+    async function loadPayroll() {
+      const month = document.getElementById('payrollMonth').value || new Date().toISOString().slice(0,7);
+      const users = await fetch('/api/users', opts).then(r=>r.json());
+      const attData = await fetch('/api/attendance/history?month='+month, opts).then(r=>r.json()).catch(()=>[]);
+      const tb = document.getElementById('payrollRows'); tb.innerHTML = '';
+      let totalPayroll = 0;
+      users.filter(u=>u.active).forEach(u => {
+        const userAtt = attData.filter(a => String(a.user_id)===String(u.id));
+        const days = new Set(userAtt.map(a=>a.clock_in?a.clock_in.slice(0,10):null).filter(Boolean));
+        const shifts = days.size;
+        const rate = Number(u.rate||0); const basePay = shifts * rate;
+        const saved = attData.find(a=>String(a.user_id)===String(u.id)&&a.overtime)||{};
+        const ot = Number(saved.overtime||0), bonus = Number(saved.bonus||0), deduct = Number(saved.deduction||0);
+        const total = basePay + ot + bonus - deduct; totalPayroll += total;
+        tb.innerHTML += '<tr><td>'+u.name+'</td><td>'+u.role+'</td><td class="num">'+shifts+'</td><td class="num">'+(rate?'Rp '+rate.toLocaleString('id-ID'):'—')+'</td><td class="num">'+(basePay?'Rp '+basePay.toLocaleString('id-ID'):'—')+'</td><td class="num">'+(ot?'Rp '+ot.toLocaleString('id-ID'):'—')+'</td><td class="num">'+(bonus?'Rp '+bonus.toLocaleString('id-ID'):'—')+'</td><td class="num">'+(deduct?'Rp '+deduct.toLocaleString('id-ID'):'—')+'</td><td class="num" style="font-weight:700;">'+(total?'Rp '+total.toLocaleString('id-ID'):'—')+'</td><td><button class="row-btn" data-pay-edit="'+u.id+'" data-ot="'+ot+'" data-bonus="'+bonus+'" data-ded="'+deduct+'">✎</button></td></tr>';
+      });
+      const staffCount = users.filter(u=>u.active).length;
+      document.getElementById("pStatStaff").textContent = staffCount;
+      document.getElementById("pStatTotal").textContent = totalPayroll ? "Rp "+totalPayroll.toLocaleString("id-ID") : "—";
+      document.getElementById("pStatAvg").textContent = (staffCount && totalPayroll) ? "Rp "+Math.round(totalPayroll/staffCount).toLocaleString("id-ID") : "—";
+      document.getElementById('payrollSummary').innerHTML = '<div class="summary-item">Total Payroll: <span>'+(totalPayroll?'Rp '+totalPayroll.toLocaleString('id-ID'):'—')+'</span></div>';
+    }
+
+    document.getElementById('payrollMonth').addEventListener('change', loadPayroll);
+    document.getElementById('payrollRows').addEventListener('click', e => {
+      const btn = e.target.closest('[data-pay-edit]'); if (!btn) return;
+      document.getElementById('payUserId').value = btn.getAttribute('data-pay-edit');
+      document.getElementById('payOvertime').value = btn.getAttribute('data-ot');
+      document.getElementById('payBonus').value = btn.getAttribute('data-bonus');
+      document.getElementById('payDeduction').value = btn.getAttribute('data-ded');
+      document.getElementById('payrollModal').hidden = false;
+    });
+    document.getElementById('closePayrollModal').addEventListener('click', ()=>document.getElementById('payrollModal').hidden=true);
+    document.getElementById('savePayroll').addEventListener('click', async ()=>{
+      const userId = document.getElementById('payUserId').value;
+      const month = document.getElementById('payrollMonth').value;
+      await fetch('/api/attendance/payroll', { method:'POST', headers:{'Content-Type':'application/json',...h},
+        body: JSON.stringify({ user_id: userId, month, overtime: Number(document.getElementById('payOvertime').value)||0,
+          bonus: Number(document.getElementById('payBonus').value)||0, deduction: Number(document.getElementById('payDeduction').value)||0 }) });
+      document.getElementById('payrollModal').hidden = true; loadPayroll();
+    });
+
+    buildPayrollMonths();
+  </script>
+</body>
+</html>

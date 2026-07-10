@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ingredients – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    body { font-family: inherit; margin: 0; padding: 0; background: transparent; color: var(--ink); }
+    .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; }
+    .topbar, .page-sub, .stats { flex: 0 0 auto; }
+    .table-card { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 180px; overflow: hidden; }
+    .list-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+    .topbar { display: flex; align-items: center; gap: 10px; }
+    .topbar h1 { margin: 0; flex: 1; font-size: 20px; }
+    .topbar button { width: auto; margin-top: 0; }
+    .page-sub { color: var(--muted); font-size: 14px; margin: 2px 0 14px; }
+
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    @media (max-width: 760px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; box-shadow: var(--shadow-sm); }
+    .stat .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .stat .value { font-family: var(--font-brand); font-size: 26px; font-weight: 700; color: var(--brand-ink); margin-top: 4px; }
+
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(140px, 1fr)); gap: 10px; }
+    label { display: block; margin-top: 10px; }
+    input, textarea, select { width: 100%; padding: 10px 12px; border-radius: 8px; font-size: 14px; min-height: 44px; box-sizing: border-box; }
+    textarea { min-height: 72px; resize: vertical; }
+
+    button { background: var(--brand); color: #fff; margin-top: 14px; width: 100%; padding: 12px; min-height: 48px; border: none; border-radius: 8px; font-weight: bold; letter-spacing: 0.3px; cursor: pointer; }
+    .row-btn { margin: 0 6px 0 0; padding: 6px 10px; min-height: 32px; font-size: 12px; border-radius: 6px; width: auto; cursor: pointer; }
+    .row-btn.danger { background: var(--danger); color: #fff; }
+    button.secondary { background: var(--card); color: var(--brand-700); border: 1px solid var(--brand); box-shadow: none; }
+    button.secondary:hover { background: #eef2f8; }
+
+    table th, table td { min-width: 90px; padding: 8px 8px; font-size: 13px; }
+    table th:first-child, table td:first-child { min-width: 180px; }
+    #ingredientTable thead th { position: sticky; top: 0; z-index: 2; background: var(--card); }
+
+    .status { margin-top: 8px; font-size: 13px; color: var(--muted); min-height: 18px; }
+    .card { background: var(--card); padding: 16px; border-radius: 12px; box-shadow: 0 8px 20px rgba(41,26,18,0.16); border: 1px solid var(--border); }
+    .editor-card { border: 1px solid rgba(240,132,27,0.35); background: linear-gradient(140deg, rgba(21,18,14,0.9), rgba(18,16,12,0.9)); margin-bottom: 12px; }
+    .editing-banner { margin-bottom: 10px; padding: 10px 12px; border-radius: 10px; background: rgba(240,132,27,0.12); border: 1px solid rgba(240,132,27,0.4); color: var(--accent); font-weight: 600; }
+    .icon-btn { background: var(--card); color: var(--brand-ink); border: 1px solid var(--border); font-size: 18px; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; min-height: auto; }
+    .icon-btn:hover { background: var(--brand); color: #fff; }
+
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1200; display: flex; align-items: center; justify-content: center; }
+    .modal-backdrop[hidden] { display: none; }
+    .modal { background: var(--card); border-radius: 16px; padding: 24px; width: 90vw; max-width: 600px; max-height: 85vh; overflow-y: auto; box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .modal-head .card-title { font-size: 18px; font-weight: 700; }
+
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body class="theme-cafe">
+      <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Navigation</div></div></div>
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/pos.html">POS</a>
+    <a href="/inventory.html">Inventory</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>📋 Product</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/menu.html" class="nav-sub">Menu Items</a>
+        <a href="/receipe.html" class="nav-sub">Recipe</a>
+        <a href="/ingredients.html" class="nav-sub">Ingredients</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>💰 Purchase</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/purchase.html" class="nav-sub">Purchases</a>
+        <a href="/expenses.html" class="nav-sub">Expenses</a>
+        <a href="/supplier.html" class="nav-sub">Suppliers</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>👥 Employees</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/employees.html" class="nav-sub">Users</a>
+        <a href="/payroll.html" class="nav-sub">Payroll</a>
+        <a href="/clock.html" class="nav-sub">Attendance</a>
+      </div>
+    </div>
+    <a href="/system-report.html">System Report</a>
+    <a href="/import-center.html">Import Center</a>
+    <a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content">
+    <div class="topbar">
+      <button class="icon-btn" id="menuToggle" aria-label="Open menu">☰</button>
+      <h1>🧾 Ingredients</h1>
+      <div style="flex:1;"></div>
+      <button type="button" class="secondary" id="manageCatsBtn">🏷 Categories</button>
+      <button type="button" class="secondary" id="exportBtn">⬇ Export</button>
+      <button type="button" class="secondary" id="importBtn">⬆ Import</button>
+      <button type="button" id="addIngredientBtn">＋ Add Ingredient</button>
+      <input type="file" id="importFile" accept=".xlsx,.xls" hidden />
+    </div>
+    <p class="page-sub">Manage ingredient catalog — units, conversion rates, and latest purchase prices for HPP calculation.</p>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Total Ingredients</div><div class="value" id="ingStatTotal">–</div></div>
+      <div class="stat"><div class="label">Active</div><div class="value" id="ingStatActive">–</div></div>
+      <div class="stat"><div class="label">Priced (has cost)</div><div class="value" id="ingStatPriced">–</div></div>
+      <div class="stat"><div class="label">Categories</div><div class="value" id="ingStatCats">–</div></div>
+    </div>
+
+    <div id="ingredientsTab" style="display:flex;flex-direction:column;flex:1 1 auto;min-height:0;">
+      <div class="card table-card">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;flex:0 0 auto;">
+          <div style="min-width:160px;"><label for="ingredientFilter" style="margin-top:0;font-size:12px;color:var(--accent);">Filter</label><select id="ingredientFilter"><option value="">All Categories</option></select></div>
+          <div style="min-width:160px;"><label for="ingredientSort" style="margin-top:0;font-size:12px;color:var(--accent);">Sort</label><select id="ingredientSort"><option value="name-asc">Name (A–Z)</option><option value="name-desc">Name (Z–A)</option></select></div>
+        </div>
+        <div class="table-wrap list-scroll"><table id="ingredientTable"><thead><tr><th>Name</th><th>Actions</th><th>Base Unit</th><th>Purchase Unit</th><th>Conversion</th><th>Last Price</th><th>Std Cost</th><th>Min Stock</th><th>Notes</th></tr></thead><tbody id="ingredientRows"><tr><td colspan="9">Loading…</td></tr></tbody></table></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="ingredientModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <span class="card-title" id="ingredientModalTitle">Add Ingredient</span>
+        <button type="button" class="icon-btn" id="closeIngredientModal" aria-label="Close">✕</button>
+      </div>
+      <form id="ingredient-form">
+        <div class="grid">
+          <div><label for="name">Name</label><input id="name" placeholder="Coffee Beans" required /></div>
+          <div><label for="category">Category</label><select id="category"><option value="">Select</option><option value="Drink">Drink</option><option value="Food">Food</option><option value="Packaging">Packaging</option></select></div>
+          <div><label for="base_unit">Base Unit</label><input id="base_unit" placeholder="gram" required /></div>
+          <div><label for="purchase_unit">Purchase Unit</label><input id="purchase_unit" placeholder="kg" /></div>
+          <div><label for="conv">Conversion</label><input id="conv" type="number" step="0.0001" placeholder="1000" /></div>
+          <div><label for="last_price">Last Purchase Price (Rp)</label><input id="last_price" type="number" step="1" placeholder="e.g. 45000" /></div>
+          <div><label for="std_cost">Std Cost per Base</label><input id="std_cost" type="number" step="0.0001" placeholder="0.015" /><button type="button" id="calcCostBtn" class="row-btn" style="margin-top:4px;width:auto;">Calc</button></div>
+          <div><label for="min_stock">Min Stock</label><input id="min_stock" type="number" step="0.01" placeholder="0" /></div>
+          <div><label for="notes">Notes</label><textarea id="notes" placeholder="Notes"></textarea></div>
+        </div>
+        <button type="submit" id="ingredientSave">Save Ingredient</button>
+        <div class="status" id="ingredientStatus"></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="catModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <span class="card-title">🏷 Ingredient Categories</span>
+        <button type="button" class="icon-btn" id="closeCatModal" aria-label="Close">✕</button>
+      </div>
+      <form id="cat-form" style="display:flex;gap:8px;margin-bottom:14px;">
+        <input id="catName" placeholder="Category name" autocomplete="off" required style="flex:1;margin:0;" />
+        <button type="submit" id="catSaveBtn" style="width:auto;margin:0;">Add</button>
+        <button type="button" id="catCancelBtn" class="secondary" style="width:auto;margin:0;display:none;">Cancel</button>
+      </form>
+      <div style="max-height:48vh;overflow:auto;">
+        <table><thead><tr><th>Category</th><th class="num">Items</th><th>Actions</th></tr></thead>
+        <tbody id="catRows"><tr><td colspan="3">Loading…</td></tr></tbody></table>
+      </div>
+      <div class="status" id="catStatus"></div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin', 'manager']);
+    const ingredientRows = document.getElementById('ingredientRows');
+    const ingredientStatus = document.getElementById('ingredientStatus');
+    const ingredientSave = document.getElementById('ingredientSave');
+    const ingredientFilter = document.getElementById('ingredientFilter');
+    const ingredientModal = document.getElementById('ingredientModal');
+    const ingredientModalTitle = document.getElementById('ingredientModalTitle');
+    const ingredientSort = document.getElementById('ingredientSort');
+    const nameEl = document.getElementById('name'), categoryEl = document.getElementById('category');
+    const baseUnitEl = document.getElementById('base_unit'), purchaseUnitEl = document.getElementById('purchase_unit');
+    const convEl = document.getElementById('conv'), stdCostEl = document.getElementById('std_cost');
+    const lastPriceEl = document.getElementById('last_price'), calcCostBtn = document.getElementById('calcCostBtn');
+    const notesEl = document.getElementById('notes'), minStockEl = document.getElementById('min_stock');
+    const addBtn = document.getElementById('addIngredientBtn');
+
+    let editingIngredientId = null, ingredientData = [];
+    function openModal(title) { ingredientModalTitle.textContent=title; ingredientModal.hidden=false; ingredientStatus.textContent=''; }
+    function closeModal() { ingredientModal.hidden=true; editingIngredientId=null; document.getElementById('ingredient-form').reset(); }
+    const ingredientMap = new Map();
+
+    function updateStats(data) {
+      document.getElementById('ingStatTotal').textContent = data.length;
+      document.getElementById('ingStatActive').textContent = data.filter(i=>i.active!==0).length;
+      document.getElementById('ingStatPriced').textContent = data.filter(i=>Number(i.std_cost_per_base)>0).length;
+      const cats = new Set(); data.forEach(i=>{if(i.category)cats.add(i.category);});
+      document.getElementById('ingStatCats').textContent = cats.size;
+    }
+
+    function renderIngredientRows(data) {
+      updateStats(data);
+      ingredientRows.innerHTML = '';
+      if (!data.length) { ingredientRows.innerHTML = '<tr><td colspan="9">No ingredients yet</td></tr>'; return; }
+      const fv = String(ingredientFilter.value||'').toLowerCase();
+      let filtered = fv ? data.filter(i => String(i.category||'').toLowerCase()===fv) : data;
+      const sv = ingredientSort.value||'name-asc';
+      filtered = [...filtered].sort((a,b)=>sv==='name-desc'?String(b.name).localeCompare(String(a.name)):String(a.name).localeCompare(String(b.name)));
+      filtered.forEach(i => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${i.name||''}</td><td><button class="row-btn" data-action="edit" data-id="${i.id}">Edit</button><button class="row-btn danger" data-action="archive" data-id="${i.id}">Archive</button></td><td>${i.base_unit||i.unit||''}</td><td>${i.purchase_unit||''}</td><td>${i.conv_purchase_to_base||''}</td><td>${i.last_purchase_price!=null?i.last_purchase_price.toLocaleString('id-ID'):''}</td><td>${i.std_cost_per_base??''}</td><td>${i.min_stock??0}</td><td>${i.notes||''}</td>`;
+        ingredientRows.appendChild(tr);
+      });
+    }
+
+    async function loadIngredients() {
+      if(!auth)return;
+      try{const r=await fetch('/api/ingredients',{headers:authHeaders(),credentials:'same-origin'});const d=await r.json();ingredientMap.clear();ingredientData=d||[];
+        const cats=new Set();ingredientData.forEach(i=>{ingredientMap.set(String(i.id),i);if(i.category)cats.add(i.category);});
+        ingredientFilter.innerHTML='<option value="">All Categories</option>';[...cats].sort().forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;ingredientFilter.appendChild(o);});
+        renderIngredientRows(ingredientData);
+      }catch{ingredientRows.innerHTML='<tr><td colspan="9">Failed</td></tr>';}
+    }
+
+    ingredientRows.addEventListener('click',(e)=>{
+      const btn=e.target.closest('button[data-action]');if(!btn)return;
+      const id=btn.getAttribute('data-id'),action=btn.getAttribute('data-action'),row=btn.closest('tr');
+      if(!row)return;const cells=row.querySelectorAll('td');
+      if(action==='edit'){
+        editingIngredientId=id;
+        ingredientRows.querySelectorAll('tr').forEach(tr=>tr.classList.remove('editing-row'));
+        if(row)row.classList.add('editing-row');
+        const rec=ingredientMap.get(String(id))||{};
+        nameEl.value=rec.name||cells[0].textContent.trim();categoryEl.value=rec.category||'';
+        baseUnitEl.value=rec.base_unit||rec.unit||cells[2].textContent.trim();
+        purchaseUnitEl.value=rec.purchase_unit||cells[3].textContent.trim();
+        convEl.value=rec.conv_purchase_to_base||cells[4].textContent.trim();
+        lastPriceEl.value=rec.last_purchase_price??'';
+        stdCostEl.value=rec.std_cost_per_base??cells[6].textContent.trim();minStockEl.value=rec.min_stock??cells[7].textContent.trim();
+        notesEl.value=rec.notes||cells[8].textContent.trim();
+        ingredientSave.textContent='Update Ingredient';ingredientStatus.textContent='Editing';
+        openModal(`Edit: ${nameEl.value||'Ingredient'}`);nameEl.focus();return;
+      }
+      if(action==='archive'){if(!confirm('Archive?'))return;fetch(`/api/ingredients/${id}/archive`,{method:'PATCH',headers:{'Content-Type':'application/json',...authHeaders()}}).then(r=>r.json()).then(d=>{ingredientStatus.textContent=d.message||'Archived';loadIngredients();}).catch(()=>{});}
+    });
+
+    calcCostBtn.addEventListener('click',()=>{const p=Number(lastPriceEl.value),c=Number(convEl.value);if(!(p>0)||!(c>0)){ingredientStatus.textContent='Enter price+conversion';return;}stdCostEl.value=Number((p/c).toFixed(6));ingredientStatus.textContent=`${p.toLocaleString('id-ID')}/${c}=${(p/c).toFixed(6)}`;setTimeout(()=>{ingredientStatus.textContent='';},2500);});
+    addBtn.addEventListener('click',()=>{document.getElementById('ingredient-form').reset();editingIngredientId=null;ingredientSave.textContent='Save Ingredient';openModal('Add Ingredient');nameEl.focus();});
+    document.getElementById('closeIngredientModal').addEventListener('click',closeModal);
+    ingredientModal.addEventListener('click',e=>{if(e.target===ingredientModal)closeModal();});
+
+    document.getElementById('ingredient-form').addEventListener('submit',(e)=>{e.preventDefault();if(!auth)return;const p={name:nameEl.value.trim(),category:categoryEl.value.trim(),base_unit:baseUnitEl.value.trim(),purchase_unit:purchaseUnitEl.value.trim(),conv_purchase_to_base:convEl.value,last_purchase_price:lastPriceEl.value,std_cost_per_base:stdCostEl.value,min_stock:minStockEl.value,notes:notesEl.value.trim()};ingredientStatus.textContent='Saving…';const u=editingIngredientId?`/api/ingredients/${editingIngredientId}`:'/api/ingredients';fetch(u,{method:editingIngredientId?'PUT':'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify(p)}).then(r=>r.json()).then(d=>{ingredientStatus.textContent=d.message||d.error||'Saved';if(!d.error){closeModal();loadIngredients();}}).catch(()=>{ingredientStatus.textContent='Failed';});});
+
+    ingredientFilter.addEventListener('change',()=>renderIngredientRows(ingredientData));
+    ingredientSort.addEventListener('change',()=>renderIngredientRows(ingredientData));
+
+    // ═══ Category CRUD ═══
+    let editingCatId=null;
+    const catModal=document.getElementById('catModal'),catName=document.getElementById('catName');
+    const catRows=document.getElementById('catRows'),catStatus=document.getElementById('catStatus');
+    const catSaveBtn=document.getElementById('catSaveBtn'),catCancelBtn=document.getElementById('catCancelBtn');
+
+    function resetCatForm(){editingCatId=null;document.getElementById('cat-form').reset();catSaveBtn.textContent='Add';catCancelBtn.style.display='none';}
+    function openCatModal(){resetCatForm();catStatus.textContent='';catModal.hidden=false;loadCategories().then(()=>catName.focus());}
+    function closeCatModal(){catModal.hidden=true;resetCatForm();}
+
+    async function loadCategories(){
+      try{const r=await fetch('/api/ingredient-categories',{headers:authHeaders()});const cats=await r.json();
+        catRows.innerHTML='';if(!cats.length){catRows.innerHTML='<tr><td colspan="3">No categories yet</td></tr>';return;}
+        cats.forEach(c=>{const tr=document.createElement('tr');const safe=String(c.name).replace(/"/g,'&quot;');
+          const del=c.ingredient_count===0?`<button class="row-btn danger" data-cat-action="delete" data-id="${c.id}">Delete</button>`:'';
+          tr.innerHTML=`<td>${c.name}</td><td class="num">${c.ingredient_count}</td><td><button class="row-btn" data-cat-action="edit" data-id="${c.id}" data-name="${safe}">Edit</button>${del}</td>`;
+          catRows.appendChild(tr);});
+      }catch{}
+    }
+
+    document.getElementById('manageCatsBtn').addEventListener('click',openCatModal);
+    document.getElementById('closeCatModal').addEventListener('click',closeCatModal);
+    catCancelBtn.addEventListener('click',resetCatForm);
+    catModal.addEventListener('click',e=>{if(e.target===catModal)closeCatModal();});
+
+    document.getElementById('cat-form').addEventListener('submit',e=>{
+      e.preventDefault();const name=catName.value.trim();if(!name)return;catStatus.textContent='Saving…';
+      const url=editingCatId?`/api/ingredient-categories/${editingCatId}`:'/api/ingredient-categories';
+      fetch(url,{method:editingCatId?'PUT':'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({name})})
+        .then(r=>r.json()).then(d=>{catStatus.textContent=d.message||d.error||'';if(!d.error){resetCatForm();loadCategories();loadIngredients();}})
+        .catch(()=>{catStatus.textContent='Failed';});
+    });
+
+    catRows.addEventListener('click',e=>{
+      const btn=e.target.closest('button[data-cat-action]');if(!btn)return;
+      const id=btn.getAttribute('data-id'),action=btn.getAttribute('data-cat-action');
+      if(action==='edit'){editingCatId=id;catName.value=btn.getAttribute('data-name')||'';catSaveBtn.textContent='Update';catCancelBtn.style.display='';catName.focus();return;}
+      if(action==='delete'){if(!confirm('Delete empty category?'))return;
+        fetch(`/api/ingredient-categories/${id}`,{method:'DELETE',headers:authHeaders()})
+          .then(r=>r.json()).then(d=>{catStatus.textContent=d.message||d.error||'';if(!d.error)loadCategories();}).catch(()=>{});}
+    });
+
+    document.getElementById('exportBtn').addEventListener('click',()=>alert('Export coming soon'));
+    document.getElementById('importBtn').addEventListener('click',()=>document.getElementById('importFile').click());
+
+    if(auth)loadIngredients();
+  </script>
+</body>
+</html>

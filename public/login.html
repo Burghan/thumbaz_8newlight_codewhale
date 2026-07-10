@@ -151,7 +151,7 @@
     function redirectByRole(auth) {
       if (!auth) return;
       if (auth.role !== 'staff') {
-        const redirect = nextParam || '/dashboard.html';
+        const redirect = nextParam || '/system-report.html';
         window.location.replace(redirect);
         return;
       }

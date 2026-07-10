@@ -1,4 +1,62 @@
 (() => {
+  const s = document.getElementById('sidebar');
+  if (!s) return;
+  const brand = s.querySelector('.sidebar-brand');
+  s.innerHTML = '';
+  if (brand) s.appendChild(brand);
+  const items = [
+    { type: 'link', href: '/dashboard.html', label: '🏠  Dashboard' },
+    { type: 'link', href: '/pos.html', label: '🛒  POS' },
+    { type: 'link', href: '/inventory.html', label: '📦  Inventory' },
+    { type: 'divider' },
+    { type: 'group', label: '📋  Product', children: [
+      { href: '/menu.html', label: 'Menu Items' },
+      { href: '/receipe.html', label: 'Recipe' },
+      { href: '/ingredients.html', label: 'Ingredients' },
+    ]},
+    { type: 'group', label: '💰  Purchase', children: [
+      { href: '/purchase.html', label: 'Purchases' },
+      { href: '/expenses.html', label: 'Expenses' },
+      { href: '/supplier.html', label: 'Suppliers' },
+    ]},
+    { type: 'divider' },
+    { type: 'group', label: '👥  Employees', children: [
+      { href: '/employees.html', label: 'Users' },
+      { href: '/payroll.html', label: 'Payroll' },
+      { href: '/clock.html', label: 'Attendance' },
+    ]},
+    { type: 'divider' },
+    { type: 'link', href: '/system-report.html', label: '📊  System Report' },
+    { type: 'link', href: '/import-center.html', label: '📥  Import Center' },
+    { type: 'link', href: '/logout.html', label: '🚪  Logout' },
+  ];
+  items.forEach(item => {
+    if (item.type === 'divider') {
+      const d = document.createElement('div'); d.style.cssText = 'height:1px;background:rgba(255,255,255,0.08);margin:6px 4px;'; s.appendChild(d);
+    } else if (item.type === 'group') {
+      const g = document.createElement('div'); g.className = 'nav-group';
+      const btn = document.createElement('button'); btn.className = 'nav-toggle'; btn.type = 'button';
+      btn.innerHTML = '<span>'+item.label+'</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>';
+      g.appendChild(btn);
+      const ch = document.createElement('div'); ch.className = 'nav-children';
+      item.children.forEach(c => {
+        const a = document.createElement('a'); a.setAttribute('href', c.href); a.className = 'nav-sub'; a.textContent = c.label; ch.appendChild(a);
+      });
+      g.appendChild(ch);
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => { g.classList.toggle('open'); });
+      s.appendChild(g);
+      // Auto-open group containing current page
+      if (location.pathname === item.children[0].href || item.children.some(c => location.pathname === c.href)) g.classList.add('open');
+    } else if (item.type === 'link') {
+      const a = document.createElement('a'); a.setAttribute('href', item.href); a.textContent = item.label;
+      if (location.pathname === item.href) a.style.cssText = 'background:var(--brand);color:#fff!important;font-weight:700;';
+      s.appendChild(a);
+    }
+  });
+})();
+
+(() => {
   const sidebar = document.getElementById('sidebar');
   const toggle = document.getElementById('menuToggle');
   if (!sidebar || !toggle) return;
@@ -102,7 +160,11 @@
         group.classList.add('open');
         if (toggle) toggle.setAttribute('aria-expanded', 'true');
       }
-      if (!toggle) return;
+      // A toggle handler may already be bound by the dynamic builder above.
+      // Skip re-binding so a single click doesn't toggle 'open' twice (which
+      // would cancel out and appear as "the dropdown doesn't work").
+      if (!toggle || toggle.dataset.bound) return;
+      toggle.dataset.bound = '1';
       toggle.addEventListener('click', () => {
         group.classList.toggle('open');
         const isOpen = group.classList.contains('open');

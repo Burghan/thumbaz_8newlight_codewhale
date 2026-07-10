@@ -6,902 +6,296 @@
   <title>Inventory – 8 NewLight Coffee</title>
   <link rel="stylesheet" href="/sidebar.css" />
   <link rel="stylesheet" href="/theme.css" />
-
   <style>
-    body {
-      font-family: inherit;
-      margin: 0;
-      padding: 0;
-      background: transparent;
-      color: var(--ink);
-    }
+    body { font-family: inherit; margin: 0; padding: 0; background: transparent; color: var(--ink); }
+    .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; }
+    .topbar, .page-sub, .stats, .filter-bar { flex: 0 0 auto; }
+    .main-area { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 380px; gap: 12px; min-height: 0; overflow: hidden; }
+    @media(max-width:800px){ .main-area { grid-template-columns: 1fr; } }
 
+    .topbar { display: flex; align-items: center; gap: 10px; }
+    .topbar h1 { margin: 0; flex: 1; font-size: 20px; }
+    .topbar button { width: auto; margin-top: 0; }
+    .page-sub { color: var(--muted); font-size: 14px; margin: 2px 0 12px; }
 
-    h1 {
-      font-size: 20px;
-      margin-bottom: 10px;
-    }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+    @media(max-width:760px){ .stats { grid-template-columns: repeat(2,1fr); } }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; box-shadow: var(--shadow-sm); }
+    .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .stat .value { font-family: var(--font-brand); font-size: 24px; font-weight: 700; color: var(--brand-ink); margin-top: 2px; }
+    .stat.warn .value { color: var(--danger); }
+    .stat.amber .value { color: #c98a2b; }
+    .stat.good .value { color: var(--positive); }
+    .stat .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-    .card {
-      background: var(--card);
-      padding: 12px;
-      border-radius: 10px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
-      border: 1px solid var(--border);
-    }
+    .card { background: var(--card); padding: 14px; border-radius: 12px; box-shadow: 0 8px 20px rgba(41,26,18,0.16); border: 1px solid var(--border); }
+    .stat-card { display: flex; flex-direction: column; overflow: hidden; }
+    .stat-card-header { flex: 0 0 auto; margin-bottom: 8px; }
+    .table-wrap { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .list-scroll { overflow: auto; flex: 1 1 auto; min-height: 0; }
 
-    .card + .card {
-      margin-top: 12px;
-    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { position: sticky; top: 0; background: var(--card); color: var(--accent); font-size: 11px; text-transform: uppercase; z-index: 1; }
+    .num { text-align: right; }
+    .low { color: var(--danger); font-weight: 600; }
+    .low-row { background: rgba(176,0,32,0.06); }
+    .out-row { background: rgba(240,132,27,0.06); }
 
-    .card h2 {
-      font-size: 16px;
-      margin: 0 0 8px;
-      color: var(--accent);
-    }
+    label { display: block; margin-top: 6px; font-size: 12px; color: var(--accent); }
+    select, input { width: 100%; padding: 8px 10px; font-size: 13px; min-height: 36px; border-radius: 8px; box-sizing: border-box; }
+    button { background: var(--brand); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; padding: 10px 14px; font-size: 13px; width: 100%; margin-top: 8px; }
+    button.secondary { background: var(--card); color: var(--brand-700); border: 1px solid var(--brand); }
+    .icon-btn { background: var(--card); color: var(--brand-ink); border: 1px solid var(--border); font-size: 18px; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; min-height: auto; }
+    .status { font-size: 12px; color: var(--muted); margin-top: 4px; min-height: 16px; }
+    .hint { font-size: 11px; color: var(--muted); }
 
-    .form-grid {
-      display: grid;
-      gap: 10px;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      margin-bottom: 8px;
-    }
-
-    .form-grid label {
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    .form-grid input,
-    .form-grid select,
-    .form-grid textarea {
-      width: 100%;
-      padding: 8px 10px;
-      border-radius: 8px;
-      font-size: 13px;
-      box-sizing: border-box;
-    }
-    .form-grid input[readonly] {
-      background: #1a1f27;
-      color: var(--muted);
-    }
-
-    .actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 6px;
-    }
-
-    .btn {
-      padding: 8px 12px;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-      font-size: 13px;
-    }
-
-    .status {
-      font-size: 12px;
-      color: #b00020;
-      min-height: 18px;
-      margin-top: 6px;
-    }
-
-    tr.low td {
-      background: rgba(176, 0, 32, 0.08);
-      color: #f87171;
-      font-weight: 600;
-    }
-
-    .summary-table th {
-      position: sticky;
-      top: 0;
-      z-index: 1;
-    }
-
-    .summary-table td.num {
-      text-align: right;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .summary-table td.emphasis {
-      font-weight: 600;
-      color: var(--accent);
-    }
-
-    .muted {
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    @media (min-width: 768px) {
-      body {
-        padding: 20px;
-      }
-      h1 {
-        font-size: 24px;
-      }
-    }
-
+    .btn-row { display: flex; gap: 6px; }
+    .btn-row button { flex: 1; }
+    .btn-row input { flex: 1; min-height: 36px; }
   </style>
 </head>
-
 <body class="theme-cafe">
+      <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Navigation</div></div></div>
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/pos.html">POS</a>
+    <a href="/inventory.html">Inventory</a>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>📋 Product</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/menu.html" class="nav-sub">Menu Items</a>
+        <a href="/receipe.html" class="nav-sub">Recipe</a>
+        <a href="/ingredients.html" class="nav-sub">Ingredients</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>💰 Purchase</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/purchase.html" class="nav-sub">Purchases</a>
+        <a href="/expenses.html" class="nav-sub">Expenses</a>
+        <a href="/supplier.html" class="nav-sub">Suppliers</a>
+      </div>
+    </div>
+    <div class="nav-group">
+      <button class="nav-toggle" type="button"><span>👥 Employees</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button>
+      <div class="nav-children">
+        <a href="/employees.html" class="nav-sub">Users</a>
+        <a href="/payroll.html" class="nav-sub">Payroll</a>
+        <a href="/clock.html" class="nav-sub">Attendance</a>
+      </div>
+    </div>
+    <a href="/system-report.html">System Report</a>
+    <a href="/import-center.html">Import Center</a>
+    <a href="/logout.html">Logout</a>
+  </aside>
 
-<button class="menu-toggle" id="menuToggle">☰ Menu</button>
-<aside class="sidebar" id="sidebar">
-  <div class="sidebar-brand">
-    <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
-    <div class="brand-text">
-      <div class="brand-title">8 NewLight Coffee Bar</div>
-      <div class="brand-subtitle">Navigation</div>
+  <div class="content">
+    <div class="topbar">
+      <button class="icon-btn" id="menuToggle" aria-label="Open menu">☰</button>
+      <h1>📦 Inventory</h1>
+      <div style="flex:1;"></div>
+      <button id="refreshBtn" class="secondary">🔄 Refresh</button>
+    </div>
+    <p class="page-sub">Stock levels, movements, and adjustments. Stock increases with purchases, decreases with sales.</p>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Inventory Value</div><div class="value" id="statVal">–</div><div class="hint" id="statValSub"></div></div>
+      <div class="stat" id="statOutCard"><div class="label">Out of Stock</div><div class="value" id="statOut">–</div><div class="hint">urgent — can't produce</div></div>
+      <div class="stat" id="statLowCard"><div class="label">Low Stock</div><div class="value" id="statLow">–</div><div class="hint">reorder soon</div></div>
+      <div class="stat" id="statHealthCard"><div class="label">Stock Health</div><div class="value" id="statHealth">–</div><div class="hint" id="statHealthSub"></div></div>
+    </div>
+
+    <div class="main-area">
+      <!-- Left: Stock Table -->
+      <div class="card stat-card">
+        <div class="stat-card-header"><strong style="color:var(--accent);">Stock On Hand</strong> <span class="hint" id="stockCount">–</span></div>
+        <div class="table-wrap"><div class="list-scroll">
+          <table><thead><tr><th>Ingredient</th><th>Category</th><th class="num">Qty</th><th>Unit</th><th class="num">Avg Cost</th><th class="num">Value</th><th>Status</th></tr></thead>
+          <tbody id="stockRows"><tr><td colspan="7">Loading…</td></tr></tbody></table>
+        </div></div>
+      </div>
+
+      <!-- Right: Adjustments + Movements -->
+      <div style="display:flex;flex-direction:column;gap:12px;overflow:hidden;">
+        <!-- Quick Adjustment -->
+        <div class="card">
+          <strong style="color:var(--accent);">Stock Adjustment</strong>
+          <div class="hint" style="margin-bottom:6px;">Add or remove stock manually.</div>
+          <label>Ingredient</label>
+          <select id="adjIngredient"></select>
+          <div class="btn-row" style="margin-top:8px;">
+            <input id="adjQty" type="number" step="0.01" placeholder="Qty (use - for removal)" />
+            <select id="adjReason" style="width:auto;flex:0 0 auto;min-width:100px;"><option value="adjustment">Adjustment</option><option value="opening">Opening Stock</option><option value="transfer_in">Transfer In</option></select>
+          </div>
+          <input id="adjNote" placeholder="Note (optional)" style="margin-top:4px;" />
+          <button id="saveAdj">Save Adjustment</button>
+          <div class="status" id="adjStatus"></div>
+        </div>
+
+        <!-- Recent Movements -->
+        <div class="card stat-card" style="flex:1;min-height:0;">
+          <div class="stat-card-header"><strong style="color:var(--accent);">Recent Movements</strong></div>
+          <div class="table-wrap"><div class="list-scroll">
+            <table><thead><tr><th>Ingredient</th><th>Type</th><th class="num">Qty</th><th>Note</th></tr></thead>
+            <tbody id="moveRows"><tr><td colspan="4">Loading…</td></tr></tbody></table>
+          </div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Threshold Editor -->
+    <div class="card" style="flex:0 0 auto;margin-top:12px;padding:10px 14px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <strong style="color:var(--accent);">Stock Thresholds:</strong>
+        <label style="margin:0;">Gram <input id="thGr" type="number" style="width:80px;min-height:30px;margin:0;" /></label>
+        <label style="margin:0;">ml <input id="thMl" type="number" style="width:80px;min-height:30px;margin:0;" /></label>
+        <label style="margin:0;">pcs <input id="thPcs" type="number" style="width:80px;min-height:30px;margin:0;" /></label>
+        <button id="saveTh" class="secondary" style="width:auto;margin:0;">Save</button>
+        <span class="hint" id="thStatus"></span>
+      </div>
     </div>
   </div>
-  <a href="/dashboard.html">Dashboard</a>
-  <a href="/pos.html">POS</a>
-  <div class="nav-group">
-    <button class="nav-toggle" type="button" aria-expanded="false">
-      <span>Employees</span>
-      <span class="chevron" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-      </span>
-    </button>
-    <div class="nav-children">
-      <a href="/employees.html" class="nav-sub">Employees</a>
-      <a href="/clock.html" class="nav-sub">Clock</a>
-    </div>
-  </div>
-  <a href="/inventory.html">Inventory</a>
-  <div class="nav-group">
-    <button class="nav-toggle" type="button" aria-expanded="false">
-      <span>Product</span>
-      <span class="chevron" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-      </span>
-    </button>
-    <div class="nav-children">
-      <a href="/menu.html" class="nav-sub">Menu Items</a>
-      <a href="/receipe.html" class="nav-sub">Ingredients / Recipe</a>
-    </div>
-  </div>
-  <div class="nav-group">
-    <button class="nav-toggle" type="button" aria-expanded="false">
-      <span>Purchase</span>
-      <span class="chevron" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
-      </span>
-    </button>
-    <div class="nav-children">
-      <a href="/purchase.html" class="nav-sub">Ingredient Stock</a>
-      <a href="/expenses.html" class="nav-sub">Expenses</a>
-      <a href="/supplier.html" class="nav-sub">Suppliers</a>
-    </div>
-  </div>
-  <a href="/chart.html">Daily Chart</a>
-    <a href="/report.html">Reports</a>
-  <a href="/setup.html">Setup</a>
-  <a href="/logout.html">Logout</a>
-</aside>
 
-<div class="content">
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin','manager']);
+    let allStock = [], thresholds = { Gr: 200, Ml: 500, Pcs: 5 };
 
-<div class="page-brand">
-  <img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" />
-  <div class="page-brand-text">8 NewLight Coffee</div>
-</div>
+    function formatRp(v) { if(v===null||v===undefined||v==='')return'—'; return 'Rp '+Math.round(Number(v||0)).toLocaleString('id-ID'); }
+    function fmtQty(v) { return v!=null ? Number(v).toFixed(2) : '—'; }
 
-<h1>📦 Inventory On-Hand</h1>
+    async function loadAll() {
+      if(!auth)return;
+      const h = authHeaders();
+      const opts = { headers: h, credentials: 'same-origin' };
 
-<div class="card">
-  <h2>Inventory Summary</h2>
-  <div class="table-wrap">
-    <table class="summary-table">
-    <thead>
-      <tr>
-        <th>Ingredients</th>
-        <th>Unit</th>
-        <th>Opening</th>
-        <th>Sales</th>
-        <th>Purchases</th>
-        <th>Transfers</th>
-        <th>Adjustments</th>
-        <th>Closing</th>
-        <th>On-Hand</th>
-        <th>Avg Cost</th>
-        <th>Last Updated</th>
-        <th>Low Stock Alert</th>
-      </tr>
-    </thead>
-    <tbody id="summary-rows">
-      <tr><td colspan="12">Loading inventory…</td></tr>
-    </tbody>
-    </table>
-  </div>
-</div>
+      // Stock on hand
+      const stock = await fetch('/api/inventory/on-hand', opts).then(r=>r.json());
+      allStock = stock || [];
+      renderStock(allStock);
 
-<div class="card">
-  <h2>Low Stock Thresholds</h2>
-  <div class="form-grid">
-    <div>
-      <label for="thresholdGr">Grams (Gr)</label>
-      <input id="thresholdGr" type="number" step="1" />
-    </div>
-    <div>
-      <label for="thresholdMl">Milliliters (Ml)</label>
-      <input id="thresholdMl" type="number" step="1" />
-    </div>
-    <div>
-      <label for="thresholdPcs">Pieces (Pcs)</label>
-      <input id="thresholdPcs" type="number" step="1" />
-    </div>
-  </div>
-  <div class="actions">
-    <button class="btn" id="saveThresholds">Save Thresholds</button>
-  </div>
-  <div class="status" id="thresholdStatus"></div>
-</div>
+      // Movements
+      const moves = await fetch('/api/inventory/adjustments', opts).then(r=>r.json());
+      renderMovements(moves || []);
 
-<div class="card">
-  <h2>Locations</h2>
-  <div class="form-grid">
-    <div>
-      <label for="locationName">Location Name</label>
-      <input id="locationName" placeholder="Main Store" />
-    </div>
-  </div>
-  <div class="actions">
-    <button class="btn" id="addLocation">Add Location</button>
-  </div>
-  <div class="status" id="locationStatus"></div>
-  <div class="table-wrap">
-    <table>
-    <thead>
-      <tr>
-        <th>Location</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody id="locationRows">
-      <tr><td colspan="2">Loading locations…</td></tr>
-    </tbody>
-    </table>
-  </div>
-</div>
-
-<div class="card">
-  <h2>Stock Adjustment</h2>
-  <div class="form-grid">
-    <div>
-      <label for="adjustIngredient">Ingredient</label>
-      <select id="adjustIngredient"></select>
-    </div>
-    <div>
-      <label for="adjustLocation">Location</label>
-      <select id="adjustLocation"></select>
-    </div>
-    <div>
-      <label for="adjustSystem">System Stock</label>
-      <input id="adjustSystem" readonly />
-    </div>
-    <div>
-      <label for="adjustChange">Change (+/-)</label>
-      <input id="adjustChange" type="number" step="0.01" placeholder="-5" readonly />
-    </div>
-    <div>
-      <label for="adjustActual">Actual Count</label>
-      <input id="adjustActual" type="number" step="0.01" placeholder="Enter actual stock" />
-    </div>
-    <div>
-      <label for="adjustReason">Reason</label>
-      <select id="adjustReason">
-        <option value="WASTE">Waste</option>
-        <option value="SPOILAGE">Spoilage</option>
-        <option value="ADJUSTMENT">Adjustment</option>
-      </select>
-    </div>
-    <div>
-      <label for="adjustNote">Note</label>
-      <input id="adjustNote" placeholder="Optional note" />
-    </div>
-  </div>
-  <div class="actions">
-    <button class="btn" id="saveAdjustment">Save Adjustment</button>
-    <button class="btn secondary" id="cancelAdjustment">Cancel Edit</button>
-  </div>
-  <div class="status" id="adjustStatus"></div>
-  <div class="table-wrap">
-    <table>
-    <thead>
-      <tr>
-        <th>Ingredient</th>
-        <th>Location</th>
-        <th>Change</th>
-        <th>Reason</th>
-        <th>Note</th>
-        <th>Created</th>
-        <th>Updated</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody id="adjustRows">
-      <tr><td colspan="8">Loading adjustments…</td></tr>
-    </tbody>
-    </table>
-  </div>
-</div>
-
-<div class="card">
-  <h2>Stock Transfer</h2>
-  <div class="form-grid">
-    <div>
-      <label for="transferIngredient">Ingredient</label>
-      <select id="transferIngredient"></select>
-    </div>
-    <div>
-      <label for="transferFrom">From Location</label>
-      <select id="transferFrom"></select>
-    </div>
-    <div>
-      <label for="transferTo">To Location</label>
-      <select id="transferTo"></select>
-    </div>
-    <div>
-      <label for="transferQty">Quantity</label>
-      <input id="transferQty" type="number" step="0.01" placeholder="10" />
-    </div>
-    <div>
-      <label for="transferNote">Note</label>
-      <input id="transferNote" placeholder="Optional note" />
-    </div>
-  </div>
-  <div class="actions">
-    <button class="btn" id="saveTransfer">Save Transfer</button>
-    <button class="btn secondary" id="cancelTransfer">Cancel Edit</button>
-  </div>
-  <div class="status" id="transferStatus"></div>
-  <div class="table-wrap">
-    <table>
-    <thead>
-      <tr>
-        <th>Ingredient</th>
-        <th>From</th>
-        <th>To</th>
-        <th>Qty</th>
-        <th>Note</th>
-        <th>Created</th>
-        <th>Updated</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody id="transferRows">
-      <tr><td colspan="8">Loading transfers…</td></tr>
-    </tbody>
-    </table>
-  </div>
-</div>
-
-<div class="card">
-  <h2>Stock Turnover</h2>
-  <div class="form-grid">
-    <div>
-      <label for="turnoverDays">Period (days)</label>
-      <select id="turnoverDays">
-        <option value="7">7 days</option>
-        <option value="30" selected>30 days</option>
-        <option value="90">90 days</option>
-      </select>
-    </div>
-  </div>
-  <div class="table-wrap">
-    <table>
-    <thead>
-      <tr>
-        <th>Ingredient</th>
-        <th>Usage</th>
-        <th>Opening</th>
-        <th>Closing</th>
-        <th>Avg On-Hand</th>
-        <th>Turnover</th>
-      </tr>
-    </thead>
-    <tbody id="turnoverRows">
-      <tr><td colspan="6">Loading turnover…</td></tr>
-    </tbody>
-    </table>
-  </div>
-</div>
-
-<script src="/auth.js"></script>
-<script>
-const summaryBody = document.getElementById('summary-rows');
-const auth = requireRole(['admin', 'manager']);
-const thresholdGr = document.getElementById('thresholdGr');
-const thresholdMl = document.getElementById('thresholdMl');
-const thresholdPcs = document.getElementById('thresholdPcs');
-const saveThresholds = document.getElementById('saveThresholds');
-const thresholdStatus = document.getElementById('thresholdStatus');
-const locationRows = document.getElementById('locationRows');
-const locationStatus = document.getElementById('locationStatus');
-const locationName = document.getElementById('locationName');
-const addLocationBtn = document.getElementById('addLocation');
-const adjustIngredient = document.getElementById('adjustIngredient');
-const adjustLocation = document.getElementById('adjustLocation');
-const adjustChange = document.getElementById('adjustChange');
-const adjustActual = document.getElementById('adjustActual');
-const adjustSystem = document.getElementById('adjustSystem');
-const adjustReason = document.getElementById('adjustReason');
-const adjustNote = document.getElementById('adjustNote');
-const saveAdjustment = document.getElementById('saveAdjustment');
-const cancelAdjustment = document.getElementById('cancelAdjustment');
-const adjustRows = document.getElementById('adjustRows');
-const adjustStatus = document.getElementById('adjustStatus');
-const transferIngredient = document.getElementById('transferIngredient');
-const transferFrom = document.getElementById('transferFrom');
-const transferTo = document.getElementById('transferTo');
-const transferQty = document.getElementById('transferQty');
-const transferNote = document.getElementById('transferNote');
-const saveTransfer = document.getElementById('saveTransfer');
-const cancelTransfer = document.getElementById('cancelTransfer');
-const transferRows = document.getElementById('transferRows');
-const transferStatus = document.getElementById('transferStatus');
-const turnoverRows = document.getElementById('turnoverRows');
-const turnoverDays = document.getElementById('turnoverDays');
-
-let adjustmentEditId = null;
-let transferEditId = null;
-let currentAdjustStock = 0;
-
-// You can tune this later
-const DEFAULT_MIN_STOCK = 200;
-let unitThresholds = {
-  Gr: 200,
-  Ml: 500,
-  Pcs: 5
-};
-
-function formatRupiah(value) {
-  const num = Number(value || 0);
-  const parts = num.toFixed(2).split('.');
-  const whole = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return `Rp. ${whole}.${parts[1]}`;
-}
-
-if (auth) {
-  loadInventorySummary();
-  loadThresholds();
-  loadLocations();
-  loadIngredients();
-  loadAdjustments();
-  loadTransfers();
-  loadTurnover();
-
-  if (auth.role !== 'admin') {
-    addLocationBtn.disabled = true;
-    locationName.disabled = true;
-    locationStatus.textContent = 'Locations can only be added by Owner';
-  }
-}
-
-function loadThresholds() {
-  fetch('/api/inventory/thresholds', { headers: authHeaders() })
-    .then(res => res.ok ? res.json() : Promise.reject())
-    .then(rows => {
-      rows.forEach(row => {
-        unitThresholds[row.unit] = Number(row.threshold);
-      });
-      thresholdGr.value = unitThresholds.Gr ?? 0;
-      thresholdMl.value = unitThresholds.Ml ?? 0;
-      thresholdPcs.value = unitThresholds.Pcs ?? 0;
-      loadInventorySummary();
-    })
-    .catch(() => {
-      thresholdStatus.textContent = 'Failed to load thresholds';
-    });
-}
-
-function loadInventorySummary() {
-  Promise.all([
-    fetch('/api/inventory/summary', { headers: authHeaders() })
-      .then(res => res.ok ? res.json() : Promise.reject()),
-    fetch('/api/inventory/on-hand', { headers: authHeaders() })
-      .then(res => res.ok ? res.json() : Promise.reject())
-  ])
-    .then(([summary, onHand]) => {
-      summaryBody.innerHTML = '';
-
-      if (summary.length === 0) {
-        summaryBody.innerHTML = '<tr><td colspan="12">No inventory data</td></tr>';
-        return;
-      }
-
-      const onHandMap = new Map(onHand.map(i => [i.name, i]));
-
-      summary.forEach(r => {
-        const item = onHandMap.get(r.name);
-        const tr = document.createElement('tr');
-        const unitMin = item && item.unit && unitThresholds[item.unit] !== undefined
-          ? unitThresholds[item.unit]
-          : DEFAULT_MIN_STOCK;
-        const hasCustomMin = item && item.min_stock !== null && item.min_stock !== undefined
-          && Number(item.min_stock) > 0;
-        const minStock = hasCustomMin ? Number(item.min_stock) : unitMin;
-        if (item && item.quantity < minStock) {
-          tr.classList.add('low');
-        }
-        const updatedAt = item && item.updated_at ? item.updated_at.slice(0, 19).replace('T', ' ') : '';
-        tr.innerHTML = `
-          <td class="emphasis">${r.name}</td>
-          <td>${r.unit || ''}</td>
-          <td class="num">${r.opening}</td>
-          <td class="num">${r.sales}</td>
-          <td class="num">${r.purchases}</td>
-          <td class="num">${r.transfers}</td>
-          <td class="num">${r.adjustments}</td>
-          <td class="num">${r.closing}</td>
-          <td class="num">${item ? item.quantity.toFixed(2) : ''}</td>
-          <td class="num">${item ? formatRupiah(item.cost_per_unit) : ''}</td>
-          <td>${updatedAt}</td>
-          <td>${item && item.quantity < minStock ? 'LOW' : ''}</td>
-        `;
-        summaryBody.appendChild(tr);
-      });
-    })
-    .catch(() => {
-      summaryBody.innerHTML = '<tr><td colspan="12">❌ Failed to load inventory</td></tr>';
-    });
-}
-
-function loadLocations() {
-  fetch('/api/inventory/locations', { headers: authHeaders() })
-    .then(res => res.ok ? res.json() : Promise.reject())
-    .then(rows => {
-      locationRows.innerHTML = '';
-      adjustLocation.innerHTML = '';
-      transferFrom.innerHTML = '';
-      transferTo.innerHTML = '';
-      if (!rows.length) {
-        locationRows.innerHTML = '<tr><td colspan="2">No locations</td></tr>';
-        return;
-      }
-      rows.forEach(loc => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${loc.name}</td><td>${loc.active ? 'Active' : 'Inactive'}</td>`;
-        locationRows.appendChild(tr);
-
-        [adjustLocation, transferFrom, transferTo].forEach(select => {
-          const opt = document.createElement('option');
-          opt.value = loc.id;
-          opt.textContent = loc.name;
-          select.appendChild(opt);
-        });
-      });
-    })
-    .catch(() => {
-      locationRows.innerHTML = '<tr><td colspan="2">Failed to load locations</td></tr>';
-    });
-}
-
-function loadIngredients() {
-  fetch('/api/ingredients', { headers: authHeaders() })
-    .then(res => res.ok ? res.json() : Promise.reject())
-    .then(rows => {
-      [adjustIngredient, transferIngredient].forEach(select => {
-        select.innerHTML = '';
-        rows.forEach(item => {
-          const opt = document.createElement('option');
-          opt.value = item.id;
-          opt.textContent = item.name;
-          select.appendChild(opt);
-        });
-      });
-    })
-    .catch(() => {
-      adjustIngredient.innerHTML = '<option>Failed</option>';
-      transferIngredient.innerHTML = '<option>Failed</option>';
-    });
-}
-
-function loadLocationStock() {
-  const ingredientId = Number(adjustIngredient.value);
-  const locationId = Number(adjustLocation.value);
-  if (!ingredientId || !locationId) return;
-  fetch(`/api/inventory/location-stock?ingredient_id=${ingredientId}&location_id=${locationId}`, {
-    headers: authHeaders()
-  })
-    .then(res => res.ok ? res.json() : Promise.reject())
-    .then(data => {
-      currentAdjustStock = Number(data.quantity || 0);
-      adjustSystem.value = currentAdjustStock;
-      if (adjustActual.value) {
-        const actual = Number(adjustActual.value);
-        if (Number.isFinite(actual)) {
-          adjustChange.value = (actual - currentAdjustStock).toFixed(2);
-        }
-      } else {
-        adjustChange.value = '';
-      }
-    })
-    .catch(() => {
-      adjustStatus.textContent = 'Failed to load current stock';
-    });
-}
-
-function loadAdjustments() {
-  fetch('/api/inventory/adjustments', { headers: authHeaders() })
-    .then(res => res.ok ? res.json() : Promise.reject())
-    .then(rows => {
-      adjustRows.innerHTML = '';
-      if (!rows.length) {
-        adjustRows.innerHTML = '<tr><td colspan="8">No adjustments</td></tr>';
-        return;
-      }
-      rows.forEach(r => {
-        const tr = document.createElement('tr');
-        const created = r.created_at ? r.created_at.slice(0, 19).replace('T', ' ') : '';
-        const updated = r.updated_at ? r.updated_at.slice(0, 19).replace('T', ' ') : '';
-        tr.innerHTML = `
-          <td>${r.ingredient_name}</td>
-          <td>${r.location_name}</td>
-          <td>${r.change}</td>
-          <td>${r.reason}</td>
-          <td>${r.note || ''}</td>
-          <td>${created}</td>
-          <td>${updated}</td>
-          <td><button class="btn secondary" data-edit="${r.id}">Edit</button></td>
-        `;
-        tr.querySelector('[data-edit]').addEventListener('click', () => {
-          adjustmentEditId = r.id;
-          adjustIngredient.value = r.ingredient_id;
-          adjustLocation.value = r.location_id;
-          adjustChange.value = r.change;
-          adjustActual.value = '';
-          adjustSystem.value = '';
-          adjustReason.value = r.reason;
-          adjustNote.value = r.note || '';
-          adjustStatus.textContent = `Editing adjustment #${r.id}`;
-          loadLocationStock();
-        });
-        adjustRows.appendChild(tr);
-      });
-    })
-    .catch(() => {
-      adjustRows.innerHTML = '<tr><td colspan="8">Failed to load adjustments</td></tr>';
-    });
-}
-
-function loadTransfers() {
-  fetch('/api/inventory/transfers', { headers: authHeaders() })
-    .then(res => res.ok ? res.json() : Promise.reject())
-    .then(rows => {
-      transferRows.innerHTML = '';
-      if (!rows.length) {
-        transferRows.innerHTML = '<tr><td colspan="8">No transfers</td></tr>';
-        return;
-      }
-      rows.forEach(r => {
-        const tr = document.createElement('tr');
-        const created = r.created_at ? r.created_at.slice(0, 19).replace('T', ' ') : '';
-        const updated = r.updated_at ? r.updated_at.slice(0, 19).replace('T', ' ') : '';
-        tr.innerHTML = `
-          <td>${r.ingredient_name}</td>
-          <td>${r.from_location}</td>
-          <td>${r.to_location}</td>
-          <td>${r.quantity}</td>
-          <td>${r.note || ''}</td>
-          <td>${created}</td>
-          <td>${updated}</td>
-          <td><button class="btn secondary" data-edit="${r.id}">Edit</button></td>
-        `;
-        tr.querySelector('[data-edit]').addEventListener('click', () => {
-          transferEditId = r.id;
-          transferIngredient.value = r.ingredient_id;
-          transferFrom.value = r.from_location_id;
-          transferTo.value = r.to_location_id;
-          transferQty.value = r.quantity;
-          transferNote.value = r.note || '';
-          transferStatus.textContent = `Editing transfer #${r.id}`;
-        });
-        transferRows.appendChild(tr);
-      });
-    })
-    .catch(() => {
-      transferRows.innerHTML = '<tr><td colspan="8">Failed to load transfers</td></tr>';
-    });
-}
-
-function loadTurnover() {
-  const days = turnoverDays.value;
-  fetch(`/api/inventory/turnover?days=${days}`, { headers: authHeaders() })
-    .then(res => res.ok ? res.json() : Promise.reject())
-    .then(rows => {
-      turnoverRows.innerHTML = '';
-      if (!rows.length) {
-        turnoverRows.innerHTML = '<tr><td colspan="6">No turnover data</td></tr>';
-        return;
-      }
-      rows.forEach(r => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${r.name}</td>
-          <td>${r.usage} ${r.unit || ''}</td>
-          <td>${r.opening}</td>
-          <td>${r.closing}</td>
-          <td>${r.average_on_hand}</td>
-          <td>${r.turnover_ratio}</td>
-        `;
-        turnoverRows.appendChild(tr);
-      });
-    })
-    .catch(() => {
-      turnoverRows.innerHTML = '<tr><td colspan="6">Failed to load turnover</td></tr>';
-    });
-}
-
-addLocationBtn.addEventListener('click', () => {
-  const name = locationName.value.trim();
-  if (!name) {
-    locationStatus.textContent = 'Location name required';
-    return;
-  }
-  locationStatus.textContent = 'Saving...';
-  fetch('/api/inventory/locations', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ name })
-  })
-    .then(res => res.ok ? res.json() : Promise.reject())
-    .then(() => {
-      locationName.value = '';
-      locationStatus.textContent = 'Location added';
-      loadLocations();
-    })
-    .catch(() => {
-      locationStatus.textContent = 'Failed to add location';
-    });
-});
-
-saveAdjustment.addEventListener('click', () => {
-  const actualValue = adjustActual.value.trim();
-  if (actualValue) {
-    const actual = Number(actualValue);
-    if (!Number.isFinite(actual)) {
-      adjustStatus.textContent = 'Actual count must be a number';
-      return;
+      // Populate adjustment ingredient dropdown
+      const ings = await fetch('/api/ingredients', opts).then(r=>r.json());
+      const sel = document.getElementById('adjIngredient');
+      sel.innerHTML = '<option value="">-- Select --</option>';
+      (ings||[]).forEach(i=>{ const o = document.createElement('option'); o.value = i.id; o.textContent = i.name; sel.appendChild(o); });
     }
-    adjustChange.value = (actual - currentAdjustStock).toFixed(2);
-  }
-  const payload = {
-    ingredient_id: Number(adjustIngredient.value),
-    location_id: Number(adjustLocation.value),
-    change: Number(adjustChange.value),
-    reason: adjustReason.value,
-    note: adjustNote.value.trim()
-  };
-  if (!payload.ingredient_id || !payload.location_id || !payload.change) {
-    adjustStatus.textContent = 'Ingredient, location, and change are required';
-    return;
-  }
-  if (payload.change === 0) {
-    adjustStatus.textContent = 'No change detected (actual equals system)';
-    return;
-  }
-  adjustStatus.textContent = 'Saving...';
-  const url = adjustmentEditId
-    ? `/api/inventory/adjustments/${adjustmentEditId}`
-    : '/api/inventory/adjustments';
-  const method = adjustmentEditId ? 'PUT' : 'POST';
-  fetch(url, {
-    method,
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(payload)
-  })
-    .then(res => res.ok ? res.json() : Promise.reject())
-    .then(() => {
-      adjustStatus.textContent = 'Saved';
-      adjustChange.value = '';
-      adjustNote.value = '';
-      adjustmentEditId = null;
-      loadAdjustments();
-      loadInventorySummary();
-    })
-    .catch(() => {
-      adjustStatus.textContent = 'Failed to save adjustment';
-    });
-});
 
-cancelAdjustment.addEventListener('click', () => {
-  adjustmentEditId = null;
-  adjustChange.value = '';
-  adjustActual.value = '';
-  adjustSystem.value = '';
-  adjustNote.value = '';
-  adjustStatus.textContent = '';
-});
+    // Effective minimum: the ingredient's own min_stock, else a per-unit fallback.
+    const UNIT_FALLBACK = { g: 200, ml: 500, pcs: 5, kg: 1, l: 1 };
+    function effectiveMin(item) {
+      return item.min_stock > 0 ? Number(item.min_stock) : (UNIT_FALLBACK[item.base_unit] || 0);
+    }
 
-saveTransfer.addEventListener('click', () => {
-  const payload = {
-    ingredient_id: Number(transferIngredient.value),
-    from_location_id: Number(transferFrom.value),
-    to_location_id: Number(transferTo.value),
-    quantity: Number(transferQty.value),
-    note: transferNote.value.trim()
-  };
-  if (!payload.ingredient_id || !payload.from_location_id || !payload.to_location_id || !payload.quantity) {
-    transferStatus.textContent = 'Ingredient, locations, and quantity are required';
-    return;
-  }
-  transferStatus.textContent = 'Saving...';
-  const url = transferEditId
-    ? `/api/inventory/transfers/${transferEditId}`
-    : '/api/inventory/transfers';
-  const method = transferEditId ? 'PUT' : 'POST';
-  fetch(url, {
-    method,
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(payload)
-  })
-    .then(res => res.ok ? res.json() : Promise.reject())
-    .then(() => {
-      transferStatus.textContent = 'Saved';
-      transferQty.value = '';
-      transferNote.value = '';
-      transferEditId = null;
-      loadTransfers();
-      loadInventorySummary();
-    })
-    .catch(() => {
-      transferStatus.textContent = 'Failed to save transfer';
-    });
-});
+    function renderStock(data) {
+      const tb = document.getElementById('stockRows'); tb.innerHTML = '';
+      if (!data.length) { tb.innerHTML = '<tr><td colspan="7">No stock data — record purchases first</td></tr>'; return; }
 
-cancelTransfer.addEventListener('click', () => {
-  transferEditId = null;
-  transferQty.value = '';
-  transferNote.value = '';
-  transferStatus.textContent = '';
-});
+      let totalVal = 0, lowCount = 0, outCount = 0, okCount = 0;
+      const catValue = {};
+      data.forEach(item => {
+        const qty = Number(item.quantity_base || 0);
+        const cost = Number(item.avg_cost || 0);
+        const val = qty * cost;
+        totalVal += val;
+        const cat = item.category && item.category !== '__resale' ? item.category : '';
+        catValue[cat || 'Uncategorized'] = (catValue[cat || 'Uncategorized'] || 0) + val;
 
-turnoverDays.addEventListener('change', loadTurnover);
+        const min = effectiveMin(item);
+        const isOut = qty <= 0;
+        const isLow = !isOut && min > 0 && qty < min;
+        if (isOut) outCount++; else if (isLow) lowCount++; else okCount++;
 
-saveThresholds.addEventListener('click', () => {
-  const payload = [
-    { unit: 'Gr', threshold: Number(thresholdGr.value) },
-    { unit: 'Ml', threshold: Number(thresholdMl.value) },
-    { unit: 'Pcs', threshold: Number(thresholdPcs.value) }
-  ];
-  thresholdStatus.textContent = 'Saving...';
-  fetch('/api/inventory/thresholds', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(payload)
-  })
-    .then(res => res.ok ? res.json() : Promise.reject())
-    .then(() => {
-      payload.forEach(item => {
-        unitThresholds[item.unit] = item.threshold;
+        const tr = document.createElement('tr');
+        if (isOut) tr.classList.add('out-row'); else if (isLow) tr.classList.add('low-row');
+        const statusHTML = isOut ? '<span class="low">Out</span>'
+          : isLow ? '<span class="low">Low</span>'
+          : '<span style="color:var(--positive)">OK</span>';
+        tr.innerHTML = `<td>${(isOut||isLow)?'<span class="low">⚠</span> ':''}${item.name}</td>
+          <td>${cat || '—'}</td><td class="num">${fmtQty(qty)}</td><td>${item.base_unit||''}</td>
+          <td class="num">${formatRp(cost)}</td><td class="num">${formatRp(val)}</td>
+          <td>${statusHTML}</td>`;
+        tb.appendChild(tr);
       });
-      thresholdStatus.textContent = 'Thresholds updated';
-      loadInventorySummary();
-    })
-    .catch(() => {
-      thresholdStatus.textContent = 'Failed to save thresholds';
+
+      // top category by value tied up
+      const topCat = Object.entries(catValue).sort((a,b)=>b[1]-a[1])[0];
+      const healthPct = data.length ? Math.round(okCount / data.length * 100) : 0;
+
+      document.getElementById('statVal').textContent = formatRp(totalVal);
+      document.getElementById('statValSub').textContent = topCat ? `most in ${topCat[0]}` : `${data.length} items`;
+      document.getElementById('statOut').textContent = outCount;
+      document.getElementById('statLow').textContent = lowCount;
+      document.getElementById('statHealth').textContent = healthPct + '%';
+      document.getElementById('statHealthSub').textContent = `${okCount}/${data.length} well-stocked`;
+
+      // color states
+      document.getElementById('statOutCard').classList.toggle('warn', outCount > 0);
+      document.getElementById('statLowCard').classList.toggle('amber', lowCount > 0);
+      const hc = document.getElementById('statHealthCard');
+      hc.classList.toggle('good', healthPct >= 80);
+      hc.classList.toggle('warn', healthPct < 50);
+
+      document.getElementById('stockCount').textContent = `${data.length} ingredients`;
+    }
+
+    function renderMovements(data) {
+      const tb = document.getElementById('moveRows'); tb.innerHTML = '';
+      if (!data.length) { tb.innerHTML = '<tr><td colspan="4">No movements yet</td></tr>'; return; }
+      data.slice(0, 50).forEach(m => {
+        const tr = document.createElement('tr');
+        const cls = (m.type==='usage'||m.qty_base<0) ? 'out-row' : '';
+        if (cls) tr.classList.add(cls);
+        const typeLabel = { purchase: '📥 Buy', usage: '📤 Sale', adjustment: '🔧 Adj', opening: '📋 Open', transfer_in: '🚚 In' }[m.type] || m.type;
+        tr.innerHTML = `<td>${m.ingredient_name||''}</td><td>${typeLabel}</td>
+          <td class="num ${m.qty_base<0?'low':''}">${m.qty_base>0?'+':''}${fmtQty(m.qty_base)}</td>
+          <td>${m.note||''}</td>`;
+        tb.appendChild(tr);
+      });
+    }
+
+    // Adjustment
+    document.getElementById('saveAdj').addEventListener('click', async ()=>{
+      const iid = document.getElementById('adjIngredient').value;
+      const qty = Number(document.getElementById('adjQty').value);
+      const reason = document.getElementById('adjReason').value;
+      const note = document.getElementById('adjNote').value;
+      if (!iid || isNaN(qty) || qty===0) { document.getElementById('adjStatus').textContent = 'Select ingredient + non-zero qty'; return; }
+      document.getElementById('adjStatus').textContent = 'Saving…';
+      try {
+        const r = await fetch('/api/inventory/adjustments', { method:'POST', headers:{'Content-Type':'application/json',...authHeaders()},
+          body: JSON.stringify({ ingredient_id: iid, qty_base: qty, type: reason, note }) });
+        const d = await r.json();
+        document.getElementById('adjStatus').textContent = d.message||d.error||'Saved';
+        if (!d.error) { document.getElementById('adjQty').value=''; document.getElementById('adjNote').value=''; loadAll(); }
+      } catch { document.getElementById('adjStatus').textContent = 'Failed'; }
     });
-});
 
-adjustIngredient.addEventListener('change', loadLocationStock);
-adjustLocation.addEventListener('change', loadLocationStock);
-adjustActual.addEventListener('input', () => {
-  const actual = Number(adjustActual.value);
-  if (!Number.isFinite(actual)) {
-    adjustChange.value = '';
-    return;
-  }
-  adjustChange.value = (actual - currentAdjustStock).toFixed(2);
-});
-</script>
+    // Thresholds
+    document.getElementById('saveTh').addEventListener('click', async ()=>{
+      const gr = Number(document.getElementById('thGr').value);
+      const ml = Number(document.getElementById('thMl').value);
+      const pcs = Number(document.getElementById('thPcs').value);
+      const items = [];
+      allStock.forEach(s => {
+        if (s.base_unit === 'g' && gr>0) items.push({ ingredient_id: s.ingredient_id, min_stock: gr });
+        else if (s.base_unit === 'ml' && ml>0) items.push({ ingredient_id: s.ingredient_id, min_stock: ml });
+        else if (s.base_unit === 'pcs' && pcs>0) items.push({ ingredient_id: s.ingredient_id, min_stock: pcs });
+      });
+      if (!items.length) return;
+      await fetch('/api/inventory/thresholds', { method:'PUT', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify(items) });
+      document.getElementById('thStatus').textContent = `Updated ${items.length} items`;
+      loadAll();
+    });
 
-</div>
-<script src="/sidebar.js"></script>
+    document.getElementById('refreshBtn').addEventListener('click', loadAll);
+    if (auth) loadAll();
+  </script>
 </body>
 </html>
