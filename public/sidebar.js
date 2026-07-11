@@ -5,7 +5,11 @@
   s.innerHTML = '';
   if (brand) s.appendChild(brand);
   const items = [
-    { type: 'link', href: '/dashboard.html', label: '🏠  Dashboard' },
+    { type: 'group', label: '📊  Management', children: [
+      { href: '/dashboard.html', label: 'Overview' },
+      { href: '/system-report.html', label: 'Analytics' },
+      { href: '/budget.html', label: 'Budget' },
+    ]},
     { type: 'link', href: '/pos.html', label: '🛒  POS' },
     { type: 'link', href: '/inventory.html', label: '📦  Inventory' },
     { type: 'divider' },
@@ -26,8 +30,6 @@
       { href: '/clock.html', label: 'Attendance' },
     ]},
     { type: 'divider' },
-    { type: 'link', href: '/budget.html', label: '🎯  Budget' },
-    { type: 'link', href: '/system-report.html', label: '📊  System Report' },
     { type: 'link', href: '/import-center.html', label: '📥  Import Center' },
     { type: 'link', href: '/logout.html', label: '🚪  Logout' },
   ];
@@ -78,11 +80,13 @@
     home.href = auth.role === 'staff' ? '/pos.html' : '/dashboard.html';
     home.dataset.home = '1';
     home.textContent = 'Home';
-    const firstLink = sidebar.querySelector('a[href]');
-    if (firstLink && firstLink.parentNode) {
-      firstLink.parentNode.insertBefore(home, firstLink);
+    // Insert as the first top-level nav item (after the brand) so it does not
+    // land inside the first group's children list.
+    const brandEl = sidebar.querySelector('.sidebar-brand');
+    if (brandEl) {
+      sidebar.insertBefore(home, brandEl.nextSibling);
     } else {
-      sidebar.appendChild(home);
+      sidebar.insertBefore(home, sidebar.firstChild);
     }
   }
 
