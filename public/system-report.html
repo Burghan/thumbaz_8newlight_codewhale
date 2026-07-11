@@ -54,6 +54,21 @@
     .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:600; background:#eef2f8; color:var(--brand-700); }
     .bar { height: 6px; background: var(--cream-soft); border-radius: 999px; overflow: hidden; min-width: 60px; }
     .bar span { display: block; height: 100%; background: var(--brand); border-radius: 999px; }
+
+    /* KPI scorecard */
+    .score-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    @media(max-width:820px){ .score-grid { grid-template-columns: repeat(2,1fr); } }
+    .score { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; position: relative; }
+    .score .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+    .score .act { font-family: var(--font-brand); font-size: 24px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .score .tgt { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .score .dot { position: absolute; top: 12px; right: 12px; font-size: 14px; }
+    .score.good { background: var(--positive-bg); } .score.good .act { color: #2f5a45; }
+    .score.warn { background: #fbf3e3; } .score.warn .act { color: #b07a1e; }
+    .score.bad { background: #fbecea; } .score.bad .act { color: var(--danger); }
+    .score .edit { display: flex; gap: 4px; margin-top: 6px; }
+    .score .edit input { width: 56px; padding: 3px 6px; font-size: 12px; border: 1px solid var(--border); border-radius: 6px; text-align: right; }
+    .btn-sm { font-size: 12px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--brand-ink); cursor: pointer; }
   </style>
 </head>
 <body class="theme-cafe">
@@ -80,6 +95,15 @@
       <div class="status" id="status">⏳ Loading…</div>
       <div id="view" style="display:none">
         <div class="kpis" id="kpis"></div>
+
+        <div class="card">
+          <h2>🎯 KPI Scorecard <span class="hint">— actual vs target</span>
+            <span style="flex:1"></span>
+            <button class="btn-sm" id="editTargets">⚙ Edit targets</button>
+            <button class="btn-sm" id="saveTargets" style="display:none">💾 Save</button>
+          </h2>
+          <div class="score-grid" id="scoreGrid"></div>
+        </div>
 
         <div class="card">
           <h2>🏆 Product Performance <span class="hint">— click a name to open it in Menu Items</span></h2>
@@ -147,18 +171,22 @@
 
     let products = [];   // product-sales for the month
     let prodSort = 'revenue';
+    let scorecard = null, editingTargets = false;
 
     async function load(){
       const month = monthSel.value;
       statusEl.style.display=''; viewEl.style.display='none'; statusEl.textContent='⏳ Loading…';
       try {
-        const [sum, prod, days] = await Promise.all([
+        const [sum, prod, days, score] = await Promise.all([
           jget('/api/reports/monthly-summary?month='+month),
           jget('/api/reports/product-sales?month='+month),
-          jget('/api/transactions/daily-summary?month='+month).catch(()=>[])
+          jget('/api/transactions/daily-summary?month='+month).catch(()=>[]),
+          jget('/api/reports/kpi-scorecard?month='+month).catch(()=>null)
         ]);
         products = prod || [];
+        scorecard = score;
         renderKPIs(sum);
+        renderScorecard();
         renderProducts();
         renderCategories();
         renderDays(days||[], month);
@@ -175,6 +203,42 @@
         <div class="kpi hero"><div class="label">Net Profit</div><div class="value ${c.profit<0?'neg':''}">${Rp(c.profit)}</div>${delta(c.profit,p.profit)}<div class="foot">${c.profit<0?'net loss':'net positive'}</div></div>
         <div class="kpi"><div class="label">Net Margin</div><div class="value ${c.margin_pct<0?'neg':''}">${c.margin_pct}%</div>${delta(c.margin_pct,p.margin_pct)}<div class="foot">avg order ${Rp(c.order_count?c.revenue/c.order_count:0)}</div></div>`;
     }
+
+    const DOT = { good:'🟢', warn:'🟡', bad:'🔴' };
+    function renderScorecard(){
+      const grid = document.getElementById('scoreGrid');
+      if (!scorecard || !scorecard.kpis) { grid.innerHTML = '<div class="score warn"><div class="lbl">Scorecard</div><div class="tgt">unavailable</div></div>'; return; }
+      grid.innerHTML = scorecard.kpis.map(k => {
+        const edit = editingTargets ? `<div class="edit">
+            <input type="number" data-metric="${k.metric}" data-bound="low" placeholder="min" value="${k.target_low ?? ''}" ${k.direction==='max'?'style="display:none"':''}>
+            <input type="number" data-metric="${k.metric}" data-bound="high" placeholder="max" value="${k.target_high ?? ''}" ${k.direction==='min'?'style="display:none"':''}>
+          </div>` : `<div class="tgt">target ${k.target}</div>`;
+        return `<div class="score ${k.status}">
+          <span class="dot">${DOT[k.status]||''}</span>
+          <div class="lbl">${esc(k.label)}</div>
+          <div class="act">${k.actual}${k.unit}</div>
+          ${edit}
+        </div>`;
+      }).join('');
+    }
+
+    document.getElementById('editTargets').addEventListener('click', ()=>{
+      editingTargets = true; renderScorecard();
+      document.getElementById('editTargets').style.display='none';
+      document.getElementById('saveTargets').style.display='';
+    });
+    document.getElementById('saveTargets').addEventListener('click', async ()=>{
+      const map = {};
+      document.querySelectorAll('#scoreGrid input[data-metric]').forEach(inp=>{
+        const m = inp.getAttribute('data-metric'); map[m] = map[m] || { metric:m };
+        map[m][inp.getAttribute('data-bound')==='low'?'target_low':'target_high'] = inp.value;
+      });
+      await fetch('/api/reports/kpi-targets', { method:'PUT', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ targets: Object.values(map) }) });
+      editingTargets = false;
+      document.getElementById('editTargets').style.display='';
+      document.getElementById('saveTargets').style.display='none';
+      load();
+    });
 
     function menuLink(name){ return `/menu.html?q=${encodeURIComponent(name)}`; }
 

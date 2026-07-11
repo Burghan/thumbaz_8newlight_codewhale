@@ -88,6 +88,65 @@ router.get('/top-products', (req, res) => {
   res.json(db.prepare(`SELECT p.name,SUM(ti.quantity) AS qty,SUM(ti.line_total) AS revenue FROM transaction_items ti JOIN transactions t ON t.id=ti.transaction_id JOIN products p ON p.id=ti.product_id WHERE strftime('%Y-%m',t.transacted_at)=? GROUP BY p.id ORDER BY revenue DESC LIMIT 5`).all(month));
 });
 
+// ---- KPI scorecard vs targets (mirrors the workbook KPI Dashboard) ----
+router.get('/kpi-scorecard', (req, res) => {
+  const month = req.query.month || new Date().toISOString().slice(0, 7);
+  const revenue = db.prepare(`SELECT COALESCE(SUM(ti.line_total),0) v FROM transactions t JOIN transaction_items ti ON ti.transaction_id=t.id WHERE strftime('%Y-%m',t.transacted_at)=?`).get(month).v;
+  const cogs = db.prepare(`SELECT COALESCE(ROUND(SUM(pi.line_total)),0) v FROM purchase_items pi JOIN purchases p ON p.id=pi.purchase_id WHERE strftime('%Y-%m',p.purchased_at)=?`).get(month).v;
+  const opex = db.prepare(`SELECT COALESCE(ROUND(SUM(amount)),0) v FROM expenses WHERE strftime('%Y-%m',date)=?`).get(month).v;
+  const days = db.prepare(`SELECT COUNT(DISTINCT t.transacted_at) d FROM transactions t WHERE strftime('%Y-%m',t.transacted_at)=?`).get(month).d;
+  const gross = revenue - cogs, net = gross - opex;
+  const r = n => revenue > 0 ? Math.round(n / revenue * 1000) / 10 : 0;
+
+  const actuals = {
+    gross_margin: r(gross),
+    cogs_ratio: r(cogs),
+    opex_ratio: r(opex),
+    net_margin: r(net)
+  };
+
+  function status(t, a) {
+    if (t.direction === 'min') return a >= t.target_low ? 'good' : (a >= t.target_low * 0.9 ? 'warn' : 'bad');
+    if (t.direction === 'max') return a <= t.target_high ? 'good' : (a <= t.target_high * 1.1 ? 'warn' : 'bad');
+    if (t.direction === 'range') return (a >= t.target_low && a <= t.target_high) ? 'good' : ((a >= t.target_low * 0.8 && a <= t.target_high * 1.2) ? 'warn' : 'bad');
+    return 'warn';
+  }
+  function targetText(t) {
+    if (t.direction === 'min') return `≥ ${t.target_low}${t.unit}`;
+    if (t.direction === 'max') return `≤ ${t.target_high}${t.unit}`;
+    return `${t.target_low}–${t.target_high}${t.unit}`;
+  }
+
+  const targets = db.prepare('SELECT * FROM kpi_targets ORDER BY sort_order').all();
+  const kpis = targets.map(t => {
+    const a = actuals[t.metric];
+    return { metric: t.metric, label: t.label, actual: a, unit: t.unit,
+             target: targetText(t), direction: t.direction, target_low: t.target_low, target_high: t.target_high,
+             status: a == null ? 'warn' : status(t, a) };
+  });
+
+  res.json({
+    month, kpis,
+    info: {
+      revenue, cogs, opex, gross_profit: gross, net_profit: net,
+      total_expense: cogs + opex,
+      avg_daily_sales: days > 0 ? Math.round(revenue / days) : 0,
+      selling_days: days
+    }
+  });
+});
+
+// PUT /api/reports/kpi-targets  — bulk update targets. body:{ targets:[{metric,target_low,target_high}] }
+router.put('/kpi-targets', (req, res) => {
+  const rows = Array.isArray(req.body?.targets) ? req.body.targets : [];
+  const up = db.prepare('UPDATE kpi_targets SET target_low=?, target_high=? WHERE metric=?');
+  db.transaction(() => rows.forEach(t => up.run(
+    t.target_low === '' || t.target_low == null ? null : Number(t.target_low),
+    t.target_high === '' || t.target_high == null ? null : Number(t.target_high),
+    t.metric)))();
+  res.json({ message: 'Targets updated' });
+});
+
 // ---- Stubs ----
 router.get('/purchase-vs-usage', (req, res) => res.json([]));
 router.get('/low-stock-forecast', (req, res) => res.json([]));
