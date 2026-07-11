@@ -147,6 +147,11 @@
     .exp-cat.open .exp-head .chev { transform: rotate(90deg); }
     .exp-items { display: none; }
     .exp-cat.open .exp-items { display: block; }
+    .pnl-row { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--border); }
+    .pnl-row.strong { font-weight: 700; border-bottom: 2px solid var(--border); background: var(--cream-soft); margin: 0 -8px; padding: 9px 8px; border-radius: 6px; }
+    .pnl-lbl { min-width: 0; }
+    .pnl-pct { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+    .pnl-amt { font-variant-numeric: tabular-nums; white-space: nowrap; }
   </style>
 </head>
 <body class="theme-cafe">
@@ -318,11 +323,12 @@
         <div class="kpi hero clickable" id="revKpi"><div class="label">Revenue</div><div class="value">${Rp(c.revenue)}</div>${delta(c.revenue,p.revenue)}<div class="foot">${c.order_count} orders</div><div class="drill-hint">click to see where it came from →</div></div>
         <div class="kpi clickable" id="grossKpi"><div class="label">Gross Profit</div><div class="value ${gross<0?'neg':''}">${Rp(gross)}</div>${delta(gross,grossP)}<div class="foot">COGS ${pct(c.cost,c.revenue)}%</div><div class="drill-hint">what makes up COGS →</div></div>
         <div class="kpi clickable" id="expKpi"><div class="label">Expenses</div><div class="value">${Rp(c.expenses)}</div>${delta(c.expenses,p.expenses,false)}<div class="foot">${pct(c.expenses,c.revenue)}% of rev</div><div class="drill-hint">expenses by category →</div></div>
-        <div class="kpi hero"><div class="label">Net Profit</div><div class="value ${c.profit<0?'neg':''}">${Rp(c.profit)}</div>${delta(c.profit,p.profit)}<div class="foot">${c.profit<0?'net loss':'net positive'}</div></div>
+        <div class="kpi hero clickable" id="netKpi"><div class="label">Net Profit</div><div class="value ${c.profit<0?'neg':''}">${Rp(c.profit)}</div>${delta(c.profit,p.profit)}<div class="foot">${c.profit<0?'net loss':'net positive'}</div><div class="drill-hint">full P&amp;L statement →</div></div>
         <div class="kpi"><div class="label">Net Margin</div><div class="value ${c.margin_pct<0?'neg':''}">${c.margin_pct}%</div>${delta(c.margin_pct,p.margin_pct)}<div class="foot">avg order ${Rp(c.order_count?c.revenue/c.order_count:0)}</div></div>`;
       const rk = document.getElementById('revKpi'); if (rk) rk.addEventListener('click', drillRevenue);
       const gk = document.getElementById('grossKpi'); if (gk) gk.addEventListener('click', drillCogs);
       const ek = document.getElementById('expKpi'); if (ek) ek.addEventListener('click', drillExpenses);
+      const nk = document.getElementById('netKpi'); if (nk) nk.addEventListener('click', drillPnl);
     }
 
     const DOT = { good:'🟢', warn:'🟡', bad:'🔴' };
@@ -574,6 +580,28 @@
           <div class="cost-tot"><span>Order total</span><span>${Rp(o.total)}</span></div>
           ${o.notes?`<h3>Notes</h3><div class="foot">${esc(o.notes)}</div>`:''}`;
       }catch(e){ drillBody.innerHTML='<div class="err">❌ '+esc(e.message)+'</div>'; }
+    }
+
+    async function drillPnl(){
+      openDrawer();
+      const c = (summary&&summary.current) || {};
+      const rev=c.revenue||0, cogs=c.cost||0, gross=rev-cogs, exp=c.expenses||0, net=rev-cogs-exp;
+      const mp = (n)=> rev>0 ? Math.round(n/rev*100) : 0;
+      drillTitle.textContent='Profit & Loss'; drillSub.textContent=`${monthSel.value} · ${c.order_count||0} orders`;
+      const line=(lbl,val,cls,act,strong)=>`<div class="pnl-row ${strong?'strong':''}">
+          <span class="pnl-lbl">${act?`<span class="drill-link" data-pnl="${act}">${lbl}</span>`:lbl}</span>
+          <span class="pnl-pct">${mp(val)}%</span>
+          <span class="pnl-amt ${cls||''}">${Rp(val)}</span></div>`;
+      drillBody.innerHTML = '<div class="foot" style="margin-bottom:8px">Click Revenue, COGS, or Expenses to drill into each.</div>'
+        + line('Revenue', rev, '', 'revenue')
+        + line('− Cost of goods (COGS)', cogs, 'neg', 'cogs')
+        + line('= Gross Profit', gross, gross<0?'neg':'pos', null, true)
+        + line('− Operating expenses', exp, 'neg', 'expenses')
+        + line('= Net Profit', net, net<0?'neg':'pos', null, true);
+      drillBody.querySelectorAll('[data-pnl]').forEach(el=>el.addEventListener('click',()=>{
+        const t=el.getAttribute('data-pnl');
+        if(t==='revenue') drillRevenue(); else if(t==='cogs') drillCogs(); else if(t==='expenses') drillExpenses();
+      }));
     }
 
     function renderProducts(){
