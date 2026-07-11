@@ -101,6 +101,45 @@ router.get('/payment-mix', (req, res) => {
   res.json(rows.map(r => ({ ...r, share: Math.round(r.revenue / total * 100) })));
 });
 
+// ---- Cashflow ledger (daily inflow/outflow + running balance) ----
+// Inflow = sales. Outflow = purchases + expenses (payroll salaries are booked
+// as expenses, so they are not counted twice). The running balance is scoped to
+// the selected month (opening = 0) so it reflects the month's own cash movement.
+router.get('/cashflow', (req, res) => {
+  const month = req.query.month || new Date().toISOString().slice(0, 7);
+  const opening = 0;
+
+  const salesBy = m => Object.fromEntries(db.prepare(`
+    SELECT t.transacted_at AS d, ROUND(SUM(ti.line_total)) AS v
+    FROM transactions t JOIN transaction_items ti ON ti.transaction_id = t.id
+    WHERE strftime('%Y-%m', t.transacted_at) = ? GROUP BY t.transacted_at`).all(m).map(r => [r.d, r.v]));
+  const purchBy = m => Object.fromEntries(db.prepare(`
+    SELECT p.purchased_at AS d, ROUND(SUM(pi.line_total)) AS v
+    FROM purchases p JOIN purchase_items pi ON pi.purchase_id = p.id
+    WHERE strftime('%Y-%m', p.purchased_at) = ? GROUP BY p.purchased_at`).all(m).map(r => [r.d, r.v]));
+  const expBy = m => Object.fromEntries(db.prepare(`
+    SELECT date AS d, ROUND(SUM(amount)) AS v FROM expenses
+    WHERE strftime('%Y-%m', date) = ? GROUP BY date`).all(m).map(r => [r.d, r.v]));
+
+  const sales = salesBy(month), purch = purchBy(month), exp = expBy(month);
+  const days = [...new Set([...Object.keys(sales), ...Object.keys(purch), ...Object.keys(exp)])].sort();
+
+  let balance = opening;
+  let tIn = 0, tPurch = 0, tExp = 0;
+  const rows = days.map(d => {
+    const inflow = sales[d] || 0, purchases = purch[d] || 0, expenses = exp[d] || 0;
+    const outflow = purchases + expenses, net = inflow - outflow;
+    balance += net; tIn += inflow; tPurch += purchases; tExp += expenses;
+    return { date: d, inflow, purchases, expenses, outflow, net, balance };
+  });
+
+  res.json({
+    month, opening, rows,
+    totals: { inflow: tIn, purchases: tPurch, expenses: tExp, outflow: tPurch + tExp,
+              net: tIn - tPurch - tExp, closing: balance }
+  });
+});
+
 // ---- KPI scorecard vs targets (mirrors the workbook KPI Dashboard) ----
 router.get('/kpi-scorecard', (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0, 7);

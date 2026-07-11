@@ -84,6 +84,14 @@
     .pay.qris { border-left-color: #7b5bd6; } .pay.qris .bar span { background: #7b5bd6; }
     .pay.transfer { border-left-color: var(--brand); } .pay.transfer .bar span { background: var(--brand); }
     .pay.unknown { border-left-color: var(--muted); } .pay.unknown .bar span { background: var(--muted); }
+
+    /* Cashflow */
+    .cf-sum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+    @media(max-width:820px){ .cf-sum { grid-template-columns: repeat(2,1fr); } }
+    .cf-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+    .cf-card.hero { background: var(--cream-soft); border-color: var(--brand-200, var(--border)); }
+    .cf-card .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+    .cf-card .v { font-family: var(--font-brand); font-size: 18px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }
   </style>
 </head>
 <body class="theme-cafe">
@@ -160,6 +168,20 @@
             </table>
           </div>
         </div>
+
+        <div class="card">
+          <h2>🏦 Cashflow <span class="hint">— money in vs out, with running balance</span></h2>
+          <div class="cf-sum" id="cfSum"></div>
+          <div style="overflow:auto;max-height:44vh;">
+            <table>
+              <thead><tr>
+                <th>Date</th><th class="num">In (Sales)</th><th class="num">Purchases</th>
+                <th class="num">Expenses</th><th class="num">Net</th><th class="num">Balance</th>
+              </tr></thead>
+              <tbody id="cfRows"><tr><td colspan="6">–</td></tr></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -212,6 +234,7 @@
         renderProducts();
         renderCategories();
         renderDays(days||[], month);
+        jget('/api/reports/cashflow?month='+month).then(renderCashflow).catch(()=>{});
         statusEl.style.display='none'; viewEl.style.display='';
       } catch(e){ statusEl.innerHTML='<span class="err">❌ '+esc(e.message)+'</span>'; }
     }
@@ -280,6 +303,29 @@
           <div class="foot">${r.orders} orders · avg ${Rp(r.orders?r.revenue/r.orders:0)}</div>
         </div>`;
       }).join('');
+    }
+
+    function renderCashflow(cf){
+      const sum=document.getElementById('cfSum'), tb=document.getElementById('cfRows');
+      const t=cf.totals||{};
+      sum.innerHTML = `
+        <div class="cf-card"><div class="lbl">Money in (sales)</div><div class="v pos">${Rp(t.inflow)}</div></div>
+        <div class="cf-card"><div class="lbl">Purchases out</div><div class="v neg">${Rp(t.purchases)}</div></div>
+        <div class="cf-card"><div class="lbl">Expenses out</div><div class="v neg">${Rp(t.expenses)}</div></div>
+        <div class="cf-card hero"><div class="lbl">Net cash flow</div><div class="v ${t.net<0?'neg':'pos'}">${t.net<0?'−':'+'}${Rp(Math.abs(t.net))}</div><div class="foot">${t.net<0?'cash burned':'cash generated'} this month</div></div>`;
+      tb.innerHTML='';
+      const rows=cf.rows||[];
+      if(!rows.length){ tb.innerHTML='<tr><td colspan="6">No cash movement this month</td></tr>'; return; }
+      rows.slice().reverse().forEach(r=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = `<td>${r.date}</td>
+          <td class="num pos">${r.inflow?Rp(r.inflow):'–'}</td>
+          <td class="num">${r.purchases?Rp(r.purchases):'–'}</td>
+          <td class="num">${r.expenses?Rp(r.expenses):'–'}</td>
+          <td class="num ${r.net<0?'neg':'pos'}">${r.net<0?'−':'+'}${Rp(Math.abs(r.net))}</td>
+          <td class="num ${r.balance<0?'neg':''}" style="font-weight:600">${Rp(r.balance)}</td>`;
+        tb.appendChild(tr);
+      });
     }
 
     function menuLink(name){ return `/menu.html?q=${encodeURIComponent(name)}`; }
