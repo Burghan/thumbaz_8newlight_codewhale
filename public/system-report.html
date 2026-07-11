@@ -108,6 +108,40 @@
     .fc-fill.proj { background: repeating-linear-gradient(45deg, var(--brand-300, #9db8e0), var(--brand-300, #9db8e0) 5px, transparent 5px, transparent 10px), var(--cream-soft); border: 1px dashed var(--brand); }
     .fc-amt { font-size: 11px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
     .fc-m { font-size: 10px; color: var(--muted); }
+
+    /* Drill-down links */
+    .drill-link { color: var(--brand-600); cursor: pointer; font-weight: 600; border-bottom: 1px dashed transparent; }
+    .drill-link:hover { border-bottom-color: var(--brand-600); }
+    .kpi.clickable { cursor: pointer; transition: transform .1s, box-shadow .1s; }
+    .kpi.clickable:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.08); }
+    .kpi .drill-hint { font-size: 10px; color: var(--brand-600); margin-top: 4px; opacity: 0; transition: opacity .1s; }
+    .kpi.clickable:hover .drill-hint { opacity: 1; }
+
+    /* Slide-over drawer */
+    .drawer-backdrop { position: fixed; inset: 0; background: rgba(20,28,45,.38); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 60; }
+    .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+    .drawer { position: fixed; top: 0; right: 0; height: 100%; width: min(480px, 94vw); background: var(--card); box-shadow: -8px 0 30px rgba(0,0,0,.18);
+      transform: translateX(100%); transition: transform .22s ease; z-index: 61; display: flex; flex-direction: column; }
+    .drawer.open { transform: translateX(0); }
+    .drawer-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+    .drawer-title { font-family: var(--font-brand); font-size: 20px; font-weight: 700; line-height: 1.15; }
+    .drawer-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .drawer-close { margin-left: auto; border: none; background: var(--cream-soft); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--brand-ink); }
+    .drawer-close:hover { background: #e6ebf3; }
+    .drawer-body { padding: 16px 18px; overflow: auto; }
+    .drawer-body h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 18px 0 8px; }
+    .drawer-body h3:first-child { margin-top: 0; }
+    .drawer-body table { width: 100%; }
+    .dl-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+    .dl-row .nm { flex: 1; min-width: 0; }
+    .dl-row .bar { flex: 0 0 90px; }
+    .dl-row .amt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+    .dl-stat { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 4px; }
+    .dl-stat .b { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+    .dl-stat .b .l { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 700; }
+    .dl-stat .b .n { font-family: var(--font-brand); font-size: 17px; font-weight: 700; }
+    .cost-tot { display: flex; justify-content: space-between; padding: 8px 0; font-weight: 700; border-top: 2px solid var(--border); margin-top: 2px; }
+    .drawer .go { display: inline-block; margin-top: 4px; }
   </style>
 </head>
 <body class="theme-cafe">
@@ -150,7 +184,7 @@
         </div>
 
         <div class="card">
-          <h2>🏆 Product Performance <span class="hint">— click a name to open it in Menu Items</span></h2>
+          <h2>🏆 Product Performance <span class="hint">— click a name for costing, a qty for its orders</span></h2>
           <div style="overflow:auto;max-height:42vh;">
             <table>
               <thead><tr>
@@ -208,6 +242,15 @@
     </div>
   </div>
 
+  <div class="drawer-backdrop" id="drillBackdrop"></div>
+  <aside class="drawer" id="drill" aria-hidden="true">
+    <div class="drawer-head">
+      <div><div class="drawer-title" id="drillTitle">—</div><div class="drawer-sub" id="drillSub"></div></div>
+      <button class="drawer-close" id="drillClose" aria-label="Close">✕</button>
+    </div>
+    <div class="drawer-body" id="drillBody"></div>
+  </aside>
+
   <script src="/auth.js"></script>
   <script src="/sidebar.js"></script>
   <script>
@@ -236,6 +279,7 @@
     let products = [];   // product-sales for the month
     let prodSort = 'revenue';
     let scorecard = null, editingTargets = false;
+    let summary = null, payData = [], dailyData = [];   // cached for drill-downs
 
     async function load(){
       const month = monthSel.value;
@@ -250,6 +294,7 @@
         ]);
         products = prod || [];
         scorecard = score;
+        summary = sum; payData = pay || []; dailyData = days || [];
         renderKPIs(sum);
         renderScorecard();
         renderPayment(pay||[]);
@@ -265,11 +310,12 @@
     function renderKPIs(sum){
       const c=sum.current, p=sum.previous, gross=c.revenue-c.cost, grossP=p.revenue-p.cost;
       document.getElementById('kpis').innerHTML = `
-        <div class="kpi hero"><div class="label">Revenue</div><div class="value">${Rp(c.revenue)}</div>${delta(c.revenue,p.revenue)}<div class="foot">${c.order_count} orders</div></div>
+        <div class="kpi hero clickable" id="revKpi"><div class="label">Revenue</div><div class="value">${Rp(c.revenue)}</div>${delta(c.revenue,p.revenue)}<div class="foot">${c.order_count} orders</div><div class="drill-hint">click to see where it came from →</div></div>
         <div class="kpi"><div class="label">Gross Profit</div><div class="value ${gross<0?'neg':''}">${Rp(gross)}</div>${delta(gross,grossP)}<div class="foot">COGS ${pct(c.cost,c.revenue)}%</div></div>
         <div class="kpi"><div class="label">Expenses</div><div class="value">${Rp(c.expenses)}</div>${delta(c.expenses,p.expenses,false)}<div class="foot">${pct(c.expenses,c.revenue)}% of rev</div></div>
         <div class="kpi hero"><div class="label">Net Profit</div><div class="value ${c.profit<0?'neg':''}">${Rp(c.profit)}</div>${delta(c.profit,p.profit)}<div class="foot">${c.profit<0?'net loss':'net positive'}</div></div>
         <div class="kpi"><div class="label">Net Margin</div><div class="value ${c.margin_pct<0?'neg':''}">${c.margin_pct}%</div>${delta(c.margin_pct,p.margin_pct)}<div class="foot">avg order ${Rp(c.order_count?c.revenue/c.order_count:0)}</div></div>`;
+      const rk = document.getElementById('revKpi'); if (rk) rk.addEventListener('click', drillRevenue);
     }
 
     const DOT = { good:'🟢', warn:'🟡', bad:'🔴' };
@@ -383,6 +429,96 @@
 
     function menuLink(name){ return `/menu.html?q=${encodeURIComponent(name)}`; }
 
+    // ---------- Drill-down drawer ----------
+    const drill = document.getElementById('drill');
+    const drillBackdrop = document.getElementById('drillBackdrop');
+    const drillTitle = document.getElementById('drillTitle');
+    const drillSub = document.getElementById('drillSub');
+    const drillBody = document.getElementById('drillBody');
+    function openDrawer(){ drill.classList.add('open'); drill.setAttribute('aria-hidden','false'); drillBackdrop.classList.add('open'); }
+    function closeDrawer(){ drill.classList.remove('open'); drill.setAttribute('aria-hidden','true'); drillBackdrop.classList.remove('open'); }
+    document.getElementById('drillClose').addEventListener('click', closeDrawer);
+    drillBackdrop.addEventListener('click', closeDrawer);
+    document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDrawer(); });
+
+    function barRow(name, amount, total, extra=''){
+      const w = total>0 ? Math.round(amount/total*100) : 0;
+      return `<div class="dl-row"><span class="nm">${name}</span><div class="bar"><span style="width:${w}%"></span></div><span class="amt">${Rp(amount)}</span>${extra}</div>`;
+    }
+
+    // delegated clicks for any drill-link (tables + inside the drawer)
+    document.addEventListener('click', e=>{
+      const el = e.target.closest('.drill-link'); if(!el) return;
+      const act = el.getAttribute('data-act'), id = Number(el.getAttribute('data-id'));
+      if(act==='product') drillProduct(id);
+      else if(act==='orders') drillProductOrders(id, el.getAttribute('data-name'));
+    });
+
+    function drillRevenue(){
+      openDrawer();
+      const c = (summary&&summary.current) || {};
+      drillTitle.textContent = 'Revenue breakdown';
+      drillSub.textContent = `${Rp(c.revenue)} · ${c.order_count||0} orders`;
+      const catMap={}; products.forEach(p=>{ const k=p.category||'Uncategorized'; catMap[k]=(catMap[k]||0)+p.revenue; });
+      const cats=Object.entries(catMap).sort((a,b)=>b[1]-a[1]); const catTotal=cats.reduce((s,[,v])=>s+v,0)||1;
+      const top=products.slice().sort((a,b)=>b.revenue-a.revenue).slice(0,8); const prodTotal=products.reduce((s,p)=>s+p.revenue,0)||1;
+      const payTotal=payData.reduce((s,p)=>s+p.revenue,0)||1;
+      const days=(dailyData||[]).slice().sort((a,b)=>b.revenue-a.revenue).slice(0,6); const dayTotal=(dailyData||[]).reduce((s,d)=>s+d.revenue,0)||1;
+      drillBody.innerHTML = `
+        <h3>By category</h3>${cats.map(([n,v])=>barRow(esc(n),v,catTotal)).join('')||'<div class="foot">No data</div>'}
+        <h3>Top products</h3>${top.map(p=>`<div class="dl-row"><span class="nm"><span class="drill-link" data-act="product" data-id="${p.id}">${esc(p.name)}</span></span><div class="bar"><span style="width:${Math.round(p.revenue/prodTotal*100)}%"></span></div><span class="amt">${Rp(p.revenue)}</span></div>`).join('')||'<div class="foot">No data</div>'}
+        <h3>By payment method</h3>${payData.map(p=>barRow(esc((p.method||'?').toUpperCase()),p.revenue,payTotal,` <span class="foot">${p.share}%</span>`)).join('')||'<div class="foot">No data</div>'}
+        <h3>Top days</h3>${days.map(d=>barRow(d.date,d.revenue,dayTotal)).join('')||'<div class="foot">No data</div>'}`;
+    }
+
+    async function drillProduct(id){
+      openDrawer();
+      drillTitle.textContent='Loading…'; drillSub.textContent=''; drillBody.innerHTML='<div class="foot">Loading…</div>';
+      try{
+        const d = await jget('/api/reports/product-detail?id='+id+'&month='+monthSel.value);
+        const p=d.product;
+        drillTitle.textContent=p.name;
+        drillSub.textContent=`${p.category||'—'}${p.variant?' · '+p.variant:''}${p.is_resale?' · resale':''}`;
+        const costLines = p.is_resale
+          ? `<div class="dl-row"><span class="nm">Buying price (resale)</span><span class="amt">${Rp(d.resale_cost)}</span></div>`
+          : (d.recipe.length? d.recipe.map(r=>`<div class="dl-row"><span class="nm">${esc(r.name)} <span class="foot">${r.quantity} ${esc(r.base_unit)}</span></span><span class="amt">${Rp(r.cost)}</span></div>`).join('') : '<div class="foot">No recipe defined</div>');
+        const extra = [['Labor',p.labor_cost],['Utility',p.utility_cost],['Packaging',p.packaging_cost]].filter(([,v])=>v>0)
+          .map(([l,v])=>`<div class="dl-row"><span class="nm">${l}</span><span class="amt">${Rp(v)}</span></div>`).join('');
+        drillBody.innerHTML = `
+          <div class="dl-stat">
+            <div class="b"><div class="l">Price</div><div class="n">${Rp(p.price)}</div></div>
+            <div class="b"><div class="l">COGS</div><div class="n">${Rp(d.total_cogs)}</div></div>
+            <div class="b"><div class="l">Margin</div><div class="n ${d.margin_pct<0?'neg':'pos'}">${d.margin_pct}%</div></div>
+          </div>
+          <h3>Cost breakdown</h3>${costLines}${extra}
+          <div class="cost-tot"><span>Total COGS</span><span>${Rp(d.total_cogs)}</span></div>
+          <h3>This month (${monthSel.value})</h3>
+          <div class="dl-stat">
+            <div class="b"><div class="l">Sold</div><div class="n">${d.stats.qty}×</div></div>
+            <div class="b"><div class="l">Revenue</div><div class="n">${Rp(d.stats.revenue)}</div></div>
+            <div class="b"><div class="l">Orders</div><div class="n">${d.stats.orders}</div></div>
+          </div>
+          <h3>Sold on these days</h3>
+          ${d.by_day.length? d.by_day.slice().reverse().map(x=>`<div class="dl-row"><span class="nm">${x.date}</span><span class="foot">${x.qty}×</span><span class="amt">${Rp(x.revenue)}</span></div>`).join('') : '<div class="foot">No sales this month</div>'}
+          <a class="go" href="${menuLink(p.name)}">✎ Edit in Menu Items</a>`;
+      }catch(e){ drillBody.innerHTML='<div class="err">❌ '+esc(e.message)+'</div>'; }
+    }
+
+    async function drillProductOrders(id, name){
+      openDrawer();
+      drillTitle.textContent=name||'Orders'; drillSub.textContent='Orders this month'; drillBody.innerHTML='<div class="foot">Loading…</div>';
+      try{
+        const rows = await jget('/api/reports/product-orders?id='+id+'&month='+monthSel.value);
+        if(!rows.length){ drillBody.innerHTML='<div class="foot">No orders this month</div>'; return; }
+        const totQty=rows.reduce((s,r)=>s+r.quantity,0), totRev=rows.reduce((s,r)=>s+r.line_total,0);
+        drillSub.textContent=`${rows.length} orders · ${totQty}× · ${Rp(totRev)}`;
+        drillBody.innerHTML = `<table><thead><tr><th>Date</th><th>Order</th><th class="num">Qty</th><th class="num">Total</th><th>Pay</th></tr></thead><tbody>${
+          rows.map(r=>`<tr><td>${r.date}</td><td>#${r.order_id}</td><td class="num">${r.quantity}×</td><td class="num">${Rp(r.line_total)}</td><td><span class="pill">${esc(r.payment_method||'—')}</span></td></tr>`).join('')
+        }</tbody></table>
+        <a class="go" href="${menuLink(name)}" style="display:inline-block;margin-top:12px">✎ Edit in Menu Items</a>`;
+      }catch(e){ drillBody.innerHTML='<div class="err">❌ '+esc(e.message)+'</div>'; }
+    }
+
     function renderProducts(){
       const rows = products.slice().sort((a,b)=>{
         if(prodSort==='name'||prodSort==='category') return String(a[prodSort]||'').localeCompare(String(b[prodSort]||''));
@@ -394,13 +530,13 @@
         const tr=document.createElement('tr');
         if(r.margin_pct<0) tr.classList.add('loss');
         tr.innerHTML = `
-          <td><a class="menu-link" href="${menuLink(r.name)}">${esc(r.name)}</a></td>
+          <td><span class="drill-link" data-act="product" data-id="${r.id}">${esc(r.name)}</span></td>
           <td>${esc(r.category||'—')}</td>
-          <td class="num">${r.qty}</td>
+          <td class="num"><span class="drill-link" data-act="orders" data-id="${r.id}" data-name="${esc(r.name)}">${r.qty}×</span></td>
           <td class="num">${Rp(r.revenue)}</td>
           <td class="num">${Rp(r.cogs)}</td>
           <td class="num ${r.margin_pct<0?'neg':'pos'}">${r.margin_pct}%</td>
-          <td><a class="go" href="${menuLink(r.name)}">→ Menu</a></td>`;
+          <td><a class="go" href="${menuLink(r.name)}">✎ Edit</a></td>`;
         tb.appendChild(tr);
       });
     }
@@ -424,7 +560,7 @@
           <td class="num ${m<0?'neg':'pos'}">${m}%</td>`;
         const detail=document.createElement('tr'); detail.className='detail'; detail.style.display='none';
         detail.innerHTML = `<td colspan="5"><div class="inner"><table>${
-          v.items.sort((a,b)=>b.revenue-a.revenue).map(p=>`<tr><td><a class="menu-link" href="${menuLink(p.name)}">${esc(p.name)}</a></td><td class="num">${p.qty}×</td><td class="num">${Rp(p.revenue)}</td><td class="num ${p.margin_pct<0?'neg':'pos'}">${p.margin_pct}%</td></tr>`).join('')
+          v.items.sort((a,b)=>b.revenue-a.revenue).map(p=>`<tr><td><span class="drill-link" data-act="product" data-id="${p.id}">${esc(p.name)}</span></td><td class="num">${p.qty}×</td><td class="num">${Rp(p.revenue)}</td><td class="num ${p.margin_pct<0?'neg':'pos'}">${p.margin_pct}%</td></tr>`).join('')
         }</table></div></td>`;
         tr.addEventListener('click',()=>{ const open=detail.style.display!=='none'; detail.style.display=open?'none':''; tr.classList.toggle('open',!open); });
         tb.appendChild(tr); tb.appendChild(detail);

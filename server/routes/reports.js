@@ -88,6 +88,51 @@ router.get('/top-products', (req, res) => {
   res.json(db.prepare(`SELECT p.name,SUM(ti.quantity) AS qty,SUM(ti.line_total) AS revenue FROM transaction_items ti JOIN transactions t ON t.id=ti.transaction_id JOIN products p ON p.id=ti.product_id WHERE strftime('%Y-%m',t.transacted_at)=? GROUP BY p.id ORDER BY revenue DESC LIMIT 5`).all(month));
 });
 
+// ---- Product detail (drill-down: costing breakdown + monthly sales) ----
+router.get('/product-detail', (req, res) => {
+  const id = Number(req.query.id);
+  const month = req.query.month || new Date().toISOString().slice(0, 7);
+  const p = db.prepare(`SELECT p.*, (SELECT price FROM product_prices pp WHERE pp.product_id=p.id AND pp.effective_to IS NULL ORDER BY pp.id DESC LIMIT 1) AS price FROM products p WHERE p.id=?`).get(id);
+  if (!p) return res.status(404).json({ error: 'Product not found' });
+
+  const recipe = db.prepare(`SELECT i.name, i.base_unit, r.quantity, i.std_cost_per_base_micro AS micro
+    FROM recipes r JOIN ingredients i ON i.id=r.ingredient_id WHERE r.product_id=? ORDER BY i.name`).all(id)
+    .map(r => ({ name: r.name, base_unit: r.base_unit, quantity: r.quantity, cost: Math.round(r.quantity * r.micro / 1e6) }));
+
+  let resaleCost = 0;
+  if (p.is_resale && p.resale_ingredient_id) {
+    const ri = db.prepare('SELECT std_cost_per_base_micro AS micro FROM ingredients WHERE id=?').get(p.resale_ingredient_id);
+    resaleCost = ri ? Math.round(ri.micro / 1e6) : 0;
+  }
+  const ingredientCogs = p.is_resale ? resaleCost : recipe.reduce((s, r) => s + r.cost, 0);
+  const totalCogs = ingredientCogs + p.labor_cost + p.utility_cost + p.packaging_cost;
+  const price = p.price || 0;
+  const margin = price > 0 ? Math.round((price - totalCogs) / price * 100) : 0;
+
+  const stats = db.prepare(`SELECT COALESCE(SUM(ti.quantity),0) AS qty, COALESCE(SUM(ti.line_total),0) AS revenue, COUNT(DISTINCT t.id) AS orders
+    FROM transaction_items ti JOIN transactions t ON t.id=ti.transaction_id WHERE ti.product_id=? AND strftime('%Y-%m',t.transacted_at)=?`).get(id, month);
+  const byDay = db.prepare(`SELECT t.transacted_at AS date, SUM(ti.quantity) AS qty, SUM(ti.line_total) AS revenue
+    FROM transaction_items ti JOIN transactions t ON t.id=ti.transaction_id WHERE ti.product_id=? AND strftime('%Y-%m',t.transacted_at)=? GROUP BY t.transacted_at ORDER BY t.transacted_at`).all(id, month);
+
+  res.json({
+    product: { id: p.id, name: p.name, category: p.category, variant: p.variant, is_resale: !!p.is_resale, price,
+               labor_cost: p.labor_cost, utility_cost: p.utility_cost, packaging_cost: p.packaging_cost },
+    recipe, resale_cost: resaleCost, ingredient_cogs: ingredientCogs, total_cogs: totalCogs, margin_pct: margin, stats, by_day: byDay
+  });
+});
+
+// ---- Orders that sold a given product this month (drill-down from a qty cell) ----
+router.get('/product-orders', (req, res) => {
+  const id = Number(req.query.id);
+  const month = req.query.month || new Date().toISOString().slice(0, 7);
+  const rows = db.prepare(`SELECT t.id AS order_id, t.transacted_at AS date, t.payment_method,
+      ti.quantity, ti.unit_price, ti.line_total
+    FROM transaction_items ti JOIN transactions t ON t.id=ti.transaction_id
+    WHERE ti.product_id=? AND strftime('%Y-%m',t.transacted_at)=?
+    ORDER BY t.transacted_at DESC, t.id DESC`).all(id, month);
+  res.json(rows);
+});
+
 // ---- Payment method mix (Cash / QRIS / Transfer) ----
 router.get('/payment-mix', (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0, 7);
