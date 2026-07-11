@@ -133,6 +133,43 @@ router.get('/product-orders', (req, res) => {
   res.json(rows);
 });
 
+// ---- Expense breakdown by category (drill-down from the Expenses KPI) ----
+router.get('/expense-breakdown', (req, res) => {
+  const month = req.query.month || new Date().toISOString().slice(0, 7);
+  const rows = db.prepare(`SELECT category, date, description, amount FROM expenses
+    WHERE strftime('%Y-%m', date) = ? ORDER BY amount DESC`).all(month);
+  const map = {};
+  rows.forEach(r => {
+    const k = r.category || 'Uncategorized';
+    (map[k] = map[k] || { category: k, total: 0, items: [] });
+    map[k].total += r.amount;
+    map[k].items.push({ date: r.date, description: r.description, amount: r.amount });
+  });
+  const categories = Object.values(map).sort((a, b) => b.total - a.total);
+  res.json({ month, total: categories.reduce((s, c) => s + c.total, 0), categories });
+});
+
+// ---- Single order with items (drill-down from an order #) ----
+router.get('/order/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const rows = db.prepare(`SELECT t.id, t.transacted_at AS date, t.payment_method, t.reference, t.notes,
+      ti.product_id, p.name AS product_name, ti.quantity, ti.unit_price, ti.line_total
+    FROM transactions t
+    LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
+    LEFT JOIN products p ON p.id = ti.product_id
+    WHERE t.id = ?`).all(id);
+  if (!rows.length) return res.status(404).json({ error: 'Order not found' });
+  const o = { id: rows[0].id, date: rows[0].date, payment_method: rows[0].payment_method,
+              reference: rows[0].reference, notes: rows[0].notes, items: [], total: 0 };
+  rows.forEach(r => {
+    if (r.product_id != null) {
+      o.items.push({ product_id: r.product_id, product_name: r.product_name, quantity: r.quantity, unit_price: r.unit_price, line_total: r.line_total });
+      o.total += r.line_total;
+    }
+  });
+  res.json(o);
+});
+
 // ---- Payment method mix (Cash / QRIS / Transfer) ----
 router.get('/payment-mix', (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0, 7);
