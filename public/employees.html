@@ -32,10 +32,18 @@
     .tab.active { background: var(--accent); color: #fff; }
     .hidden-tab { display: none !important; }
 
-    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
-    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+    @media(max-width:760px){ .stats { grid-template-columns: repeat(2,1fr); } }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; box-shadow: var(--shadow-sm); }
     .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
     .stat .value { font-family: var(--font-brand); font-size: 24px; font-weight: 700; color: var(--brand-ink); margin-top: 2px; }
+    .stat .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .stat.good .value { color: var(--positive); }
+    .stat.on .value { color: var(--brand); }
+
+    .row-btn.danger { background: var(--danger); color: #fff; }
+    .pill-active { background: var(--positive-bg); color: #2f5a45; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .pill-inactive { background: #eceef2; color: var(--muted); padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
 
     .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1200; display: flex; align-items: center; justify-content: center; }
     .modal-backdrop[hidden] { display: none; }
@@ -83,9 +91,10 @@
     <div class="topbar"> <button id="menuToggle" class="menu-toggle">☰</button><h1>👥 Employees</h1></div>
 
     <div class="stats">
-      <div class="stat"><div class="label">Total Users</div><div class="value" id="sTotal">–</div></div>
-      <div class="stat"><div class="label">Active</div><div class="value" id="sActive">–</div></div>
-      <div class="stat"><div class="label">Staff</div><div class="value" id="sStaff">–</div></div>
+      <div class="stat good"><div class="label">Active Team</div><div class="value" id="sActive">–</div><div class="sub" id="sActiveSub"></div></div>
+      <div class="stat on"><div class="label">On Shift Now</div><div class="value" id="sOnShift">–</div><div class="sub" id="sOnShiftSub"></div></div>
+      <div class="stat"><div class="label">Daily Wage Bill</div><div class="value" id="sWage">–</div><div class="sub">active team / day</div></div>
+      <div class="stat"><div class="label">Team Mix</div><div class="value" id="sMix">–</div><div class="sub">admin · manager · staff</div></div>
     </div>
 
     <div class="tabs">
@@ -144,27 +153,55 @@
       if (target === 'attendance') loadAttendance();
     }));
 
+    const RpFmt = v => 'Rp ' + Math.round(Number(v || 0)).toLocaleString('id-ID');
+
     async function loadUsers() {
-      const users = await fetch('/api/users', opts).then(r=>r.json());
-      document.getElementById('sTotal').textContent = users.length;
-      document.getElementById('sActive').textContent = users.filter(u=>u.active).length;
-      document.getElementById('sStaff').textContent = users.filter(u=>u.role==='staff').length;
+      const [users, att] = await Promise.all([
+        fetch('/api/users', opts).then(r=>r.json()),
+        fetch('/api/attendance/today', opts).then(r=>r.json()).catch(()=>[])
+      ]);
+
+      // KPIs
+      const active = users.filter(u=>u.active);
+      const onShift = (att||[]).filter(a=>a.clock_in && !a.clock_out).length;
+      const wage = active.reduce((s,u)=>s+Number(u.rate||0),0);
+      const admins = users.filter(u=>u.role==='admin').length;
+      const managers = users.filter(u=>u.role==='manager').length;
+      const staff = users.filter(u=>u.role==='staff').length;
+      document.getElementById('sActive').textContent = active.length;
+      document.getElementById('sActiveSub').textContent = `of ${users.length} total`;
+      document.getElementById('sOnShift').textContent = onShift;
+      document.getElementById('sOnShiftSub').textContent = onShift ? 'clocked in now' : 'nobody clocked in';
+      document.getElementById('sWage').textContent = RpFmt(wage);
+      document.getElementById('sMix').textContent = `${admins} · ${managers} · ${staff}`;
+
       const tb = document.getElementById('userRows'); tb.innerHTML = '';
       if (!users.length) { tb.innerHTML = '<tr><td colspan="5">No users</td></tr>'; return; }
       users.forEach(u => {
-        tb.innerHTML += `<tr><td><strong>${u.name}</strong></td><td>${u.role}</td>
-          <td class="num">${u.rate?'Rp '+Number(u.rate).toLocaleString('id-ID'):'—'}</td>
+        const isSelf = String(u.id) === String(auth.id);
+        const delBtn = isSelf ? '' : `<button class="row-btn danger" data-delete="${u.id}" data-name="${(u.name||'').replace(/"/g,'&quot;')}">Delete</button>`;
+        tb.innerHTML += `<tr><td><strong>${u.name}</strong>${isSelf?' <span class="pill-inactive">you</span>':''}</td><td>${u.role}</td>
+          <td class="num">${u.rate?RpFmt(u.rate):'—'}</td>
           <td>${u.active?'<span class="pill-active">Active</span>':'<span class="pill-inactive">Inactive</span>'}</td>
           <td><button class="row-btn" data-edit="${u.id}">Edit</button>
-            <button class="row-btn ${u.active?'danger':''}" data-toggle="${u.id}">${u.active?'Deactivate':'Activate'}</button></td></tr>`;
+            <button class="row-btn" data-toggle="${u.id}">${u.active?'Deactivate':'Activate'}</button>
+            ${delBtn}</td></tr>`;
       });
     }
 
     document.getElementById('userRows').addEventListener('click', async e => {
-      const btn = e.target.closest('button[data-edit], button[data-toggle]'); if (!btn) return;
-      const id = btn.getAttribute('data-edit') || btn.getAttribute('data-toggle');
+      const btn = e.target.closest('button[data-edit], button[data-toggle], button[data-delete]'); if (!btn) return;
+      const id = btn.getAttribute('data-edit') || btn.getAttribute('data-toggle') || btn.getAttribute('data-delete');
       if (btn.hasAttribute('data-toggle')) {
         await fetch(`/api/users/${id}/toggle`, { method:'PATCH', headers:h, credentials:'same-origin' });
+        loadUsers(); return;
+      }
+      if (btn.hasAttribute('data-delete')) {
+        const nm = btn.getAttribute('data-name') || 'this user';
+        if (!confirm(`Delete ${nm} permanently? This also removes their payroll and attendance records and cannot be undone.`)) return;
+        const r = await fetch(`/api/users/${id}`, { method:'DELETE', headers:h, credentials:'same-origin' });
+        const d = await r.json().catch(()=>({}));
+        if (d.error) alert(d.error);
         loadUsers(); return;
       }
       const users = await fetch('/api/users', opts).then(r=>r.json());
