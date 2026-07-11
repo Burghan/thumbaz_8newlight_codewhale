@@ -55,6 +55,33 @@ router.get('/inventory-valuation', (req, res) => {
   res.json(db.prepare(`SELECT i.id,i.name,i.category,i.base_unit,inv.quantity_base,CAST(inv.avg_cost_micro AS REAL)/1e6 AS avg_cost,ROUND(inv.quantity_base*CAST(inv.avg_cost_micro AS REAL)/1e6) AS total_value,i.min_stock FROM inventory inv JOIN ingredients i ON i.id=inv.ingredient_id WHERE i.active=1 ORDER BY i.name`).all());
 });
 
+// ---- Per-product sales breakdown for a month (drill-down source) ----
+// Uses hpp_at_sale captured on each line for accurate historical COGS.
+router.get('/product-sales', (req, res) => {
+  const month = req.query.month || new Date().toISOString().slice(0, 7);
+  const rows = db.prepare(`
+    SELECT p.id, p.name, p.category, p.variant,
+           SUM(ti.quantity) AS qty,
+           SUM(ti.line_total) AS revenue,
+           SUM(CASE WHEN COALESCE(ti.hpp_at_sale,0) > 0 THEN ti.hpp_at_sale
+                ELSE (SELECT COALESCE(ROUND(SUM(r.quantity*i.std_cost_per_base_micro)/1e6),0)
+                        FROM recipes r JOIN ingredients i ON i.id=r.ingredient_id WHERE r.product_id=p.id)
+                     + p.labor_cost + p.utility_cost + p.packaging_cost
+                END * ti.quantity) AS cogs,
+           COUNT(DISTINCT t.id) AS orders
+    FROM transaction_items ti
+    JOIN transactions t ON t.id = ti.transaction_id
+    JOIN products p ON p.id = ti.product_id
+    WHERE strftime('%Y-%m', t.transacted_at) = ?
+    GROUP BY p.id
+    ORDER BY revenue DESC
+  `).all(month);
+  res.json(rows.map(r => {
+    const profit = (r.revenue || 0) - (r.cogs || 0);
+    return { ...r, profit, margin_pct: r.revenue > 0 ? Math.round(profit / r.revenue * 100) : 0 };
+  }));
+});
+
 // ---- Top products by sales ----
 router.get('/top-products', (req, res) => {
   const month = req.query.month||new Date().toISOString().slice(0,7);

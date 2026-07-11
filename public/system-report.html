@@ -7,45 +7,59 @@
   <link rel="stylesheet" href="/sidebar.css" />
   <link rel="stylesheet" href="/theme.css" />
   <style>
-    body { font-family: inherit; margin: 0; padding: 0; background: transparent; color: var(--ink); }
+    body { font-family: inherit; margin: 0; color: var(--ink); }
     .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; padding: 16px; }
-    .topbar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-    .topbar h1 { margin: 0; flex: 1; font-size: 20px; }
-    .topbar button, .topbar select, .topbar input { width: auto; margin: 0; min-height: 32px; font-size: 13px; padding: 6px 12px; border-radius: 8px; }
-    button { background: var(--brand); color: #fff; border: none; cursor: pointer; font-weight: 600; }
+    .topbar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .topbar h1 { margin: 0; flex: 1; font-size: 22px; }
+    .topbar select, .topbar button { width: auto; margin: 0; min-height: 38px; font-size: 14px; padding: 8px 14px; border-radius: 10px; }
+    .topbar button { background: var(--brand); color: #fff; border: none; cursor: pointer; font-weight: 600; }
+    .topbar .icon-btn { background: var(--card); color: var(--brand-ink); border: 1px solid var(--border); }
+    .sub { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
     .main-scroll { flex: 1 1 auto; overflow: auto; }
-    .card { background: var(--card); padding: 16px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 8px 20px rgba(41,26,18,0.16); margin-bottom: 14px; }
-    h2 { margin: 0 0 8px; font-size: 16px; color: var(--accent); }
-    h3 { margin: 0 0 6px; font-size: 14px; color: var(--brand-ink); }
+    .status { padding: 30px; text-align: center; color: var(--muted); }
+    .err { color: var(--danger); font-weight: 600; }
 
-    /* KPI Cards */
-    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-    @media(max-width:760px){ .kpi-grid{grid-template-columns:repeat(2,1fr);} }
-    .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; box-shadow: var(--shadow-sm); }
-    .kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
-    .kpi .value { font-family: var(--font-brand); font-size: 28px; font-weight: 700; color: var(--brand-ink); margin-top: 4px; }
-    .kpi .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
-    .kpi.good .value { color: #2e7d32; }
-    .kpi.warn .value { color: var(--danger); }
+    .card { background: var(--card); padding: 16px 18px; border-radius: 16px; border: 1px solid var(--border); box-shadow: var(--shadow-sm); margin-bottom: 14px; }
+    .card h2 { margin: 0 0 12px; font-size: 15px; color: var(--brand-ink); display: flex; align-items: center; gap: 8px; }
+    .card h2 .hint { font-weight: 400; font-size: 12px; color: var(--muted); }
 
-    /* Charts */
+    .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 14px; }
+    @media(max-width:960px){ .kpis { grid-template-columns: repeat(2,1fr); } }
+    .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow-sm); }
+    .kpi.hero { border-left: 4px solid var(--brand); }
+    .kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+    .kpi .value { font-family: var(--font-brand); font-size: 24px; font-weight: 700; color: var(--brand-ink); margin-top: 6px; font-variant-numeric: tabular-nums; }
+    .kpi .value.neg { color: var(--danger); }
+    .kpi .delta { font-size: 12px; font-weight: 600; margin-top: 4px; }
+    .delta.up { color: var(--positive); } .delta.down { color: var(--danger); }
+    .kpi .foot { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
-    th { color: var(--accent); font-size: 11px; text-transform: uppercase; position: sticky; top: 0; background: var(--card); }
-    .num { text-align: right; }
-    .pos { color: #2e7d32; font-weight: 600; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border-soft); white-space: nowrap; }
+    th { color: var(--brand-ink); font-size: 11px; text-transform: uppercase; letter-spacing: .03em; position: sticky; top: 0; background: var(--cream-soft); cursor: pointer; user-select: none; }
+    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover td { background: #eef2f8; }
+    .drill { cursor: pointer; }
+    .drill .chev { display: inline-block; width: 14px; color: var(--muted); transition: transform .15s; }
+    tr.open .chev { transform: rotate(90deg); }
+    .detail td { background: var(--cream-soft); padding: 0; }
+    .detail .inner { padding: 8px 12px 12px; }
+    .pos { color: var(--positive); font-weight: 600; }
     .neg { color: var(--danger); font-weight: 600; }
-
-    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    @media(max-width:800px){ .two-col { grid-template-columns: 1fr; } }
-    
-    .bar-wrap { height: 8px; background: rgba(0,0,0,0.06); border-radius: 4px; overflow: hidden; margin-top: 4px; }
-    .bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+    tr.loss td { background: #fbecea; }
+    .menu-link { color: var(--brand-600); text-decoration: none; font-weight: 600; }
+    .menu-link:hover { color: var(--brand-ink); text-decoration: underline; }
+    .go { font-size: 11px; color: var(--brand-600); border: 1px solid var(--border); border-radius: 8px; padding: 2px 8px; text-decoration: none; white-space: nowrap; }
+    .go:hover { background: #eef2f8; }
+    .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:600; background:#eef2f8; color:var(--brand-700); }
+    .bar { height: 6px; background: var(--cream-soft); border-radius: 999px; overflow: hidden; min-width: 60px; }
+    .bar span { display: block; height: 100%; background: var(--brand); border-radius: 999px; }
   </style>
 </head>
 <body class="theme-cafe">
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Navigation</div></div></div>
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Back Office</div></div></div>
     <a href="/dashboard.html">Dashboard</a><a href="/pos.html">POS</a><a href="/inventory.html">Inventory</a>
     <div class="nav-group"><button class="nav-toggle" type="button"><span>📋 Product</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button><div class="nav-children"><a href="/menu.html" class="nav-sub">Menu Items</a><a href="/receipe.html" class="nav-sub">Recipe</a><a href="/ingredients.html" class="nav-sub">Ingredients</a></div></div>
     <div class="nav-group"><button class="nav-toggle" type="button"><span>💰 Purchase</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button><div class="nav-children"><a href="/purchase.html" class="nav-sub">Purchases</a><a href="/expenses.html" class="nav-sub">Expenses</a><a href="/supplier.html" class="nav-sub">Suppliers</a></div></div>
@@ -55,42 +69,53 @@
 
   <div class="content">
     <div class="topbar">
-      <button id="menuToggle" class="menu-toggle">☰</button>
+      <button id="menuToggle" class="icon-btn">☰</button>
       <h1>📊 System Report</h1>
       <select id="reportMonth"></select>
+      <button id="refresh">🔄 Refresh</button>
     </div>
+    <p class="sub">Dynamic performance report — click a category or day to drill down; click a product to open it in Menu Items.</p>
 
     <div class="main-scroll">
-      <!-- KPI Dashboard -->
-      <h2>📈 KPI Dashboard</h2>
-      <div class="kpi-grid">
-        <div class="kpi" id="kpiRevenue"><div class="label">Revenue</div><div class="value">–</div><div class="sub">vs Target Rp 20M</div></div>
-        <div class="kpi" id="kpiCOGS"><div class="label">COGS %</div><div class="value">–</div><div class="sub">Target ≤ 35%</div></div>
-        <div class="kpi" id="kpiLabor"><div class="label">Labor Cost %</div><div class="value">–</div><div class="sub">Target ≤ 30%</div></div>
-        <div class="kpi" id="kpiProfit"><div class="label">Net Profit %</div><div class="value">–</div><div class="sub">Target 10-20%</div></div>
-      </div>
+      <div class="status" id="status">⏳ Loading…</div>
+      <div id="view" style="display:none">
+        <div class="kpis" id="kpis"></div>
 
-      <!-- Cashflow -->
-      <div class="two-col">
         <div class="card">
-          <h2>💰 Cashflow</h2>
-          <table><thead><tr><th>Date</th><th>Description</th><th class="num">In</th><th class="num">Out</th><th class="num">Balance</th></tr></thead>
-          <tbody id="cashflowRows"><tr><td colspan="5">Loading…</td></tr></tbody></table>
+          <h2>🏆 Product Performance <span class="hint">— click a name to open it in Menu Items</span></h2>
+          <div style="overflow:auto;max-height:42vh;">
+            <table>
+              <thead><tr>
+                <th data-sort="name">Product</th>
+                <th data-sort="category">Category</th>
+                <th class="num" data-sort="qty">Qty</th>
+                <th class="num" data-sort="revenue">Revenue</th>
+                <th class="num" data-sort="cogs">COGS</th>
+                <th class="num" data-sort="margin_pct">Margin</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="prodRows"><tr><td colspan="7">–</td></tr></tbody>
+            </table>
+          </div>
         </div>
 
-        <!-- Forecast -->
         <div class="card">
-          <h2>🔮 Revenue Forecast</h2>
-          <table><thead><tr><th>Month</th><th class="num">Target</th><th class="num">Actual</th><th class="num">Growth</th><th>Status</th></tr></thead>
-          <tbody id="forecastRows"><tr><td colspan="5">Loading…</td></tr></tbody></table>
+          <h2>🗂️ Sales by Category <span class="hint">— click a row to see its products</span></h2>
+          <table>
+            <thead><tr><th>Category</th><th class="num">Qty</th><th class="num">Revenue</th><th>Share</th><th class="num">Margin</th></tr></thead>
+            <tbody id="catRows"><tr><td colspan="5">–</td></tr></tbody>
+          </table>
         </div>
-      </div>
 
-      <!-- Budget vs Actual -->
-      <div class="card" style="margin-top:14px;">
-        <h2>📊 Budget vs Actual</h2>
-        <table><thead><tr><th>Category</th><th class="num">Budget</th><th class="num">Actual</th><th class="num">Diff</th><th>% Used</th></tr></thead>
-        <tbody id="budgetRows"><tr><td colspan="5">Loading…</td></tr></tbody></table>
+        <div class="card">
+          <h2>📅 Daily Sales <span class="hint">— click a day to see its orders</span></h2>
+          <div style="overflow:auto;max-height:40vh;">
+            <table>
+              <thead><tr><th>Date</th><th class="num">Orders</th><th class="num">Items</th><th class="num">Revenue</th><th></th></tr></thead>
+              <tbody id="dayRows"><tr><td colspan="5">–</td></tr></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -100,117 +125,133 @@
   <script>
     const auth = requireRole(['admin','manager']);
     if (!auth) throw new Error('Unauthorized');
-    const h = authHeaders(); const opts = { headers: h, credentials: 'same-origin' };
+    const opts = { headers: authHeaders(), credentials: 'same-origin' };
+    const statusEl = document.getElementById('status'), viewEl = document.getElementById('view');
 
-    function formatRp(v) { return v ? 'Rp ' + Math.round(v).toLocaleString('id-ID') : '—'; }
-    function pct(v) { return v != null ? v.toFixed(1) + '%' : '—'; }
+    const Rp = v => 'Rp ' + Math.round(v||0).toLocaleString('id-ID');
+    const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const pct = (a,b) => b ? Math.round(a/b*100) : 0;
+    const jget = u => fetch(u,opts).then(r=>r.ok?r.json():Promise.reject(new Error(u+' → '+r.status)));
 
-    // Month selector
-    function buildMonths() {
-      const sel = document.getElementById('reportMonth');
-      const months = []; const now = new Date();
-      for (let i=0;i<12;i++) { const d=new Date(now.getFullYear(),now.getMonth()-i,1); months.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')); }
-      sel.innerHTML = months.map(m=>`<option value="${m}">${m}</option>`).join('');
-      sel.value = months[0];
+    // month selector: last 6 months
+    const monthSel = document.getElementById('reportMonth');
+    (function(){ const now=new Date();
+      for(let i=0;i<6;i++){ const d=new Date(now.getFullYear(),now.getMonth()-i,1); const v=d.toISOString().slice(0,7);
+        const o=document.createElement('option'); o.value=v; o.textContent=d.toLocaleDateString('en',{month:'long',year:'numeric'}); monthSel.appendChild(o);} })();
+
+    function delta(cur,prev,goodUp=true){
+      if(!prev) return '<span class="foot">no prior data</span>';
+      const ch=Math.round((cur-prev)/Math.abs(prev)*100), good=goodUp?ch>=0:ch<=0;
+      return `<div class="delta ${good?'up':'down'}">${ch>0?'▲':(ch<0?'▼':'–')} ${Math.abs(ch)}% <span class="foot" style="font-weight:400">vs last mo.</span></div>`;
     }
 
-    async function loadAll() {
-      const month = document.getElementById('reportMonth').value;
-      
-      // 1. Revenue & Sales
-      const sales = await fetch(`/api/reports/daily?month=${month}`, opts).then(r=>r.json());
-      const revenue = sales.reduce((s,d)=>s+(d.revenue||0), 0);
-      const targetRevenue = 20000000;
-      const revPct = targetRevenue > 0 ? (revenue/targetRevenue*100) : 0;
-      
-      // 2. COGS from sales
-      const cogs = sales.reduce((s,d)=>s+(d.cost||0), 0);
-      const cogsPct = revenue > 0 ? (cogs/revenue*100) : 0;
-      
-      // 3. Expenses
-      const expData = await fetch(`/api/expenses?month=${month}`, opts).then(r=>r.json());
-      const totalExp = expData.reduce((s,e)=>s+(e.amount||0), 0);
-      
-      // 4. Payroll
-      const payrollData = await fetch(`/api/attendance/history?month=${month}`, opts).then(r=>r.json()).catch(()=>[]);
-      const users = await fetch('/api/users', opts).then(r=>r.json());
-      let totalLabor = 0;
-      users.filter(u=>u.active).forEach(u => {
-        const userAtt = payrollData.filter(a=>String(a.user_id)===String(u.id));
-        const days = new Set(userAtt.map(a=>a.clock_in?a.clock_in.slice(0,10):null).filter(Boolean));
-        const saved = payrollData.find(a=>String(a.user_id)===String(u.id)&&a.overtime)||{};
-        totalLabor += days.size*(u.rate||0) + (saved.overtime||0) + (saved.bonus||0);
+    let products = [];   // product-sales for the month
+    let prodSort = 'revenue';
+
+    async function load(){
+      const month = monthSel.value;
+      statusEl.style.display=''; viewEl.style.display='none'; statusEl.textContent='⏳ Loading…';
+      try {
+        const [sum, prod, days] = await Promise.all([
+          jget('/api/reports/monthly-summary?month='+month),
+          jget('/api/reports/product-sales?month='+month),
+          jget('/api/transactions/daily-summary?month='+month).catch(()=>[])
+        ]);
+        products = prod || [];
+        renderKPIs(sum);
+        renderProducts();
+        renderCategories();
+        renderDays(days||[], month);
+        statusEl.style.display='none'; viewEl.style.display='';
+      } catch(e){ statusEl.innerHTML='<span class="err">❌ '+esc(e.message)+'</span>'; }
+    }
+
+    function renderKPIs(sum){
+      const c=sum.current, p=sum.previous, gross=c.revenue-c.cost, grossP=p.revenue-p.cost;
+      document.getElementById('kpis').innerHTML = `
+        <div class="kpi hero"><div class="label">Revenue</div><div class="value">${Rp(c.revenue)}</div>${delta(c.revenue,p.revenue)}<div class="foot">${c.order_count} orders</div></div>
+        <div class="kpi"><div class="label">Gross Profit</div><div class="value ${gross<0?'neg':''}">${Rp(gross)}</div>${delta(gross,grossP)}<div class="foot">COGS ${pct(c.cost,c.revenue)}%</div></div>
+        <div class="kpi"><div class="label">Expenses</div><div class="value">${Rp(c.expenses)}</div>${delta(c.expenses,p.expenses,false)}<div class="foot">${pct(c.expenses,c.revenue)}% of rev</div></div>
+        <div class="kpi hero"><div class="label">Net Profit</div><div class="value ${c.profit<0?'neg':''}">${Rp(c.profit)}</div>${delta(c.profit,p.profit)}<div class="foot">${c.profit<0?'net loss':'net positive'}</div></div>
+        <div class="kpi"><div class="label">Net Margin</div><div class="value ${c.margin_pct<0?'neg':''}">${c.margin_pct}%</div>${delta(c.margin_pct,p.margin_pct)}<div class="foot">avg order ${Rp(c.order_count?c.revenue/c.order_count:0)}</div></div>`;
+    }
+
+    function menuLink(name){ return `/menu.html?q=${encodeURIComponent(name)}`; }
+
+    function renderProducts(){
+      const rows = products.slice().sort((a,b)=>{
+        if(prodSort==='name'||prodSort==='category') return String(a[prodSort]||'').localeCompare(String(b[prodSort]||''));
+        return (b[prodSort]||0)-(a[prodSort]||0);
       });
-      const laborPct = revenue > 0 ? (totalLabor/revenue*100) : 0;
-      
-      // 5. Net Profit
-      const netProfit = revenue - cogs - totalExp - totalLabor;
-      const netPct = revenue > 0 ? (netProfit/revenue*100) : 0;
-
-      // Update KPI cards
-      document.getElementById('kpiRevenue').innerHTML = 
-        `<div class="label">Revenue</div><div class="value ${revPct>=80?'good':'warn'}">${formatRp(revenue)}</div><div class="sub">${pct(revPct)} of Target Rp 20M</div>`;
-      document.getElementById('kpiCOGS').innerHTML = 
-        `<div class="label">COGS %</div><div class="value ${cogsPct<=35?'good':'warn'}">${pct(cogsPct)}</div><div class="sub">Target ≤ 35%</div>`;
-      document.getElementById('kpiLabor').innerHTML = 
-        `<div class="label">Labor Cost %</div><div class="value ${laborPct<=30?'good':'warn'}">${pct(laborPct)}</div><div class="sub">Target ≤ 30%</div>`;
-      document.getElementById('kpiProfit').innerHTML = 
-        `<div class="label">Net Profit %</div><div class="value ${netPct>=10?'good':'warn'}">${pct(netPct)}</div><div class="sub">Target 10-20%</div>`;
-
-      // Cashflow
-      const cfRows = document.getElementById('cashflowRows');
-      cfRows.innerHTML = '<tr><td colspan="5">Loading cashflow…</td></tr>';
-      
-      // Aggregate sales + expenses by date
-      const byDate = {};
-      sales.forEach(d => { if(!byDate[d.date]) byDate[d.date]={rev:0,exp:0}; byDate[d.date].rev += d.revenue||0; });
-      expData.forEach(e => { if(!byDate[e.date]) byDate[e.date]={rev:0,exp:0}; byDate[e.date].exp += e.amount||0; });
-      
-      let balance = 500000; // opening
-      cfRows.innerHTML = '';
-      Object.keys(byDate).sort().forEach(date => {
-        const d = byDate[date];
-        balance += d.rev - d.exp;
-        cfRows.innerHTML += `<tr><td>${date}</td><td>Sales + Expenses</td><td class="num pos">${d.rev?formatRp(d.rev):'—'}</td><td class="num neg">${d.exp?formatRp(d.exp):'—'}</td><td class="num">${formatRp(balance)}</td></tr>`;
-      });
-
-      // Forecast
-      const forecastRows = document.getElementById('forecastRows');
-      const allMonthly = await fetch('/api/reports/daily?month='+month, opts).then(r=>r.json()).catch(()=>[]);
-      const growth = 0.05;
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      forecastRows.innerHTML = '';
-      let prevActual = revenue;
-      months.forEach((m,i) => {
-        const target = targetRevenue;
-        const actual = i===6 ? revenue : (prevActual * (1+growth));
-        const g = i===6 ? 0 : growth;
-        const status = actual >= target ? '<span class="pos">✓ On Track</span>' : '<span class="neg">❌ Below</span>';
-        forecastRows.innerHTML += `<tr><td>${m}</td><td class="num">${formatRp(target)}</td><td class="num">${formatRp(actual)}</td><td class="num">${pct(g*100)}</td><td>${i===6?status:'<span style="color:var(--muted);">Forecast</span>'}</td></tr>`;
-        prevActual = actual;
-      });
-
-      // Budget vs Actual
-      const budgetRows = document.getElementById('budgetRows');
-      const budgetCategories = [
-        { name: 'Revenue', budget: 20000000, actual: revenue },
-        { name: 'COGS', budget: targetRevenue*0.35, actual: cogs },
-        { name: 'Expenses', budget: targetRevenue*0.15, actual: totalExp },
-        { name: 'Labor', budget: targetRevenue*0.30, actual: totalLabor },
-        { name: 'Net Profit', budget: targetRevenue*0.20, actual: netProfit },
-      ];
-      budgetRows.innerHTML = '';
-      budgetCategories.forEach(c => {
-        const diff = c.actual - c.budget;
-        const used = c.budget>0 ? (c.actual/c.budget*100) : 0;
-        const cls = diff>=0 ? 'pos' : 'neg';
-        budgetRows.innerHTML += `<tr><td>${c.name}</td><td class="num">${formatRp(c.budget)}</td><td class="num">${formatRp(c.actual)}</td><td class="num ${cls}">${diff>=0?'+':''}${formatRp(Math.abs(diff))}</td><td>${pct(used)}</td></tr>`;
+      const tb=document.getElementById('prodRows'); tb.innerHTML='';
+      if(!rows.length){ tb.innerHTML='<tr><td colspan="7">No sales this month</td></tr>'; return; }
+      rows.forEach(r=>{
+        const tr=document.createElement('tr');
+        if(r.margin_pct<0) tr.classList.add('loss');
+        tr.innerHTML = `
+          <td><a class="menu-link" href="${menuLink(r.name)}">${esc(r.name)}</a></td>
+          <td>${esc(r.category||'—')}</td>
+          <td class="num">${r.qty}</td>
+          <td class="num">${Rp(r.revenue)}</td>
+          <td class="num">${Rp(r.cogs)}</td>
+          <td class="num ${r.margin_pct<0?'neg':'pos'}">${r.margin_pct}%</td>
+          <td><a class="go" href="${menuLink(r.name)}">→ Menu</a></td>`;
+        tb.appendChild(tr);
       });
     }
 
-    document.getElementById('reportMonth').addEventListener('change', loadAll);
-    buildMonths();
-    if (auth) loadAll();
+    // sortable product headers
+    document.querySelectorAll('#prodRows').forEach(()=>{});
+    document.querySelectorAll('th[data-sort]').forEach(th=>th.addEventListener('click',()=>{ prodSort=th.getAttribute('data-sort'); renderProducts(); }));
+
+    function renderCategories(){
+      const map={};
+      products.forEach(p=>{ const k=p.category||'Uncategorized'; (map[k]=map[k]||{qty:0,revenue:0,cogs:0,items:[]}); map[k].qty+=p.qty; map[k].revenue+=p.revenue; map[k].cogs+=p.cogs; map[k].items.push(p); });
+      const cats=Object.entries(map).sort((a,b)=>b[1].revenue-a[1].revenue);
+      const totalRev=cats.reduce((s,[,v])=>s+v.revenue,0)||1;
+      const tb=document.getElementById('catRows'); tb.innerHTML='';
+      if(!cats.length){ tb.innerHTML='<tr><td colspan="5">No sales</td></tr>'; return; }
+      cats.forEach(([name,v])=>{
+        const profit=v.revenue-v.cogs, m=v.revenue>0?Math.round(profit/v.revenue*100):0, share=Math.round(v.revenue/totalRev*100);
+        const tr=document.createElement('tr'); tr.className='drill';
+        tr.innerHTML = `<td><span class="chev">▸</span> ${esc(name)}</td><td class="num">${v.qty}</td><td class="num">${Rp(v.revenue)}</td>
+          <td><div class="bar" style="width:120px"><span style="width:${share}%"></span></div> <span class="foot">${share}%</span></td>
+          <td class="num ${m<0?'neg':'pos'}">${m}%</td>`;
+        const detail=document.createElement('tr'); detail.className='detail'; detail.style.display='none';
+        detail.innerHTML = `<td colspan="5"><div class="inner"><table>${
+          v.items.sort((a,b)=>b.revenue-a.revenue).map(p=>`<tr><td><a class="menu-link" href="${menuLink(p.name)}">${esc(p.name)}</a></td><td class="num">${p.qty}×</td><td class="num">${Rp(p.revenue)}</td><td class="num ${p.margin_pct<0?'neg':'pos'}">${p.margin_pct}%</td></tr>`).join('')
+        }</table></div></td>`;
+        tr.addEventListener('click',()=>{ const open=detail.style.display!=='none'; detail.style.display=open?'none':''; tr.classList.toggle('open',!open); });
+        tb.appendChild(tr); tb.appendChild(detail);
+      });
+    }
+
+    function renderDays(days, month){
+      const tb=document.getElementById('dayRows'); tb.innerHTML='';
+      if(!days.length){ tb.innerHTML='<tr><td colspan="5">No sales this month</td></tr>'; return; }
+      days.slice().reverse().forEach(d=>{
+        const tr=document.createElement('tr'); tr.className='drill';
+        tr.innerHTML = `<td><span class="chev">▸</span> ${d.date}</td><td class="num">${d.txns}</td><td class="num">${d.items_sold}</td><td class="num">${Rp(d.revenue)}</td><td><span class="go">orders ▾</span></td>`;
+        const detail=document.createElement('tr'); detail.className='detail'; detail.style.display='none';
+        detail.innerHTML = `<td colspan="5"><div class="inner" id="day-${d.date}">Loading…</div></td>`;
+        let loaded=false;
+        tr.addEventListener('click', async ()=>{
+          const open=detail.style.display!=='none'; detail.style.display=open?'none':''; tr.classList.toggle('open',!open);
+          if(open||loaded) return; loaded=true;
+          const orders=await jget('/api/transactions?date='+encodeURIComponent(d.date)).catch(()=>[]);
+          const box=document.getElementById('day-'+d.date);
+          if(!orders.length){ box.textContent='No order detail'; return; }
+          box.innerHTML = `<table><thead><tr><th>Order</th><th>Items</th><th class="num">Total</th><th>Pay</th></tr></thead><tbody>${
+            orders.map(o=>`<tr><td>#${o.id}</td><td>${o.items.map(it=>`${esc(it.product_name||'?')}×${it.quantity}`).join(', ')}</td><td class="num">${Rp(o.total)}</td><td><span class="pill">${esc(o.payment_method||'—')}</span></td></tr>`).join('')
+          }</tbody></table>`;
+        });
+        tb.appendChild(tr); tb.appendChild(detail);
+      });
+    }
+
+    document.getElementById('refresh').addEventListener('click', load);
+    monthSel.addEventListener('change', load);
+    load();
   </script>
 </body>
 </html>

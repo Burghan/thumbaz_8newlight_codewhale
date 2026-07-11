@@ -919,6 +919,12 @@
     filterCategory.addEventListener('change', () => renderMenuRows(menuData));
     sortMenu.addEventListener('change', () => renderMenuRows(menuData));
     searchMenu.addEventListener('input', () => renderMenuRows(menuData));
+
+    // Deep-link support: /menu.html?q=<name> pre-fills the search (used by report drill-downs).
+    (function applyQueryFilter(){
+      const q = new URLSearchParams(location.search).get('q');
+      if (q) { searchMenu.value = q; }
+    })();
     showArchived.addEventListener('change', loadMenu);
 
     // ---- modal open/close wiring ----
