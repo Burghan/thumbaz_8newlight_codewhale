@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Budget vs Actual – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    body { font-family: inherit; margin: 0; color: var(--ink); }
+    .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; padding: 16px; }
+    .topbar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+    .topbar h1 { margin: 0; flex: 1; font-size: 22px; }
+    .topbar select, .topbar button { width: auto; margin: 0; min-height: 38px; font-size: 14px; padding: 8px 14px; border-radius: 10px; }
+    .topbar button { background: var(--brand); color: #fff; border: none; cursor: pointer; font-weight: 600; }
+    .topbar .icon-btn, .topbar button.secondary { background: var(--card); color: var(--brand-ink); border: 1px solid var(--border); }
+    .sub { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+    .main-scroll { flex: 1 1 auto; overflow: auto; }
+    .status { padding: 30px; text-align: center; color: var(--muted); }
+    .err { color: var(--danger); font-weight: 600; }
+
+    .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 14px; }
+    @media(max-width:960px){ .kpis { grid-template-columns: repeat(2,1fr); } }
+    .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow-sm); }
+    .kpi.hero { border-left: 4px solid var(--brand); }
+    .kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+    .kpi .value { font-family: var(--font-brand); font-size: 22px; font-weight: 700; color: var(--brand-ink); margin-top: 6px; font-variant-numeric: tabular-nums; }
+    .kpi .value.neg { color: var(--danger); }
+    .kpi .foot { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+    .card { background: var(--card); padding: 4px 0 0; border-radius: 16px; border: 1px solid var(--border); box-shadow: var(--shadow-sm); margin-bottom: 14px; overflow: hidden; }
+    .sect-h { padding: 12px 16px; font-family: var(--font-brand); font-weight: 700; color: var(--brand-ink); font-size: 15px; background: var(--cream-soft); border-bottom: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 8px 14px; text-align: left; border-bottom: 1px solid var(--border-soft); }
+    th { color: var(--brand-ink); font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tr.total td { font-weight: 700; background: var(--cream-soft); border-top: 2px solid var(--border); }
+    .pos { color: var(--positive); font-weight: 600; }
+    .neg { color: var(--danger); font-weight: 600; }
+    input.bud { width: 120px; text-align: right; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
+    input.bud:focus { border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px rgba(92,125,166,.18); }
+    .barcell { min-width: 120px; }
+    .bar { height: 6px; background: var(--cream-soft); border-radius: 999px; overflow: hidden; }
+    .bar span { display: block; height: 100%; border-radius: 999px; }
+    .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(10px); background: var(--brand-ink); color:#fff; padding: 10px 18px; border-radius: 10px; opacity: 0; pointer-events: none; transition: all .2s; z-index: 1300; font-size: 14px; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body class="theme-cafe">
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Back Office</div></div></div>
+    <a href="/dashboard.html">Dashboard</a><a href="/pos.html">POS</a><a href="/inventory.html">Inventory</a>
+    <div class="nav-group"><button class="nav-toggle" type="button"><span>📋 Product</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button><div class="nav-children"><a href="/menu.html" class="nav-sub">Menu Items</a><a href="/receipe.html" class="nav-sub">Recipe</a><a href="/ingredients.html" class="nav-sub">Ingredients</a></div></div>
+    <div class="nav-group"><button class="nav-toggle" type="button"><span>💰 Purchase</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button><div class="nav-children"><a href="/purchase.html" class="nav-sub">Purchases</a><a href="/expenses.html" class="nav-sub">Expenses</a><a href="/supplier.html" class="nav-sub">Suppliers</a></div></div>
+    <div class="nav-group"><button class="nav-toggle" type="button"><span>👥 Employees</span><span class="chevron"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></button><div class="nav-children"><a href="/employees.html" class="nav-sub">Users</a><a href="/payroll.html" class="nav-sub">Payroll</a><a href="/clock.html" class="nav-sub">Attendance</a></div></div>
+    <a href="/budget.html">Budget</a><a href="/system-report.html">System Report</a><a href="/import-center.html">Import Center</a><a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content">
+    <div class="topbar">
+      <button id="menuToggle" class="icon-btn">☰</button>
+      <h1>🎯 Budget vs Actual</h1>
+      <select id="month"></select>
+      <button id="copyBtn" class="secondary">⧉ Copy last month</button>
+      <button id="saveBtn">💾 Save Budget</button>
+    </div>
+    <p class="sub">Set a budget per category; Actuals are computed live — revenue from sales, COGS from purchases, expenses from the expense log.</p>
+
+    <div class="main-scroll">
+      <div class="status" id="status">⏳ Loading…</div>
+      <div id="view" style="display:none">
+        <div class="kpis" id="kpis"></div>
+        <div class="card"><div class="sect-h">💵 Revenue</div><table id="tblRevenue"></table></div>
+        <div class="card"><div class="sect-h">☕ Cost of Goods Sold (COGS)</div><table id="tblCogs"></table></div>
+        <div class="card"><div class="sect-h">🏢 Operating Expenses (OPEX)</div><table id="tblOpex"></table></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="/auth.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin','manager']);
+    if (!auth) throw new Error('Unauthorized');
+    const opts = { headers: authHeaders(), credentials: 'same-origin' };
+    const statusEl = document.getElementById('status'), viewEl = document.getElementById('view');
+    const Rp = v => 'Rp ' + Math.round(v||0).toLocaleString('id-ID');
+    const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const jget = u => fetch(u,opts).then(r=>r.ok?r.json():Promise.reject(new Error(u+' → '+r.status)));
+    function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2400); }
+
+    const monthSel = document.getElementById('month');
+    (function(){ const now=new Date(); for(let i=0;i<6;i++){ const d=new Date(now.getFullYear(),now.getMonth()-i,1); const v=d.toISOString().slice(0,7); const o=document.createElement('option'); o.value=v; o.textContent=d.toLocaleDateString('en',{month:'long',year:'numeric'}); monthSel.appendChild(o);} })();
+
+    let data = null;
+
+    async function load(){
+      statusEl.style.display=''; viewEl.style.display='none'; statusEl.textContent='⏳ Loading…';
+      try { data = await jget('/api/budget?month='+monthSel.value); render(); statusEl.style.display='none'; viewEl.style.display=''; }
+      catch(e){ statusEl.innerHTML='<span class="err">❌ '+esc(e.message)+'</span>'; }
+    }
+
+    // variance coloring: revenue -> higher is good; expenses -> lower (under budget) is good
+    function varClass(variance, isRevenue){ if(!variance) return ''; const good = isRevenue ? variance>=0 : variance<=0; return good?'pos':'neg'; }
+
+    function lineRow(kind, l, isRevenue){
+      const vc = varClass(l.variance, isRevenue);
+      const used = l.pct_used;
+      const barColor = used==null ? 'var(--muted)' : (isRevenue ? (used>=100?'var(--positive)':'var(--brand)') : (used>100?'var(--danger)':'var(--positive)'));
+      const bar = used==null ? '<span class="foot" style="color:var(--muted)">no budget</span>'
+        : `<div class="bar"><span style="width:${Math.min(used,100)}%;background:${barColor}"></span></div>`;
+      return `<tr>
+        <td>${esc(l.category)}</td>
+        <td class="num"><input class="bud" type="number" step="1000" data-kind="${kind}" data-cat="${esc(l.category)}" value="${l.budget||0}"></td>
+        <td class="num">${Rp(l.actual)}</td>
+        <td class="num ${vc}">${l.variance>0?'+':''}${Rp(l.variance)}</td>
+        <td class="barcell">${bar}${used!=null?` <span class="foot">${used}%</span>`:''}</td>
+      </tr>`;
+    }
+
+    function headRow(){ return `<thead><tr><th>Category</th><th class="num">Budget</th><th class="num">Actual</th><th class="num">Variance</th><th>% Used</th></tr></thead>`; }
+
+    function render(){
+      const t = data.totals;
+      document.getElementById('kpis').innerHTML = `
+        <div class="kpi hero"><div class="label">Revenue</div><div class="value">${Rp(data.revenue.actual)}</div><div class="foot">budget ${Rp(data.revenue.budget)}</div></div>
+        <div class="kpi"><div class="label">COGS</div><div class="value">${Rp(t.cogs.actual)}</div><div class="foot">${t.cogs_pct}% of revenue</div></div>
+        <div class="kpi"><div class="label">Gross Profit</div><div class="value ${t.gross_profit.actual<0?'neg':''}">${Rp(t.gross_profit.actual)}</div><div class="foot">${t.gross_profit.margin_pct}% margin</div></div>
+        <div class="kpi"><div class="label">OPEX</div><div class="value">${Rp(t.opex.actual)}</div><div class="foot">${t.opex_pct}% of revenue</div></div>
+        <div class="kpi hero"><div class="label">Net Profit</div><div class="value ${t.net_profit.actual<0?'neg':''}">${Rp(t.net_profit.actual)}</div><div class="foot">${t.net_profit.margin_pct}% margin</div></div>`;
+
+      // Revenue table (single line)
+      const rev = { category:'Total Revenue', budget:data.revenue.budget, actual:data.revenue.actual, variance:data.revenue.variance, pct_used: data.revenue.budget>0?Math.round(data.revenue.actual/data.revenue.budget*100):null };
+      document.getElementById('tblRevenue').innerHTML = headRow() + '<tbody>' + lineRow('revenue', rev, true) + '</tbody>';
+
+      // COGS
+      document.getElementById('tblCogs').innerHTML = headRow() + '<tbody>' +
+        data.cogs.map(l=>lineRow('cogs', l, false)).join('') +
+        `<tr class="total"><td>Total COGS</td><td class="num">${Rp(t.cogs.budget)}</td><td class="num">${Rp(t.cogs.actual)}</td><td class="num ${varClass(t.cogs.actual-t.cogs.budget,false)}">${Rp(t.cogs.actual-t.cogs.budget)}</td><td>${t.cogs_pct}% of rev</td></tr>` +
+        '</tbody>';
+
+      // OPEX
+      document.getElementById('tblOpex').innerHTML = headRow() + '<tbody>' +
+        data.opex.map(l=>lineRow('opex', l, false)).join('') +
+        `<tr class="total"><td>Total OPEX</td><td class="num">${Rp(t.opex.budget)}</td><td class="num">${Rp(t.opex.actual)}</td><td class="num ${varClass(t.opex.actual-t.opex.budget,false)}">${Rp(t.opex.actual-t.opex.budget)}</td><td>${t.opex_pct}% of rev</td></tr>` +
+        `<tr class="total"><td>NET PROFIT</td><td class="num">${Rp(t.net_profit.budget)}</td><td class="num ${t.net_profit.actual<0?'neg':'pos'}">${Rp(t.net_profit.actual)}</td><td class="num"></td><td>${t.net_profit.margin_pct}% margin</td></tr>` +
+        '</tbody>';
+    }
+
+    async function save(){
+      const lines = [...document.querySelectorAll('input.bud')].map((inp,i)=>({
+        kind: inp.getAttribute('data-kind'), category: inp.getAttribute('data-cat'),
+        amount: Number(inp.value||0), sort_order: i
+      }));
+      const r = await fetch('/api/budget?month='+monthSel.value, { method:'PUT', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ lines }) });
+      const d = await r.json().catch(()=>({}));
+      toast(d.message||d.error||'Saved'); load();
+    }
+
+    async function copyLast(){
+      const cur = monthSel.value; const d = new Date(cur+'-01'); d.setMonth(d.getMonth()-1);
+      const from = d.toISOString().slice(0,7);
+      if(!confirm(`Copy budget amounts from ${from} into ${cur}?`)) return;
+      const r = await fetch('/api/budget/copy', { method:'POST', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ month: cur, from }) });
+      const dd = await r.json().catch(()=>({})); toast(dd.message||dd.error||'Copied'); load();
+    }
+
+    document.getElementById('saveBtn').addEventListener('click', save);
+    document.getElementById('copyBtn').addEventListener('click', copyLast);
+    monthSel.addEventListener('change', load);
+    load();
+  </script>
+</body>
+</html>

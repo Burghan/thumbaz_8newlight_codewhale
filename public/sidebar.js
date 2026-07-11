@@ -26,6 +26,7 @@
       { href: '/clock.html', label: 'Attendance' },
     ]},
     { type: 'divider' },
+    { type: 'link', href: '/budget.html', label: '🎯  Budget' },
     { type: 'link', href: '/system-report.html', label: '📊  System Report' },
     { type: 'link', href: '/import-center.html', label: '📥  Import Center' },
     { type: 'link', href: '/logout.html', label: '🚪  Logout' },

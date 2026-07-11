@@ -37,6 +37,7 @@ app.use('/api/sales', manager, require('./routes/sales'));
 app.get('/api/modifiers', (req, res) => res.json([]));
 app.get('/api/clock/status', (req, res) => res.json({active:false,employee:null}));
 app.use('/api/reports', manager, require('./routes/reports'));
+app.use('/api/budget', manager, require('./routes/budget'));
 
 app.get('/api/health', (_req, res) => {
   const counts = ['ingredients', 'products', 'recipes', 'suppliers', 'purchases']
