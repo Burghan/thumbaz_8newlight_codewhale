@@ -140,6 +140,73 @@ router.get('/cashflow', (req, res) => {
   });
 });
 
+// ---- Forecast (run-rate finish + trend-based next month) ----
+router.get('/forecast', (req, res) => {
+  const month = req.query.month || new Date().toISOString().slice(0, 7);
+
+  // monthly figures (revenue, COGS from recipe/resale cost, expenses, net, selling days)
+  function figures(m) {
+    const r = db.prepare(`SELECT COALESCE(SUM(ti.line_total),0) AS revenue,
+      COALESCE(SUM(CASE WHEN p.is_resale THEN COALESCE((SELECT ri.std_cost_per_base_micro FROM ingredients ri WHERE ri.id=p.resale_ingredient_id),0)/1e6
+      ELSE COALESCE((SELECT ROUND(SUM(r2.quantity*i2.std_cost_per_base_micro)/1e6) FROM recipes r2 JOIN ingredients i2 ON i2.id=r2.ingredient_id WHERE r2.product_id=p.id),0) END * ti.quantity),0) AS cogs,
+      COUNT(DISTINCT t.transacted_at) AS days
+      FROM transactions t JOIN transaction_items ti ON ti.transaction_id=t.id JOIN products p ON p.id=ti.product_id
+      WHERE strftime('%Y-%m',t.transacted_at)=?`).get(m);
+    const exp = db.prepare("SELECT COALESCE(SUM(amount),0) AS v FROM expenses WHERE strftime('%Y-%m', date) = ?").get(m).v;
+    return { month: m, revenue: Math.round(r.revenue), cogs: Math.round(r.cogs), expenses: Math.round(exp),
+             net: Math.round(r.revenue - r.cogs - exp), selling_days: r.days };
+  }
+
+  // build history: up to the 6 months ending at the selected month, dropping empties
+  const hist = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(month + '-01'); d.setMonth(d.getMonth() - i);
+    const f = figures(d.toISOString().slice(0, 7));
+    if (f.revenue > 0 || f.expenses > 0) hist.push(f);
+  }
+
+  const cur = figures(month);
+  const daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+  const avgDayRev = cur.selling_days ? cur.revenue / cur.selling_days : 0;
+  const avgDayNet = cur.selling_days ? cur.net / cur.selling_days : 0;
+  const runrate = {
+    selling_days: cur.selling_days, days_in_month: daysInMonth,
+    avg_daily_revenue: Math.round(avgDayRev), avg_daily_net: Math.round(avgDayNet),
+    projected_revenue: Math.round(avgDayRev * daysInMonth),
+    projected_net: Math.round(avgDayNet * daysInMonth),
+    complete: cur.selling_days >= daysInMonth
+  };
+
+  // next-month projection: linear regression when we have >=3 months of history
+  // (a real trend); otherwise a flat continuation of the current run-rate — 2
+  // data points aren't enough to trust a growth curve, so we don't compound it.
+  const nd = new Date(month + '-01'); nd.setMonth(nd.getMonth() + 1);
+  const nextMonth = nd.toISOString().slice(0, 7);
+  const rev = hist.map(h => h.revenue);
+  let projRev, method;
+  if (rev.length >= 3) {
+    const n = rev.length, xs = rev.map((_, i) => i);
+    const mx = xs.reduce((a, b) => a + b, 0) / n, my = rev.reduce((a, b) => a + b, 0) / n;
+    let num = 0, den = 0;
+    xs.forEach((x, i) => { num += (x - mx) * (rev[i] - my); den += (x - mx) ** 2; });
+    const slope = den ? num / den : 0, intercept = my - slope * mx;
+    projRev = Math.max(0, Math.round(intercept + slope * n));
+    method = 'linear-trend';
+  } else {
+    projRev = Math.max(0, runrate.projected_revenue || cur.revenue);
+    method = 'run-rate';
+  }
+  const growth = cur.revenue ? Math.round((projRev - cur.revenue) / cur.revenue * 1000) / 10 : 0;
+  // hold current cost/expense ratios constant for the projection
+  const cogsRatio = cur.revenue ? cur.cogs / cur.revenue : 0;
+  const expRatio = cur.revenue ? cur.expenses / cur.revenue : 0;
+  const projCogs = Math.round(projRev * cogsRatio), projExp = Math.round(projRev * expRatio);
+  const next = { month: nextMonth, revenue: projRev, cogs: projCogs, expenses: projExp,
+                 net: projRev - projCogs - projExp, method, growth_pct: growth };
+
+  res.json({ month, history: hist, current: cur, runrate, next });
+});
+
 // ---- KPI scorecard vs targets (mirrors the workbook KPI Dashboard) ----
 router.get('/kpi-scorecard', (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0, 7);

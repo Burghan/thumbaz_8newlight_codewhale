@@ -92,6 +92,22 @@
     .cf-card.hero { background: var(--cream-soft); border-color: var(--brand-200, var(--border)); }
     .cf-card .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
     .cf-card .v { font-family: var(--font-brand); font-size: 18px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }
+
+    /* Forecast */
+    .fc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+    @media(max-width:820px){ .fc-grid { grid-template-columns: repeat(2,1fr); } }
+    .fc-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+    .fc-card.hero { background: var(--cream-soft); }
+    .fc-card .tag { font-size: 9px; color: var(--brand-600); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; margin-bottom: 4px; }
+    .fc-card .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+    .fc-card .v { font-family: var(--font-brand); font-size: 20px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .fc-bars { display: flex; align-items: flex-end; gap: 10px; height: 130px; padding-top: 8px; }
+    .fc-bar { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+    .fc-track { flex: 1; width: 60%; max-width: 44px; display: flex; align-items: flex-end; }
+    .fc-fill { width: 100%; background: var(--brand); border-radius: 6px 6px 0 0; min-height: 2px; transition: height .3s; }
+    .fc-fill.proj { background: repeating-linear-gradient(45deg, var(--brand-300, #9db8e0), var(--brand-300, #9db8e0) 5px, transparent 5px, transparent 10px), var(--cream-soft); border: 1px dashed var(--brand); }
+    .fc-amt { font-size: 11px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .fc-m { font-size: 10px; color: var(--muted); }
   </style>
 </head>
 <body class="theme-cafe">
@@ -182,6 +198,12 @@
             </table>
           </div>
         </div>
+
+        <div class="card">
+          <h2>🔮 Forecast <span class="hint">— run-rate finish &amp; next-month projection</span></h2>
+          <div class="fc-grid" id="fcGrid"></div>
+          <div id="fcTrend"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -235,6 +257,7 @@
         renderCategories();
         renderDays(days||[], month);
         jget('/api/reports/cashflow?month='+month).then(renderCashflow).catch(()=>{});
+        jget('/api/reports/forecast?month='+month).then(renderForecast).catch(()=>{});
         statusEl.style.display='none'; viewEl.style.display='';
       } catch(e){ statusEl.innerHTML='<span class="err">❌ '+esc(e.message)+'</span>'; }
     }
@@ -326,6 +349,36 @@
           <td class="num ${r.balance<0?'neg':''}" style="font-weight:600">${Rp(r.balance)}</td>`;
         tb.appendChild(tr);
       });
+    }
+
+    const MON = m => { const d=new Date(m+'-01'); return d.toLocaleDateString('en',{month:'short',year:'2-digit'}); };
+    function renderForecast(fc){
+      const grid=document.getElementById('fcGrid'), trend=document.getElementById('fcTrend');
+      const rr=fc.runrate||{}, nx=fc.next||{}, cur=fc.current||{};
+      const rrNote = rr.complete ? `month complete (${rr.selling_days} days)` : `${rr.selling_days} of ${rr.days_in_month} days so far`;
+      const methodLbl = { 'linear-trend':'linear trend', 'run-rate':'current run-rate (needs 3+ mo for trend)' }[nx.method]||nx.method;
+      const gsign = nx.growth_pct>0?'▲':(nx.growth_pct<0?'▼':'–');
+      grid.innerHTML = `
+        <div class="fc-card"><div class="tag">This month · run-rate</div>
+          <div class="lbl">Projected revenue</div><div class="v">${Rp(rr.projected_revenue)}</div>
+          <div class="foot">${rrNote} · avg ${Rp(rr.avg_daily_revenue)}/day</div></div>
+        <div class="fc-card"><div class="tag">This month · run-rate</div>
+          <div class="lbl">Projected net</div><div class="v ${rr.projected_net<0?'neg':'pos'}">${Rp(rr.projected_net)}</div>
+          <div class="foot">at current pace</div></div>
+        <div class="fc-card hero"><div class="tag">Next month · ${MON(nx.month)}</div>
+          <div class="lbl">Projected revenue</div><div class="v">${Rp(nx.revenue)}</div>
+          <div class="foot">${gsign} ${Math.abs(nx.growth_pct)}% vs this month · ${methodLbl}</div></div>
+        <div class="fc-card hero"><div class="tag">Next month · ${MON(nx.month)}</div>
+          <div class="lbl">Projected net</div><div class="v ${nx.net<0?'neg':'pos'}">${Rp(nx.net)}</div>
+          <div class="foot">holding cost ratios steady</div></div>`;
+      // trend bars over history + next
+      const series=[...(fc.history||[]).map(h=>({m:h.month,rev:h.revenue,proj:false})), {m:nx.month,rev:nx.revenue,proj:true}];
+      const max=Math.max(1,...series.map(s=>s.rev));
+      trend.innerHTML = `<div class="fc-bars">${series.map(s=>`
+        <div class="fc-bar"><div class="fc-track"><div class="fc-fill ${s.proj?'proj':''}" style="height:${Math.round(s.rev/max*100)}%"></div></div>
+          <div class="fc-amt">${(s.rev/1e6).toFixed(1)}M</div>
+          <div class="fc-m">${MON(s.m)}${s.proj?' *':''}</div></div>`).join('')}
+      </div><div class="foot" style="margin-top:6px">* projected · revenue by month</div>`;
     }
 
     function menuLink(name){ return `/menu.html?q=${encodeURIComponent(name)}`; }
