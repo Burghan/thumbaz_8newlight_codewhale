@@ -69,6 +69,21 @@
     .score .edit { display: flex; gap: 4px; margin-top: 6px; }
     .score .edit input { width: 56px; padding: 3px 6px; font-size: 12px; border: 1px solid var(--border); border-radius: 6px; text-align: right; }
     .btn-sm { font-size: 12px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--brand-ink); cursor: pointer; }
+
+    /* Payment mix */
+    .pay-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    @media(max-width:820px){ .pay-grid { grid-template-columns: 1fr; } }
+    .pay { border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; border-left-width: 4px; }
+    .pay-top { display: flex; align-items: center; gap: 6px; }
+    .pay-icon { font-size: 16px; }
+    .pay-name { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+    .pay-share { margin-left: auto; font-weight: 700; font-size: 13px; color: var(--brand-ink); }
+    .pay-val { font-family: var(--font-brand); font-size: 22px; font-weight: 700; margin: 4px 0 8px; font-variant-numeric: tabular-nums; }
+    .pay .foot { margin-top: 6px; }
+    .pay.cash { border-left-color: #3aa76d; } .pay.cash .bar span { background: #3aa76d; }
+    .pay.qris { border-left-color: #7b5bd6; } .pay.qris .bar span { background: #7b5bd6; }
+    .pay.transfer { border-left-color: var(--brand); } .pay.transfer .bar span { background: var(--brand); }
+    .pay.unknown { border-left-color: var(--muted); } .pay.unknown .bar span { background: var(--muted); }
   </style>
 </head>
 <body class="theme-cafe">
@@ -103,6 +118,11 @@
             <button class="btn-sm" id="saveTargets" style="display:none">💾 Save</button>
           </h2>
           <div class="score-grid" id="scoreGrid"></div>
+        </div>
+
+        <div class="card">
+          <h2>💳 Payment Mix <span class="hint">— how customers paid this month</span></h2>
+          <div class="pay-grid" id="payGrid"></div>
         </div>
 
         <div class="card">
@@ -177,16 +197,18 @@
       const month = monthSel.value;
       statusEl.style.display=''; viewEl.style.display='none'; statusEl.textContent='⏳ Loading…';
       try {
-        const [sum, prod, days, score] = await Promise.all([
+        const [sum, prod, days, score, pay] = await Promise.all([
           jget('/api/reports/monthly-summary?month='+month),
           jget('/api/reports/product-sales?month='+month),
           jget('/api/transactions/daily-summary?month='+month).catch(()=>[]),
-          jget('/api/reports/kpi-scorecard?month='+month).catch(()=>null)
+          jget('/api/reports/kpi-scorecard?month='+month).catch(()=>null),
+          jget('/api/reports/payment-mix?month='+month).catch(()=>[])
         ]);
         products = prod || [];
         scorecard = score;
         renderKPIs(sum);
         renderScorecard();
+        renderPayment(pay||[]);
         renderProducts();
         renderCategories();
         renderDays(days||[], month);
@@ -239,6 +261,26 @@
       document.getElementById('saveTargets').style.display='none';
       load();
     });
+
+    const PAY = {
+      cash:     { label:'Cash',     icon:'💵', cls:'cash' },
+      qris:     { label:'QRIS',     icon:'📱', cls:'qris' },
+      transfer: { label:'Transfer', icon:'🏦', cls:'transfer' },
+      unknown:  { label:'Unknown',  icon:'❔', cls:'unknown' }
+    };
+    function renderPayment(rows){
+      const grid = document.getElementById('payGrid');
+      if(!rows.length){ grid.innerHTML='<div class="foot">No sales this month</div>'; return; }
+      grid.innerHTML = rows.map(r=>{
+        const m = PAY[(r.method||'unknown').toLowerCase()] || PAY.unknown;
+        return `<div class="pay ${m.cls}">
+          <div class="pay-top"><span class="pay-icon">${m.icon}</span><span class="pay-name">${m.label}</span><span class="pay-share">${r.share}%</span></div>
+          <div class="pay-val">${Rp(r.revenue)}</div>
+          <div class="bar"><span style="width:${r.share}%"></span></div>
+          <div class="foot">${r.orders} orders · avg ${Rp(r.orders?r.revenue/r.orders:0)}</div>
+        </div>`;
+      }).join('');
+    }
 
     function menuLink(name){ return `/menu.html?q=${encodeURIComponent(name)}`; }
 

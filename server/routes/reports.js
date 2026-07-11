@@ -88,6 +88,19 @@ router.get('/top-products', (req, res) => {
   res.json(db.prepare(`SELECT p.name,SUM(ti.quantity) AS qty,SUM(ti.line_total) AS revenue FROM transaction_items ti JOIN transactions t ON t.id=ti.transaction_id JOIN products p ON p.id=ti.product_id WHERE strftime('%Y-%m',t.transacted_at)=? GROUP BY p.id ORDER BY revenue DESC LIMIT 5`).all(month));
 });
 
+// ---- Payment method mix (Cash / QRIS / Transfer) ----
+router.get('/payment-mix', (req, res) => {
+  const month = req.query.month || new Date().toISOString().slice(0, 7);
+  const rows = db.prepare(`
+    SELECT COALESCE(t.payment_method,'unknown') AS method,
+           COUNT(DISTINCT t.id) AS orders, ROUND(SUM(ti.line_total)) AS revenue
+    FROM transactions t JOIN transaction_items ti ON ti.transaction_id = t.id
+    WHERE strftime('%Y-%m', t.transacted_at) = ?
+    GROUP BY t.payment_method ORDER BY revenue DESC`).all(month);
+  const total = rows.reduce((s, r) => s + (r.revenue || 0), 0) || 1;
+  res.json(rows.map(r => ({ ...r, share: Math.round(r.revenue / total * 100) })));
+});
+
 // ---- KPI scorecard vs targets (mirrors the workbook KPI Dashboard) ----
 router.get('/kpi-scorecard', (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0, 7);
