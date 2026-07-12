@@ -206,7 +206,7 @@
         const hasR=p.ingredients.length>0;
         const tr=document.createElement('tr');if(!hasR)tr.className='no-recipe';
         tr.innerHTML=`<td>${p.variant?`${p.name}, ${p.variant}`:p.name}${p.is_resale?' <span style="font-size:10px;background:var(--accent);color:#fff;padding:1px 5px;border-radius:4px;">resale</span>':''}${!hasR?' <span style="font-size:10px;color:var(--muted);">no recipe</span>':''}</td>
-          <td><button class="row-btn" data-action="edit" data-pid="${p.product_id}">Edit</button>${hasR?`<button class="row-btn danger" data-action="clear" data-pid="${p.product_id}">Clear</button>`:''}</td>
+          <td><button class="row-btn" data-action="edit" data-pid="${p.product_id}">Edit</button>${hasR?`<button class="row-btn" data-action="clear" data-pid="${p.product_id}">Clear</button>`:''}<button class="row-btn danger" data-action="delete" data-pid="${p.product_id}">Delete</button></td>
           <td class="num">${p.ingredients.length}</td><td class="num">${formatRupiah(p.ingredient_cogs)}</td><td class="num">${formatRupiah(p.hpp_total)}</td><td class="num">${formatRupiah(p.price)}</td><td class="num ${mc}">${p.margin_pct===null?'—':p.margin_pct+'%'}</td>`;
         recipeRows.appendChild(tr);
       });
@@ -263,6 +263,13 @@
         if(!confirm('Remove ALL ingredients?'))return;
         const p=allRecipeData.find(x=>String(x.product_id)===String(pid));if(!p)return;
         for(const ing of p.ingredients)await fetch('/api/recipes',{method:'DELETE',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({product_id:pid,ingredient_id:ing.ingredient_id})});
+        loadAllRecipes();
+      }
+      if(btn.getAttribute('data-action')==='delete'){
+        if(!confirm('Delete this product permanently? This cannot be undone.'))return;
+        const r=await fetch(`/api/products/${pid}`,{method:'DELETE',headers:{'Content-Type':'application/json',...authHeaders()}});
+        const d=await r.json().catch(()=>({}));
+        if(!r.ok){alert(d.error||'Failed to delete product');return;}
         loadAllRecipes();
       }
     });
