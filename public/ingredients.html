@@ -115,6 +115,7 @@
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;flex:0 0 auto;">
           <div style="min-width:160px;"><label for="ingredientFilter" style="margin-top:0;font-size:12px;color:var(--accent);">Filter</label><select id="ingredientFilter"><option value="">All Categories</option></select></div>
           <div style="min-width:160px;"><label for="ingredientSort" style="margin-top:0;font-size:12px;color:var(--accent);">Sort</label><select id="ingredientSort"><option value="name-asc">Name (A–Z)</option><option value="name-desc">Name (Z–A)</option></select></div>
+          <div style="display:flex;align-items:flex-end;"><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-top:0;"><input type="checkbox" id="ingShowArchived" style="width:auto;margin:0;"> Show archived</label></div>
         </div>
         <div class="table-wrap list-scroll"><table id="ingredientTable"><thead><tr><th>Name</th><th>Actions</th><th>Base Unit</th><th>Purchase Unit</th><th>Conversion</th><th>Last Price</th><th>Std Cost</th><th>Min Stock</th><th>Notes</th></tr></thead><tbody id="ingredientRows"><tr><td colspan="9">Loading…</td></tr></tbody></table></div>
       </div>
@@ -205,14 +206,20 @@
       filtered = [...filtered].sort((a,b)=>sv==='name-desc'?String(b.name).localeCompare(String(a.name)):String(a.name).localeCompare(String(b.name)));
       filtered.forEach(i => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${i.name||''}</td><td><button class="row-btn" data-action="edit" data-id="${i.id}">Edit</button><button class="row-btn danger" data-action="archive" data-id="${i.id}">Archive</button></td><td>${i.base_unit||i.unit||''}</td><td>${i.purchase_unit||''}</td><td>${i.conv_purchase_to_base||''}</td><td>${i.last_purchase_price!=null?i.last_purchase_price.toLocaleString('id-ID'):''}</td><td>${i.std_cost_per_base??''}</td><td>${i.min_stock??0}</td><td>${i.notes||''}</td>`;
+        const isActive = i.active !== 0;
+        const badge = isActive ? '' : ' <span style="font-size:11px;padding:1px 7px;border-radius:999px;background:#eceff3;color:#8a8f98;font-weight:600;">Archived</span>';
+        const actions = isActive
+          ? `<button class="row-btn" data-action="edit" data-id="${i.id}">Edit</button><button class="row-btn" data-action="archive" data-id="${i.id}">Archive</button>`
+          : `<button class="row-btn" data-action="restore" data-id="${i.id}">Restore</button><button class="row-btn danger" data-action="delete" data-id="${i.id}">Delete</button>`;
+        if (!isActive) tr.style.opacity = '0.6';
+        tr.innerHTML = `<td>${i.name||''}${badge}</td><td>${actions}</td><td>${i.base_unit||i.unit||''}</td><td>${i.purchase_unit||''}</td><td>${i.conv_purchase_to_base||''}</td><td>${i.last_purchase_price!=null?i.last_purchase_price.toLocaleString('id-ID'):''}</td><td>${i.std_cost_per_base??''}</td><td>${i.min_stock??0}</td><td>${i.notes||''}</td>`;
         ingredientRows.appendChild(tr);
       });
     }
 
     async function loadIngredients() {
       if(!auth)return;
-      try{const r=await fetch('/api/ingredients',{headers:authHeaders(),credentials:'same-origin'});const d=await r.json();ingredientMap.clear();ingredientData=d||[];
+      try{const inc=document.getElementById('ingShowArchived').checked?'1':'0';const r=await fetch('/api/ingredients?include_archived='+inc,{headers:authHeaders(),credentials:'same-origin'});const d=await r.json();ingredientMap.clear();ingredientData=d||[];
         const cats=new Set();ingredientData.forEach(i=>{ingredientMap.set(String(i.id),i);if(i.category)cats.add(i.category);});
         ingredientFilter.innerHTML='<option value="">All Categories</option>';[...cats].sort().forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;ingredientFilter.appendChild(o);});
         renderIngredientRows(ingredientData);
@@ -238,8 +245,16 @@
         ingredientSave.textContent='Update Ingredient';ingredientStatus.textContent='Editing';
         openModal(`Edit: ${nameEl.value||'Ingredient'}`);nameEl.focus();return;
       }
-      if(action==='archive'){if(!confirm('Archive?'))return;fetch(`/api/ingredients/${id}/archive`,{method:'PATCH',headers:{'Content-Type':'application/json',...authHeaders()}}).then(r=>r.json()).then(d=>{ingredientStatus.textContent=d.message||'Archived';loadIngredients();}).catch(()=>{});}
+      if(action==='archive'){if(!confirm('Archive this ingredient? It stays available to recipes/history but is hidden from the active list.'))return;ingReq(`/api/ingredients/${id}/archive`,'PATCH');}
+      if(action==='restore'){ingReq(`/api/ingredients/${id}/restore`,'PATCH');}
+      if(action==='delete'){if(!confirm('Permanently delete this ingredient? This cannot be undone.'))return;ingReq(`/api/ingredients/${id}`,'DELETE');}
     });
+
+    function ingReq(url,method){
+      fetch(url,{method,headers:{'Content-Type':'application/json',...authHeaders()}})
+        .then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Request failed');ingredientStatus.textContent=d.message||'Done';loadIngredients();})
+        .catch(e=>{ingredientStatus.textContent=e.message;alert(e.message);});
+    }
 
     calcCostBtn.addEventListener('click',()=>{const p=Number(lastPriceEl.value),c=Number(convEl.value);if(!(p>0)||!(c>0)){ingredientStatus.textContent='Enter price+conversion';return;}stdCostEl.value=Number((p/c).toFixed(6));ingredientStatus.textContent=`${p.toLocaleString('id-ID')}/${c}=${(p/c).toFixed(6)}`;setTimeout(()=>{ingredientStatus.textContent='';},2500);});
     addBtn.addEventListener('click',()=>{document.getElementById('ingredient-form').reset();editingIngredientId=null;ingredientSave.textContent='Save Ingredient';openModal('Add Ingredient');nameEl.focus();});
@@ -250,6 +265,7 @@
 
     ingredientFilter.addEventListener('change',()=>renderIngredientRows(ingredientData));
     ingredientSort.addEventListener('change',()=>renderIngredientRows(ingredientData));
+    document.getElementById('ingShowArchived').addEventListener('change',loadIngredients);
 
     // ═══ Category CRUD ═══
     let editingCatId=null;

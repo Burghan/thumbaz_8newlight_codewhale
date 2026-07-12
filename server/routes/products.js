@@ -193,17 +193,22 @@ router.patch('/:id/restore', (req, res) => {
   res.json({ message: 'Product restored' });
 });
 
+// Hard delete — blocked when the product has sales history. Archive instead.
 router.delete('/:id', (req, res) => {
-  const existing = db.prepare('SELECT id, is_resale, resale_ingredient_id FROM products WHERE id = ?').get(req.params.id);
-  const tx = db.transaction(() => {
-    if (existing && existing.is_resale) {
-      deleteResaleIngredient(existing.resale_ingredient_id);
-    }
-    db.prepare('DELETE FROM recipes WHERE product_id = ?').run(req.params.id);
-    db.prepare('DELETE FROM product_prices WHERE product_id = ?').run(req.params.id);
-    db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
-  });
-  tx();
+  const id = req.params.id;
+  const existing = db.prepare('SELECT id, is_resale, resale_ingredient_id FROM products WHERE id = ?').get(id);
+  if (!existing) return res.status(404).json({ error: 'Product not found' });
+
+  const sales = db.prepare('SELECT COUNT(*) c FROM transaction_items WHERE product_id = ?').get(id).c
+    + db.prepare('SELECT COUNT(*) c FROM invoice_items WHERE product_id = ?').get(id).c;
+  if (sales > 0) return res.status(409).json({ error: `Cannot delete: this product has ${sales} sales record(s). Archive it instead.` });
+
+  db.transaction(() => {
+    if (existing.is_resale) deleteResaleIngredient(existing.resale_ingredient_id);
+    db.prepare('DELETE FROM recipes WHERE product_id = ?').run(id);
+    db.prepare('DELETE FROM product_prices WHERE product_id = ?').run(id);
+    db.prepare('DELETE FROM products WHERE id = ?').run(id);
+  })();
   res.json({ message: 'Product deleted' });
 });
 

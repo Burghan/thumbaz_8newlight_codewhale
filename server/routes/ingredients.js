@@ -90,4 +90,32 @@ router.patch('/:id/archive', (req, res) => {
   res.json({ message: 'Ingredient archived' });
 });
 
+router.patch('/:id/restore', (req, res) => {
+  db.prepare('UPDATE ingredients SET active = 1 WHERE id = ?').run(req.params.id);
+  res.json({ message: 'Ingredient restored' });
+});
+
+// Hard delete — blocked when the ingredient is still referenced. Archive instead.
+router.delete('/:id', (req, res) => {
+  const id = req.params.id;
+  const existing = db.prepare('SELECT id FROM ingredients WHERE id = ?').get(id);
+  if (!existing) return res.status(404).json({ error: 'Ingredient not found' });
+
+  const recipes = db.prepare('SELECT COUNT(*) c FROM recipes WHERE ingredient_id = ?').get(id).c;
+  const purchases = db.prepare('SELECT COUNT(*) c FROM purchase_items WHERE ingredient_id = ?').get(id).c;
+  const resale = db.prepare('SELECT COUNT(*) c FROM products WHERE resale_ingredient_id = ?').get(id).c;
+  const refs = [];
+  if (recipes) refs.push(`${recipes} recipe(s)`);
+  if (purchases) refs.push(`${purchases} purchase(s)`);
+  if (resale) refs.push(`${resale} resale product(s)`);
+  if (refs.length) return res.status(409).json({ error: `Cannot delete: in use by ${refs.join(', ')}. Archive it instead.` });
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM inventory WHERE ingredient_id = ?').run(id);
+    db.prepare('DELETE FROM stock_movements WHERE ingredient_id = ?').run(id);
+    db.prepare('DELETE FROM ingredients WHERE id = ?').run(id);
+  })();
+  res.json({ message: 'Ingredient deleted' });
+});
+
 module.exports = router;
