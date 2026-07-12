@@ -748,7 +748,8 @@
         const resaleBadge = p.is_resale ? '<span class="resale-badge">Resale</span>' : '';
         const statusLabel = isActive ? '' : '<span class="pill-archived">Archived</span>';
         const actionBtn = isActive
-          ? `<button type="button" class="row-btn secondary" data-action="archive" data-id="${p.id}">Archive</button>`
+          ? `<button type="button" class="row-btn secondary" data-action="archive" data-id="${p.id}">Archive</button>
+             <button type="button" class="row-btn danger" data-action="delete" data-id="${p.id}">Delete</button>`
           : `<button type="button" class="row-btn" data-action="restore" data-id="${p.id}">Restore</button>
              <button type="button" class="row-btn danger" data-action="delete" data-id="${p.id}">Delete</button>`;
         if (hasPrice && profit < 0) tr.classList.add('loss');

@@ -209,7 +209,7 @@
         const isActive = i.active !== 0;
         const badge = isActive ? '' : ' <span style="font-size:11px;padding:1px 7px;border-radius:999px;background:#eceff3;color:#8a8f98;font-weight:600;">Archived</span>';
         const actions = isActive
-          ? `<button class="row-btn" data-action="edit" data-id="${i.id}">Edit</button><button class="row-btn" data-action="archive" data-id="${i.id}">Archive</button>`
+          ? `<button class="row-btn" data-action="edit" data-id="${i.id}">Edit</button><button class="row-btn" data-action="archive" data-id="${i.id}">Archive</button><button class="row-btn danger" data-action="delete" data-id="${i.id}">Delete</button>`
           : `<button class="row-btn" data-action="restore" data-id="${i.id}">Restore</button><button class="row-btn danger" data-action="delete" data-id="${i.id}">Delete</button>`;
         if (!isActive) tr.style.opacity = '0.6';
         tr.innerHTML = `<td>${i.name||''}${badge}</td><td>${actions}</td><td>${i.base_unit||i.unit||''}</td><td>${i.purchase_unit||''}</td><td>${i.conv_purchase_to_base||''}</td><td>${i.last_purchase_price!=null?i.last_purchase_price.toLocaleString('id-ID'):''}</td><td>${i.std_cost_per_base??''}</td><td>${i.min_stock??0}</td><td>${i.notes||''}</td>`;
