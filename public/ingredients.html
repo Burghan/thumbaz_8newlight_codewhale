@@ -131,7 +131,7 @@
       <form id="ingredient-form">
         <div class="grid">
           <div><label for="name">Name</label><input id="name" placeholder="Coffee Beans" required /></div>
-          <div><label for="category">Category</label><select id="category"><option value="">Select</option><option value="Drink">Drink</option><option value="Food">Food</option><option value="Packaging">Packaging</option></select></div>
+          <div><label for="category">Category</label><select id="category"><option value="">Select category…</option></select></div>
           <div><label for="base_unit">Base Unit</label><input id="base_unit" placeholder="gram" required /></div>
           <div><label for="purchase_unit">Purchase Unit</label><input id="purchase_unit" placeholder="kg" /></div>
           <div><label for="conv">Conversion</label><input id="conv" type="number" step="0.0001" placeholder="1000" /></div>
@@ -188,6 +188,26 @@
     function closeModal() { ingredientModal.hidden=true; editingIngredientId=null; document.getElementById('ingredient-form').reset(); }
     const ingredientMap = new Map();
 
+    // Populate the category <select> from the ingredient_categories table (dynamic).
+    async function populateCategorySelect(){
+      try{
+        const r=await fetch('/api/ingredient-categories',{headers:authHeaders()});
+        const cats=await r.json();
+        const cur=categoryEl.value;
+        categoryEl.innerHTML='<option value="">Select category…</option>'+
+          (cats||[]).filter(c=>c.active!==0).map(c=>{const s=String(c.name).replace(/"/g,'&quot;');return `<option value="${s}">${c.name}</option>`;}).join('');
+        if(cur) setCategoryValue(cur);
+      }catch{}
+    }
+    // Select a value, adding a temporary option for legacy categories not in the list.
+    function setCategoryValue(val){
+      if(!val){categoryEl.value='';return;}
+      if(![...categoryEl.options].some(o=>o.value===val)){
+        const o=document.createElement('option');o.value=val;o.textContent=val+' (legacy)';categoryEl.appendChild(o);
+      }
+      categoryEl.value=val;
+    }
+
     function updateStats(data) {
       document.getElementById('ingStatTotal').textContent = data.length;
       document.getElementById('ingStatActive').textContent = data.filter(i=>i.active!==0).length;
@@ -235,7 +255,7 @@
         ingredientRows.querySelectorAll('tr').forEach(tr=>tr.classList.remove('editing-row'));
         if(row)row.classList.add('editing-row');
         const rec=ingredientMap.get(String(id))||{};
-        nameEl.value=rec.name||cells[0].textContent.trim();categoryEl.value=rec.category||'';
+        nameEl.value=rec.name||cells[0].textContent.trim();setCategoryValue(rec.category||'');
         baseUnitEl.value=rec.base_unit||rec.unit||cells[2].textContent.trim();
         purchaseUnitEl.value=rec.purchase_unit||cells[3].textContent.trim();
         convEl.value=rec.conv_purchase_to_base||cells[4].textContent.trim();
@@ -296,7 +316,7 @@
       e.preventDefault();const name=catName.value.trim();if(!name)return;catStatus.textContent='Saving…';
       const url=editingCatId?`/api/ingredient-categories/${editingCatId}`:'/api/ingredient-categories';
       fetch(url,{method:editingCatId?'PUT':'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({name})})
-        .then(r=>r.json()).then(d=>{catStatus.textContent=d.message||d.error||'';if(!d.error){resetCatForm();loadCategories();loadIngredients();}})
+        .then(r=>r.json()).then(d=>{catStatus.textContent=d.message||d.error||'';if(!d.error){resetCatForm();loadCategories();loadIngredients();populateCategorySelect();}})
         .catch(()=>{catStatus.textContent='Failed';});
     });
 
@@ -306,13 +326,13 @@
       if(action==='edit'){editingCatId=id;catName.value=btn.getAttribute('data-name')||'';catSaveBtn.textContent='Update';catCancelBtn.style.display='';catName.focus();return;}
       if(action==='delete'){if(!confirm('Delete empty category?'))return;
         fetch(`/api/ingredient-categories/${id}`,{method:'DELETE',headers:authHeaders()})
-          .then(r=>r.json()).then(d=>{catStatus.textContent=d.message||d.error||'';if(!d.error)loadCategories();}).catch(()=>{});}
+          .then(r=>r.json()).then(d=>{catStatus.textContent=d.message||d.error||'';if(!d.error){loadCategories();populateCategorySelect();}}).catch(()=>{});}
     });
 
     document.getElementById('exportBtn').addEventListener('click',()=>alert('Export coming soon'));
     document.getElementById('importBtn').addEventListener('click',()=>document.getElementById('importFile').click());
 
-    if(auth)loadIngredients();
+    if(auth){loadIngredients();populateCategorySelect();}
   </script>
 </body>
 </html>
