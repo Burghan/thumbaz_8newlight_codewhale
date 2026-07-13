@@ -80,6 +80,16 @@
   .alert.warn { background:#f7e6e3; border:1px solid #e7c3bc; }
   .alert.info { background:#eef2f8; border:1px solid #d6e0ee; }
   .alert.good { background:var(--positive-bg); border:1px solid #bcd8c6; }
+
+  /* live month-to-date strip */
+  .mtd-strip { display:flex; align-items:center; gap:22px; flex-wrap:wrap; background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 20px; margin-bottom:16px; box-shadow:var(--shadow-sm); }
+  .mtd-strip .dot { width:8px; height:8px; border-radius:50%; background:var(--positive); box-shadow:0 0 0 4px var(--positive-bg); flex:0 0 auto; }
+  .mtd-strip .lbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
+  .mtd-strip .item { display:flex; flex-direction:column; gap:2px; }
+  .mtd-strip .val { font-family:var(--font-brand); font-size:18px; font-weight:700; color:var(--brand-ink); font-variant-numeric:tabular-nums; }
+  .mtd-strip .val .delta { font-size:12px; font-weight:600; margin-left:6px; }
+  .mtd-strip .val .delta.up { color:var(--positive); } .mtd-strip .val .delta.down { color:var(--danger); }
+  .mtd-strip .foot { font-size:11px; color:var(--muted); margin-left:auto; }
 </style>
 </head>
 <body class="theme-cafe">
@@ -114,6 +124,14 @@
     <button id="refresh">🔄 Refresh</button>
   </div>
   <p class="sub" id="subtitle">Business performance overview</p>
+
+  <div class="mtd-strip" id="mtdStrip">
+    <span class="dot"></span>
+    <div class="item"><span class="lbl" id="mLabel">Month to Date</span><span class="val" id="mRevenue">–</span></div>
+    <div class="item"><span class="lbl">Orders</span><span class="val" id="mOrders">–</span></div>
+    <div class="item"><span class="lbl">Gross Profit</span><span class="val" id="mGross">–</span></div>
+    <span class="foot" id="mFoot"></span>
+  </div>
 
   <div class="status" id="status">⏳ Loading…</div>
   <div id="view" style="display:none"></div>
@@ -151,19 +169,36 @@
   const jget = url => fetch(url, { headers: authHeaders(), credentials: 'same-origin' })
     .then(r => r.ok ? r.json() : Promise.reject(new Error(`${url} → ${r.status}`)));
 
-  // month selector: last 6 months
+  // Month selector: populated from months that actually have data (server-side),
+  // not the browser's clock — a client with clock drift would otherwise never
+  // see the month its own sales are in (defaults to the most recent one).
   const monthSel = document.getElementById('month');
-  (function fillMonths(){
-    const now = new Date();
-    for (let i = 0; i < 6; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const val = d.toISOString().slice(0, 7);
-      const opt = document.createElement('option');
-      opt.value = val;
-      opt.textContent = d.toLocaleDateString('en', { month: 'long', year: 'numeric' });
-      monthSel.appendChild(opt);
-    }
-  })();
+  async function fillMonths(){
+    let months = [];
+    try { months = await jget('/api/reports/available-months'); } catch {}
+    if (!months.length) { const v = new Date().toISOString().slice(0,7); months = [{ value: v, label: v }]; }
+    monthSel.innerHTML = '';
+    months.forEach(m => { const o=document.createElement('option'); o.value=m.value; o.textContent=m.label; monthSel.appendChild(o); });
+  }
+
+  // Live month-to-date strip — cumulative from day 1 of the current month
+  // through today, independent of whatever month is selected below. Compares
+  // against the same day-of-month cutoff last month. Refreshes every 60s.
+  async function loadMTD(){
+    try {
+      const m = await jget('/api/reports/mtd');
+      document.getElementById('mLabel').textContent = `Month to Date (thru ${m.label})`;
+      document.getElementById('mRevenue').innerHTML = Rp(m.revenue) + (m.delta_pct == null ? '' :
+        ` <span class="delta ${m.delta_pct>=0?'up':'down'}">${m.delta_pct>=0?'▲':'▼'} ${Math.abs(m.delta_pct)}%</span>`);
+      document.getElementById('mOrders').textContent = m.orders;
+      document.getElementById('mGross').textContent = Rp(m.gross_profit) + ` (${m.margin_pct}%)`;
+      document.getElementById('mFoot').textContent = m.last_order_at
+        ? `${m.selling_days} selling day(s) · last order ${m.last_order_at.slice(11,16)}`
+        : `${m.selling_days} selling day(s) · vs same point last month`;
+    } catch {}
+  }
+  loadMTD();
+  setInterval(loadMTD, 60000);
 
   const isOwner = A.role === 'admin';
   document.getElementById('title').textContent = isOwner ? '👑 Owner Dashboard' : '📊 Dashboard';
@@ -327,7 +362,7 @@
 
   document.getElementById('refresh').addEventListener('click', load);
   monthSel.addEventListener('change', load);
-  load();
+  fillMonths().then(load);
 </script>
 </body>
 </html>

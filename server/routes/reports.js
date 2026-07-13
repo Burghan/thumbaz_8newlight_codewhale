@@ -2,6 +2,68 @@ const express = require('express');
 const db = require('../db');
 const router = express.Router();
 
+// ---- Live "month-to-date" snapshot — unlike the monthly reports this needs no
+// filter, it's always the server's current month from day 1 through today. Meant
+// for a Dashboard/Analytics card that stays live regardless of the month picker.
+// Also compares against the same day-of-month cutoff last month, so an early-month
+// number isn't misread against a full prior month.
+router.get('/mtd', (req, res) => {
+  // Derive month/day from local calendar parts throughout (never round-trip
+  // through toISOString(), which shifts the date across midnight whenever the
+  // server's local offset isn't UTC+0 — bit us once already: prevMonth came out
+  // as May instead of June with local time = UTC+3).
+  const now = new Date();
+  const curYear = now.getFullYear(), curMonthNum = now.getMonth() + 1;
+  const curMonth = `${curYear}-${String(curMonthNum).padStart(2, '0')}`;
+  const dayNum = now.getDate();
+  let py = curYear, pmNum = curMonthNum - 1;
+  if (pmNum < 1) { pmNum = 12; py -= 1; }
+  const prevMonth = `${py}-${String(pmNum).padStart(2, '0')}`;
+
+  function sumThroughDay(month, day) {
+    return db.prepare(`SELECT COALESCE(SUM(ti.line_total),0) AS revenue,
+      COALESCE(SUM(CASE WHEN p.is_resale THEN COALESCE((SELECT ri.std_cost_per_base_micro FROM ingredients ri WHERE ri.id=p.resale_ingredient_id),0)/1e6
+      ELSE COALESCE((SELECT ROUND(SUM(r2.quantity*i2.std_cost_per_base_micro)/1e6) FROM recipes r2 JOIN ingredients i2 ON i2.id=r2.ingredient_id WHERE r2.product_id=p.id),0) END * ti.quantity),0) AS cogs,
+      COUNT(DISTINCT t.id) AS orders, COUNT(DISTINCT date(t.transacted_at)) AS selling_days,
+      MAX(t.transacted_at) AS last_order_at
+      FROM transactions t JOIN transaction_items ti ON ti.transaction_id=t.id JOIN products p ON p.id=ti.product_id
+      WHERE strftime('%Y-%m', t.transacted_at) = ? AND CAST(strftime('%d', t.transacted_at) AS INTEGER) <= ?`
+    ).get(month, day);
+  }
+
+  const cur = sumThroughDay(curMonth, dayNum);
+  const prev = sumThroughDay(prevMonth, dayNum);
+  const gross = cur.revenue - cur.cogs;
+  const prevGross = prev.revenue - prev.cogs;
+  const deltaPct = prev.revenue > 0 ? Math.round((cur.revenue - prev.revenue) / prev.revenue * 100) : null;
+
+  res.json({
+    month: curMonth, day: dayNum,
+    label: now.toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric' }),
+    revenue: cur.revenue, cogs: cur.cogs, gross_profit: gross,
+    margin_pct: cur.revenue > 0 ? Math.round(gross / cur.revenue * 100) : 0,
+    orders: cur.orders, selling_days: cur.selling_days, last_order_at: cur.last_order_at,
+    prev: { revenue: prev.revenue, gross_profit: prevGross, orders: prev.orders, selling_days: prev.selling_days },
+    delta_pct: deltaPct
+  });
+});
+
+// ---- Months that actually have data, for the report page's month picker.
+// Driven by the DB (transactions/expenses), not the browser's clock — a client
+// with clock drift would otherwise never see the month its own data is in.
+router.get('/available-months', (req, res) => {
+  const months = new Set(
+    db.prepare("SELECT DISTINCT strftime('%Y-%m', transacted_at) m FROM transactions").all().map(r => r.m)
+  );
+  db.prepare("SELECT DISTINCT strftime('%Y-%m', date) m FROM expenses").all().forEach(r => months.add(r.m));
+  months.add(new Date().toISOString().slice(0, 7)); // always offer the server's current month
+  const sorted = [...months].filter(Boolean).sort().reverse();
+  res.json(sorted.map(m => {
+    const d = new Date(m + '-01');
+    return { value: m, label: d.toLocaleDateString('en', { month: 'long', year: 'numeric', timeZone: 'UTC' }) };
+  }));
+});
+
 // ---- Dashboard: monthly summary (with expenses) ----
 router.get('/monthly-summary', (req, res) => {
   const now = new Date();

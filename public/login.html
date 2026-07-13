@@ -150,12 +150,9 @@
 
     function redirectByRole(auth) {
       if (!auth) return;
-      if (auth.role !== 'staff') {
-        const redirect = nextParam || '/system-report.html';
-        window.location.replace(redirect);
-        return;
-      }
-      window.location.replace('/clock.html');
+      if (auth.role === 'staff') { window.location.replace('/clock.html'); return; }
+      const home = auth.role === 'admin' ? '/dashboard.html' : '/system-report.html';
+      window.location.replace(nextParam || home);
     }
 
     const existingAuth = getAuth();
