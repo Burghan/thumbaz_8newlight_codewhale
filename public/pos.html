@@ -6,8 +6,6 @@
   <title>8 NewLight Coffee POS</title>
   <link rel="stylesheet" href="/sidebar.css" />
   <link rel="stylesheet" href="/theme.css" />
-  <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#15181f" />
 
   <style>
     :root {
@@ -765,6 +763,12 @@
       color: var(--pos-muted);
     }
   </style>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#5c7da6" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="8 NewLight" />
 </head>
 
 <body class="pos-page theme-cafe">
@@ -1021,6 +1025,7 @@
 </div>
 
 <script src="/auth.js"></script>
+  <script src="/pwa.js"></script>
 <script>
   let cart = [];
   let activeEmployee = null;

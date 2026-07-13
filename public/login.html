@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PIN Login – 8 NewLight Coffee</title>
   <link rel="stylesheet" href="/theme.css" />
-  <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#15181f" />
   <style>
     body {
       font-family: inherit;
@@ -111,6 +109,12 @@
       }
     }
   </style>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#5c7da6" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="8 NewLight" />
 </head>
 <body class="theme-cafe">
   <div class="card">
@@ -141,6 +145,7 @@
     localStorage.removeItem('pos_auth');
   </script>
   <script src="/auth.js"></script>
+  <script src="/pwa.js"></script>
   <script>
     const usernameInput = document.getElementById('username');
     const pinInput = document.getElementById('pin');

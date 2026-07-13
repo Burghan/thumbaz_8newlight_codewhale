@@ -18,6 +18,12 @@
     .value { text-align: right; }
     .muted { color: #6b7280; }
   </style>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#5c7da6" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="8 NewLight" />
 </head>
 <body class=" theme-cafe">
   <button class="menu-toggle" id="menuToggle">☰ Menu</button>
@@ -114,6 +120,7 @@
   </div>
 
   <script src="/auth.js"></script>
+  <script src="/pwa.js"></script>
   <script src="/sidebar.js"></script>
   <script>
     const auth = requireRole(['admin', 'manager']);
