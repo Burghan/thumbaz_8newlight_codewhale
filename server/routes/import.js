@@ -1,9 +1,11 @@
 const express = require('express');
 const multer = require('multer');
 const ExcelJS = require('exceljs');
+const XLSX = require('xlsx');
 const db = require('../db');
 const { cellValue, normName, loadWorkbookFromBuffer } = require('../lib/xlsx');
 const { buildProductMatcher } = require('../lib/productMatch');
+const { deductStockForSale } = require('../lib/stock');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -158,14 +160,163 @@ router.post('/sales', upload.single('file'), async (req, res) => {
 
         const txn = insTxn.run(dateStr);
         insItem.run(txn.lastInsertRowid, product.id, qty, price, qty*price);
+        deductStockForSale(txn.lastInsertRowid, [{ product_id: product.id, quantity: qty }]);
         imported++;
       });
     });
     tx();
 
     res.json({
-      message: `Imported: ${imported} sales, ${skipped} skipped (unmatched products)`,
+      message: `Imported: ${imported} sales, ${skipped} skipped (unmatched products). Inventory deducted.`,
       imported, skipped, unmatched: [...unmatched]
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'Import failed: ' + e.message });
+  }
+});
+
+// POST /api/import/riwayat — import the POS's "Riwayat Transaksi" export (.xls or
+// .xlsx). Unlike /sales (one row = one order), this file has one row per line
+// item and groups into receipts via "No. Struk"; cancelled lines are skipped.
+// Deducts inventory automatically (was a manual/forgettable step before) and
+// reports the post-import stock impact so nothing needs a separate check.
+router.post('/riwayat', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  let sheetRows;
+  try {
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    sheetRows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+  } catch (e) {
+    return res.status(400).json({ error: 'Could not read the file: ' + e.message });
+  }
+  if (sheetRows.length < 2) return res.status(400).json({ error: 'No data rows found' });
+
+  const header = sheetRows[0].map(h => normName(h));
+  const col = (name) => header.findIndex(h => h === normName(name));
+  const cNo = col('No. Struk'), cDate = col('Tanggal'), cJam = col('Jam'),
+        cProd = col('Produk'), cQty = col('Jumlah Produk'), cCancel = col('Jumlah Dibatalkan'),
+        cPrice = col('Harga Per Produk'), cStatus = col('Status'), cPay = col('Metode Pembayaran');
+  if (cNo < 0 || cDate < 0 || cProd < 0) {
+    return res.status(400).json({ error: 'Missing expected columns (No. Struk / Tanggal / Produk) — is this a Riwayat Transaksi export?' });
+  }
+
+  const matchProduct = buildProductMatcher(db);
+  const hppFor = (productId) => db.prepare(`
+    SELECT (p.labor_cost+p.utility_cost+p.packaging_cost) +
+      CASE WHEN p.is_resale THEN COALESCE((SELECT ROUND(ri.std_cost_per_base_micro/1e6) FROM ingredients ri WHERE ri.id=p.resale_ingredient_id),0)
+      ELSE COALESCE((SELECT ROUND(SUM(r.quantity*i.std_cost_per_base_micro)/1e6) FROM recipes r JOIN ingredients i ON i.id=r.ingredient_id WHERE r.product_id=p.id),0)
+      END AS hpp
+    FROM products p WHERE p.id=?`).get(productId).hpp;
+
+  // Group by receipt number, skipping cancelled lines and receipts already imported.
+  const already = new Set(db.prepare("SELECT reference FROM transactions WHERE reference IS NOT NULL").all().map(r => r.reference));
+  const txns = new Map();
+  let cancelledLines = 0, skippedDuplicateReceipts = new Set(), unmatched = {};
+
+  for (const row of sheetRows.slice(1)) {
+    const status = String(row[cStatus] || '').trim().toLowerCase();
+    if (status.includes('batal')) { cancelledLines++; continue; }
+    const no = String(row[cNo] || '').trim();
+    if (!no) continue;
+    if (already.has(no)) { skippedDuplicateReceipts.add(no); continue; }
+    const nameRaw = row[cProd];
+    if (!nameRaw) continue;
+    const product = matchProduct(nameRaw);
+    if (!product) { unmatched[String(nameRaw).trim()] = (unmatched[String(nameRaw).trim()] || 0) + 1; continue; }
+    const qty = Number(row[cQty] || 1) - Number(row[cCancel] || 0);
+    if (!(qty > 0)) continue;
+    const price = Math.round(Number(row[cPrice] || 0));
+    const dateStr = normDate(row[cDate]);
+    const jam = String(row[cJam] || '00:00:00').trim();
+    const pay = String(row[cPay] || '').toUpperCase().includes('QRIS') ? 'qris' : 'cash';
+    if (!txns.has(no)) txns.set(no, { at: `${dateStr} ${jam}`, pay, ref: no, items: [] });
+    txns.get(no).items.push({ pid: product.id, qty, price, hpp: hppFor(product.id) });
+  }
+
+  const insT = db.prepare("INSERT INTO transactions (transacted_at,payment_method,reference) VALUES (?,?,?)");
+  const insI = db.prepare("INSERT INTO transaction_items (transaction_id,product_id,quantity,unit_price,line_total,hpp_at_sale) VALUES (?,?,?,?,?,?)");
+  let nt = 0, ni = 0, revenue = 0;
+
+  db.transaction(() => {
+    for (const [, t] of txns) {
+      const tr = insT.run(t.at, t.pay, t.ref);
+      nt++;
+      for (const it of t.items) {
+        insI.run(tr.lastInsertRowid, it.pid, it.qty, it.price, it.qty * it.price, it.hpp);
+        deductStockForSale(tr.lastInsertRowid, [{ product_id: it.pid, quantity: it.qty }]);
+        ni++; revenue += it.qty * it.price;
+      }
+    }
+  })();
+
+  // Post-import inventory impact — replaces the manual "check inventory after
+  // import" step: any ingredient now at 0 needs a restock recorded.
+  const outOfStock = db.prepare(`
+    SELECT i.name, i.base_unit FROM inventory inv JOIN ingredients i ON i.id=inv.ingredient_id
+    WHERE inv.quantity_base<=0 AND i.active=1 ORDER BY i.name`).all();
+
+  res.json({
+    message: `Imported: ${nt} transactions, ${ni} line-items, revenue Rp${revenue.toLocaleString('id-ID')}. Inventory deducted automatically.`,
+    transactions: nt, lineItems: ni, revenue,
+    cancelledLinesSkipped: cancelledLines,
+    duplicateReceiptsSkipped: skippedDuplicateReceipts.size,
+    unmatchedProducts: unmatched,
+    outOfStock: outOfStock.map(r => `${r.name} (${r.base_unit})`)
+  });
+});
+
+// POST /api/import/inventory — reconcile a physical stock count. Round-trips
+// with /api/export/inventory: expects Ingredient + Quantity On Hand columns.
+// Unlike a raw overwrite, this computes the delta per ingredient and records it
+// as a normal 'adjustment' stock_movement (audit trail preserved, same as the
+// manual Add/Remove adjustment on the Inventory page) rather than silently
+// resetting the number.
+router.post('/inventory', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  try {
+    const wb = await loadWorkbookFromBuffer(req.file.buffer);
+    const ws = wb.getWorksheet('Inventory') || wb.worksheets[0];
+    const hdr = headerMap(ws);
+    const nameCol = hdr.ingredient || hdr.name;
+    const qtyCol = hdr['quantity on hand'] || hdr.quantity || hdr.qty;
+    if (!nameCol || !qtyCol) return res.status(400).json({ error: 'Need "Ingredient" and "Quantity On Hand" columns' });
+
+    const ingByName = new Map();
+    db.prepare('SELECT id, name FROM ingredients WHERE active=1').all().forEach(i => ingByName.set(normName(i.name), i));
+
+    const getInv = db.prepare('SELECT quantity_base FROM inventory WHERE ingredient_id=?');
+    const setInv = db.prepare("UPDATE inventory SET quantity_base=?, updated_at=datetime('now') WHERE ingredient_id=?");
+    const addMove = db.prepare(`INSERT INTO stock_movements (ingredient_id, type, qty_base, unit_cost_micro, note)
+      VALUES (?, 'adjustment', ?, 0, ?)`);
+
+    let reconciled = 0, unchanged = 0, unmatched = [];
+    db.transaction(() => {
+      ws.eachRow((row, i) => {
+        if (i === 1) return;
+        const nameRaw = row.getCell(nameCol).value;
+        if (!nameRaw) return;
+        const ing = ingByName.get(normName(nameRaw));
+        if (!ing) { unmatched.push(String(nameRaw).trim()); return; }
+        const newQtyRaw = row.getCell(qtyCol).value;
+        if (newQtyRaw == null || newQtyRaw === '') return;
+        const newQty = Number(newQtyRaw);
+        if (!Number.isFinite(newQty)) return;
+
+        const cur = getInv.get(ing.id);
+        const oldQty = cur ? cur.quantity_base : 0;
+        const delta = newQty - oldQty;
+        if (Math.abs(delta) < 1e-9) { unchanged++; return; }
+
+        setInv.run(newQty, ing.id);
+        addMove.run(ing.id, delta, `Stock count reconciliation: ${oldQty} -> ${newQty}`);
+        reconciled++;
+      });
+    })();
+
+    res.json({
+      message: `Reconciled ${reconciled} ingredient(s), ${unchanged} unchanged${unmatched.length ? `, ${unmatched.length} unmatched` : ''}.`,
+      reconciled, unchanged, unmatched
     });
   } catch (e) {
     res.status(500).json({ error: 'Import failed: ' + e.message });

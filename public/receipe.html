@@ -162,13 +162,16 @@
 
     let allRecipeData = [], currentRecipePid = null;
 
-    // Recipes are for ingredient-built drinks only. Food/snack/resale items live
-    // in the Menu but never have an ingredient recipe, so hide them here.
-    // 'Custom' is excluded too — Custom Item is an on-the-fly recipe at POS time.
-    const NON_RECIPE_CATEGORIES = ['Snack', 'Speciality', 'Air Mineral', 'Custom'];
+    // Resale items get COGS from their shadow ingredient, not a real recipe, and
+    // Custom Item is deliberately an on-the-fly recipe at POS time — both always
+    // hidden here. Food/snack/water categories are hidden ONLY when they have no
+    // recipe lines; one with real ingredients (e.g. French Fries) still shows.
+    const NEVER_RECIPE_CATEGORIES = ['Custom'];
+    const FOOD_LIKE_CATEGORIES = ['Snack', 'Speciality', 'Air Mineral'];
     function isRecipeProduct(p) {
       if (p.is_resale) return false;
-      if (NON_RECIPE_CATEGORIES.includes(String(p.category || ''))) return false;
+      if (NEVER_RECIPE_CATEGORIES.includes(String(p.category || ''))) return false;
+      if (FOOD_LIKE_CATEGORIES.includes(String(p.category || '')) && !p.ingredients.length) return false;
       return true;
     }
 

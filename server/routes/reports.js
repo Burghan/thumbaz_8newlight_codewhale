@@ -253,10 +253,13 @@ router.get('/cashflow', (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0, 7);
   const opening = 0;
 
+  // Group by calendar day, not the full timestamp — transacted_at includes a
+  // time component, so grouping by it directly produced one entry per
+  // transaction instead of one per day (same bug as daily-summary).
   const salesBy = m => Object.fromEntries(db.prepare(`
-    SELECT t.transacted_at AS d, ROUND(SUM(ti.line_total)) AS v
+    SELECT date(t.transacted_at) AS d, ROUND(SUM(ti.line_total)) AS v
     FROM transactions t JOIN transaction_items ti ON ti.transaction_id = t.id
-    WHERE strftime('%Y-%m', t.transacted_at) = ? GROUP BY t.transacted_at`).all(m).map(r => [r.d, r.v]));
+    WHERE strftime('%Y-%m', t.transacted_at) = ? GROUP BY date(t.transacted_at)`).all(m).map(r => [r.d, r.v]));
   const purchBy = m => Object.fromEntries(db.prepare(`
     SELECT p.purchased_at AS d, ROUND(SUM(pi.line_total)) AS v
     FROM purchases p JOIN purchase_items pi ON pi.purchase_id = p.id
@@ -282,6 +285,43 @@ router.get('/cashflow', (req, res) => {
     totals: { inflow: tIn, purchases: tPurch, expenses: tExp, outflow: tPurch + tExp,
               net: tIn - tPurch - tExp, closing: balance }
   });
+});
+
+// ---- Single day's detail — drill-down from a Cashflow row: the sales orders,
+// purchases, and expenses that made up that day's inflow/outflow.
+router.get('/day/:date', (req, res) => {
+  const date = req.params.date;
+
+  const saleRows = db.prepare(`
+    SELECT t.id, t.payment_method, t.reference,
+           ti.product_id, p.name AS product_name, ti.quantity, ti.unit_price, ti.line_total
+    FROM transactions t
+    LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
+    LEFT JOIN products p ON p.id = ti.product_id
+    WHERE date(t.transacted_at) = ?
+    ORDER BY t.id DESC`).all(date);
+  const salesMap = new Map();
+  for (const r of saleRows) {
+    if (!salesMap.has(r.id)) salesMap.set(r.id, { id: r.id, payment_method: r.payment_method, reference: r.reference, items: [], total: 0 });
+    const t = salesMap.get(r.id);
+    if (r.product_id) { t.items.push({ product_name: r.product_name, quantity: r.quantity, line_total: r.line_total }); t.total += r.line_total; }
+  }
+
+  const purchases = db.prepare(`
+    SELECT p.id, p.reference, i.name AS ingredient_name, pi.purchase_qty AS quantity,
+           pi.purchase_unit, pi.line_total AS total_cost, s.name AS supplier_name
+    FROM purchases p
+    LEFT JOIN purchase_items pi ON pi.purchase_id = p.id
+    LEFT JOIN ingredients i ON i.id = pi.ingredient_id
+    LEFT JOIN suppliers s ON s.id = p.supplier_id
+    WHERE date(p.purchased_at) = ?
+    ORDER BY p.id DESC`).all(date);
+
+  const expenses = db.prepare(
+    `SELECT id, category, description, amount FROM expenses WHERE date(date) = ? ORDER BY id DESC`
+  ).all(date);
+
+  res.json({ date, sales: [...salesMap.values()], purchases, expenses });
 });
 
 // ---- Forecast (run-rate finish + trend-based next month) ----

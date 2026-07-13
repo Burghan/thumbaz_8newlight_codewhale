@@ -86,6 +86,44 @@ router.get('/menu', async (_req, res) => {
   res.end();
 });
 
+// GET /api/export/inventory — current stock snapshot (round-trips with
+// /api/import/inventory for a physical-count reconciliation).
+router.get('/inventory', async (_req, res) => {
+  const rows = db.prepare(`
+    SELECT i.id, i.name, i.category, i.base_unit, inv.quantity_base,
+      CAST(inv.avg_cost_micro AS REAL)/1e6 AS avg_cost, i.min_stock
+    FROM inventory inv JOIN ingredients i ON i.id = inv.ingredient_id
+    WHERE i.active = 1
+    ORDER BY i.name`).all();
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'thumbaz_8newlight';
+  const ws = wb.addWorksheet('Inventory');
+  ws.columns = [
+    { header: 'Ingredient', key: 'name', width: 26 },
+    { header: 'Category', key: 'category', width: 16 },
+    { header: 'Base Unit', key: 'base_unit', width: 10 },
+    { header: 'Quantity On Hand', key: 'qty', width: 16 },
+    { header: 'Avg Cost / Unit', key: 'avg_cost', width: 14 },
+    { header: 'Total Value', key: 'value', width: 14 },
+    { header: 'Min Stock', key: 'min_stock', width: 10 }
+  ];
+  rows.forEach(r => ws.addRow({
+    name: r.name, category: r.category, base_unit: r.base_unit,
+    qty: r.quantity_base, avg_cost: Math.round(r.avg_cost),
+    value: Math.round(r.quantity_base * r.avg_cost), min_stock: r.min_stock
+  }));
+  ws.getRow(1).font = { bold: true };
+  ws.addRow([]);
+  ws.addRow(['To reconcile a physical count: edit "Quantity On Hand" and re-import via Inventory → Import. Other columns are ignored on import.']);
+
+  const today = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename=inventory_${today}.xlsx`);
+  await wb.xlsx.write(res);
+  res.end();
+});
+
 // GET /api/export/recipes — recipe data with costs.
 router.get('/recipes', async (_req, res) => {
   const rows = db.prepare(`
@@ -100,7 +138,11 @@ router.get('/recipes', async (_req, res) => {
     LEFT JOIN ingredients i ON i.id=r.ingredient_id
     WHERE p.active=1
       AND p.is_resale=0
-      AND COALESCE(p.category,'') NOT IN ('Snack','Speciality','Air Mineral','Custom')
+      AND COALESCE(p.category,'') <> 'Custom'
+      AND (
+        COALESCE(p.category,'') NOT IN ('Snack','Speciality','Air Mineral')
+        OR EXISTS (SELECT 1 FROM recipes r2 WHERE r2.product_id=p.id)
+      )
     ORDER BY p.category, p.name, i.name
   `).all();
 

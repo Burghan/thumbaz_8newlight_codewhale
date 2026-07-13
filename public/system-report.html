@@ -92,6 +92,11 @@
     .cf-card.hero { background: var(--cream-soft); border-color: var(--brand-200, var(--border)); }
     .cf-card .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
     .cf-card .v { font-family: var(--font-brand); font-size: 18px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }
+    .cf-detail-sec { margin-bottom: 10px; }
+    .cf-detail-sec:last-child { margin-bottom: 0; }
+    .cf-detail-h { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .cf-detail-sec table { width: 100%; font-size: 12px; }
+    .cf-detail-sec td { padding: 3px 6px; border-bottom: 1px solid var(--border-soft, var(--border)); }
 
     /* Forecast */
     .fc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
@@ -248,7 +253,7 @@
         </div>
 
         <div class="card">
-          <h2>🏦 Cashflow <span class="hint">— money in vs out, with running balance</span></h2>
+          <h2>🏦 Cashflow <span class="hint">— money in vs out, with running balance; click a day for detail</span></h2>
           <div class="cf-sum" id="cfSum"></div>
           <div style="overflow:auto;max-height:44vh;">
             <table>
@@ -442,14 +447,35 @@
       const rows=cf.rows||[];
       if(!rows.length){ tb.innerHTML='<tr><td colspan="6">No cash movement this month</td></tr>'; return; }
       rows.slice().reverse().forEach(r=>{
-        const tr=document.createElement('tr');
-        tr.innerHTML = `<td>${r.date}</td>
+        const tr=document.createElement('tr'); tr.className='drill';
+        tr.innerHTML = `<td><span class="chev">▸</span> ${r.date}</td>
           <td class="num pos">${r.inflow?Rp(r.inflow):'–'}</td>
           <td class="num">${r.purchases?Rp(r.purchases):'–'}</td>
           <td class="num">${r.expenses?Rp(r.expenses):'–'}</td>
           <td class="num ${r.net<0?'neg':'pos'}">${r.net<0?'−':'+'}${Rp(Math.abs(r.net))}</td>
           <td class="num ${r.balance<0?'neg':''}" style="font-weight:600">${Rp(r.balance)}</td>`;
-        tb.appendChild(tr);
+        const detail=document.createElement('tr'); detail.className='detail'; detail.style.display='none';
+        detail.innerHTML = `<td colspan="6"><div class="inner" id="cf-day-${r.date}">Loading…</div></td>`;
+        let loaded=false;
+        tr.addEventListener('click', async ()=>{
+          const open=detail.style.display!=='none'; detail.style.display=open?'none':''; tr.classList.toggle('open',!open);
+          if(open||loaded) return; loaded=true;
+          const d=await jget('/api/reports/day/'+encodeURIComponent(r.date)).catch(()=>null);
+          const box=document.getElementById('cf-day-'+r.date);
+          if(!d){ box.textContent='Failed to load'; return; }
+          const secs=[];
+          if(d.sales.length) secs.push(`<div class="cf-detail-sec"><div class="cf-detail-h">Sales (${d.sales.length})</div><table><tbody>${
+            d.sales.map(o=>`<tr><td>#${o.id}</td><td>${o.items.map(it=>`${esc(it.product_name||'?')}×${it.quantity}`).join(', ')}</td><td class="num">${Rp(o.total)}</td><td><span class="pill">${esc(o.payment_method||'—')}</span></td></tr>`).join('')
+          }</tbody></table></div>`);
+          if(d.purchases.length) secs.push(`<div class="cf-detail-sec"><div class="cf-detail-h">Purchases (${d.purchases.length})</div><table><tbody>${
+            d.purchases.map(p=>`<tr><td>${esc(p.ingredient_name||p.reference||'—')}</td><td>${p.quantity||''} ${esc(p.purchase_unit||'')}</td><td class="num">${Rp(p.total_cost)}</td><td>${esc(p.supplier_name||'—')}</td></tr>`).join('')
+          }</tbody></table></div>`);
+          if(d.expenses.length) secs.push(`<div class="cf-detail-sec"><div class="cf-detail-h">Expenses (${d.expenses.length})</div><table><tbody>${
+            d.expenses.map(e=>`<tr><td>${esc(e.category)}</td><td>${esc(e.description||'')}</td><td class="num">${Rp(e.amount)}</td></tr>`).join('')
+          }</tbody></table></div>`);
+          box.innerHTML = secs.length ? secs.join('') : 'No detail';
+        });
+        tb.appendChild(tr); tb.appendChild(detail);
       });
     }
 

@@ -73,6 +73,24 @@
 
     <div class="main-scroll">
 
+      <!-- RIWAYAT TRANSAKSI IMPORT -->
+      <div class="card">
+        <h2>🧾 Riwayat Transaksi Import</h2>
+        <div class="desc">Import the POS's "Riwayat Transaksi" export directly (.xls or .xlsx) — groups line items into receipts, skips cancelled orders, and deducts inventory automatically. Safe to re-upload the same file; already-imported receipts are skipped.</div>
+        <div class="format-box">
+          <div><span class="col">No. Struk</span> — receipt number (used to group lines + skip duplicates)</div>
+          <div><span class="col">Tanggal</span>, <span class="col">Jam</span> — date + time</div>
+          <div><span class="col">Produk</span> — product name (comma/variant style handled automatically)</div>
+          <div><span class="col">Jumlah Produk</span>, <span class="opt">Jumlah Dibatalkan</span> — qty sold / cancelled</div>
+          <div><span class="col">Harga Per Produk</span>, <span class="opt">Status</span>, <span class="opt">Metode Pembayaran</span></div>
+        </div>
+        <div class="btn-row">
+          <input type="file" id="riwayatFile" accept=".xlsx,.xls" hidden />
+          <button id="riwayatImportBtn">⬆ Upload Riwayat Transaksi</button>
+        </div>
+        <div class="status" id="riwayatStatus"></div>
+      </div>
+
       <!-- SALES IMPORT -->
       <div class="card">
         <h2>💰 Sales Import</h2>
@@ -159,6 +177,28 @@
         } catch { document.getElementById(statusId).textContent = 'Failed'; }
       });
     }
+
+    // Riwayat Transaksi gets a richer status (unmatched products, out-of-stock
+    // ingredients) instead of the generic one-line importer.
+    document.getElementById('riwayatImportBtn').addEventListener('click', ()=>document.getElementById('riwayatFile').click());
+    document.getElementById('riwayatFile').addEventListener('change', async ()=>{
+      const f = document.getElementById('riwayatFile').files[0]; if (!f) return;
+      const statusEl = document.getElementById('riwayatStatus');
+      statusEl.textContent = 'Importing…';
+      const fd = new FormData(); fd.append('file', f);
+      try {
+        const r = await fetch('/api/import/riwayat', { method:'POST', headers:h, body:fd });
+        const d = await r.json();
+        if (!r.ok) { statusEl.textContent = d.error || 'Import failed'; return; }
+        const unmatchedNames = Object.keys(d.unmatchedProducts||{});
+        let html = `<div>${d.message}</div>`;
+        if (d.duplicateReceiptsSkipped) html += `<div>Skipped ${d.duplicateReceiptsSkipped} already-imported receipt(s).</div>`;
+        if (d.cancelledLinesSkipped) html += `<div>Skipped ${d.cancelledLinesSkipped} cancelled line(s).</div>`;
+        if (unmatchedNames.length) html += `<div style="color:var(--danger)">Unmatched products (add to menu or fix aliases): ${unmatchedNames.join(', ')}</div>`;
+        if (d.outOfStock && d.outOfStock.length) html += `<div style="color:var(--danger)">Out of stock — needs restock: ${d.outOfStock.join(', ')}</div>`;
+        statusEl.innerHTML = html;
+      } catch { statusEl.textContent = 'Failed'; }
+    });
 
     importer('salesImportBtn', 'salesFile', 'salesStatus', '/api/import/sales');
     importer('purchaseImportBtn', 'purchaseFile', 'purchaseStatus', '/api/import/purchases');

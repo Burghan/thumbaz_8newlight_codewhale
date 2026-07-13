@@ -5,8 +5,10 @@ const router = express.Router();
 // List transactions with items.
 router.get('/', (req, res) => {
   const date = req.query.date || '';
+  // transacted_at is a full timestamp ('YYYY-MM-DD HH:MM:SS'); a plain date
+  // string would never exact-match it, so this filters by calendar day.
   let where = '';
-  if (date) where = `WHERE t.transacted_at = ?`;
+  if (date) where = `WHERE date(t.transacted_at) = ?`;
   const rows = db.prepare(`
     SELECT t.id, t.transacted_at AS date, t.payment_method, t.reference, t.notes,
            ti.id AS item_id, ti.product_id, p.name AS product_name,
@@ -36,13 +38,16 @@ router.get('/', (req, res) => {
 // Daily summary.
 router.get('/daily-summary', (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0, 7);
+  // Group by calendar day, not the full timestamp — transacted_at includes a
+  // time component, so grouping by it directly produced one row per
+  // transaction instead of one row per day.
   const rows = db.prepare(`
-    SELECT t.transacted_at AS date, SUM(ti.line_total) AS revenue, COUNT(DISTINCT t.id) AS txns,
+    SELECT date(t.transacted_at) AS date, SUM(ti.line_total) AS revenue, COUNT(DISTINCT t.id) AS txns,
            SUM(ti.quantity) AS items_sold
     FROM transactions t
     JOIN transaction_items ti ON ti.transaction_id = t.id
     WHERE strftime('%Y-%m', t.transacted_at) = ?
-    GROUP BY t.transacted_at ORDER BY t.transacted_at
+    GROUP BY date(t.transacted_at) ORDER BY date(t.transacted_at)
   `).all(month);
   res.json(rows);
 });
