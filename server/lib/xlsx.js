@@ -1,5 +1,24 @@
 // Small helpers for reading messy Excel workbooks (formula cells, spacing, units).
 const ExcelJS = require('exceljs');
+const XLSX = require('xlsx');
+
+// Load an ExcelJS workbook from an uploaded buffer, accepting BOTH modern .xlsx
+// and legacy .xls (BIFF). ExcelJS only reads .xlsx, so .xls files (e.g. the POS
+// transaction export) are first converted to an .xlsx buffer via SheetJS.
+// Detection is by magic bytes: .xls is an OLE compound file (D0 CF 11 E0);
+// .xlsx is a ZIP (PK\x03\x04).
+async function loadWorkbookFromBuffer(buffer) {
+  const isOle = buffer && buffer.length >= 4 &&
+    buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0;
+  let xlsxBuffer = buffer;
+  if (isOle) {
+    const wb = XLSX.read(buffer, { type: 'buffer' });
+    xlsxBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  }
+  const out = new ExcelJS.Workbook();
+  await out.xlsx.load(xlsxBuffer);
+  return out;
+}
 
 // Resolve a cell to a plain value, unwrapping formula/date/richtext objects.
 function cellValue(cell) {
@@ -56,4 +75,4 @@ function readSheet(ws, headerRow = 1) {
   return rows;
 }
 
-module.exports = { cellValue, normName, normUnit, loadWorkbook, readSheet };
+module.exports = { cellValue, normName, normUnit, loadWorkbook, loadWorkbookFromBuffer, readSheet };

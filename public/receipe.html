@@ -162,6 +162,16 @@
 
     let allRecipeData = [], currentRecipePid = null;
 
+    // Recipes are for ingredient-built drinks only. Food/snack/resale items live
+    // in the Menu but never have an ingredient recipe, so hide them here.
+    // 'Custom' is excluded too — Custom Item is an on-the-fly recipe at POS time.
+    const NON_RECIPE_CATEGORIES = ['Snack', 'Speciality', 'Air Mineral', 'Custom'];
+    function isRecipeProduct(p) {
+      if (p.is_resale) return false;
+      if (NON_RECIPE_CATEGORIES.includes(String(p.category || ''))) return false;
+      return true;
+    }
+
     function formatRupiah(v) {
       if (v === null || v === undefined || v === '') return '—';
       return `Rp ${Math.round(Number(v||0)).toLocaleString('id-ID')}`;
@@ -172,7 +182,7 @@
       try{
         const res=await fetch('/api/recipes/all',{headers:authHeaders(),credentials:'same-origin'});
         if(!res.ok)throw new Error();
-        allRecipeData=await res.json();
+        allRecipeData=(await res.json()).filter(isRecipeProduct);
         const cats=new Set();allRecipeData.forEach(p=>{if(p.category)cats.add(p.category);});
         recipeCatFilter.innerHTML='<option value="">All Categories</option>';
         [...cats].sort().forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;recipeCatFilter.appendChild(o);});

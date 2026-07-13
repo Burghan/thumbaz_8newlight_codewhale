@@ -2,7 +2,8 @@ const express = require('express');
 const multer = require('multer');
 const ExcelJS = require('exceljs');
 const db = require('../db');
-const { cellValue, normName } = require('../lib/xlsx');
+const { cellValue, normName, loadWorkbookFromBuffer } = require('../lib/xlsx');
+const { buildProductMatcher } = require('../lib/productMatch');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -22,13 +23,23 @@ const intOf = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// Normalize a date cell to YYYY-MM-DD. Handles Date objects and the transaction
+// export's DD-MM-YYYY strings; otherwise returns the first 10 chars as-is.
+const normDate = (v) => {
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  const s = String(v == null ? '' : v).trim();
+  const m = s.match(/^(\d{2})-(\d{2})-(\d{4})/); // DD-MM-YYYY
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return s.slice(0, 10);
+};
+
 // POST /api/import/menu — upload the Products sheet to bulk-upsert menu items by name (+variant).
 router.post('/menu', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   let wb;
   try {
-    wb = await new ExcelJS.Workbook().xlsx.load(req.file.buffer);
+    wb = await loadWorkbookFromBuffer(req.file.buffer);
   } catch {
     return res.status(400).json({ error: 'Could not read the Excel file' });
   }
@@ -100,8 +111,7 @@ router.post('/menu', upload.single('file'), async (req, res) => {
 router.post('/sales', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   try {
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(req.file.buffer);
+    const wb = await loadWorkbookFromBuffer(req.file.buffer);
     // Find a sheet that looks like sales data (has "tanggal" or "date" column)
     let ws = wb.getWorksheet('Daily Sales') || wb.getWorksheet('DailySales');
     if (!ws) {
@@ -120,14 +130,15 @@ router.post('/sales', upload.single('file'), async (req, res) => {
 
     if (!dateCol || !nameCol) return res.status(400).json({ error: 'Missing required columns: Date + Product name' });
 
-    // Pre-load product map
-    const prodMap = new Map();
-    db.prepare('SELECT id, name FROM products WHERE active=1').all().forEach(p => prodMap.set(normName(p.name), p));
+    // Matcher understands the transaction's comma-style / variant naming and maps
+    // it to the DB's canonical dash-style products.
+    const matchProduct = buildProductMatcher(db);
 
     const insTxn = db.prepare("INSERT INTO transactions (transacted_at, payment_method) VALUES (?,'cash')");
     const insItem = db.prepare("INSERT INTO transaction_items (transaction_id, product_id, quantity, unit_price, line_total, hpp_at_sale) VALUES (?,?,?,?,?,0)");
 
     let imported = 0, skipped = 0;
+    const unmatched = new Set();
     const tx = db.transaction(() => {
       ws.eachRow((row, i) => {
         if (i === 1) return;
@@ -137,11 +148,10 @@ router.post('/sales', upload.single('file'), async (req, res) => {
 
         let dateStr;
         if (dateRaw instanceof Date) dateStr = dateRaw.toISOString().slice(0,10);
-        else dateStr = String(dateRaw).trim().slice(0,10);
+        else dateStr = normDate(dateRaw);
 
-        const nameKey = normName(nameRaw);
-        const product = prodMap.get(nameKey);
-        if (!product) { skipped++; return; }
+        const product = matchProduct(nameRaw);
+        if (!product) { unmatched.add(String(nameRaw).trim()); skipped++; return; }
 
         const qty = qtyCol ? (Number(row.getCell(qtyCol).value)||1) : 1;
         const price = priceCol ? Math.round(Number(row.getCell(priceCol).value)||0) : 0;
@@ -153,7 +163,10 @@ router.post('/sales', upload.single('file'), async (req, res) => {
     });
     tx();
 
-    res.json({ message: `Imported: ${imported} sales, ${skipped} skipped (unmatched products)` });
+    res.json({
+      message: `Imported: ${imported} sales, ${skipped} skipped (unmatched products)`,
+      imported, skipped, unmatched: [...unmatched]
+    });
   } catch (e) {
     res.status(500).json({ error: 'Import failed: ' + e.message });
   }
@@ -166,7 +179,7 @@ module.exports = router;
 router.post('/recipes', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   try {
-    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(req.file.buffer);
+    const wb = await loadWorkbookFromBuffer(req.file.buffer);
     const ws = wb.getWorksheet('Recipes') || wb.getWorksheet('Recipe') || wb.worksheets[0];
     const hdr = headerMap(ws);
     const prodCol = hdr.product || hdr.menu || hdr.nama || hdr['menu item'];
@@ -200,7 +213,7 @@ router.post('/recipes', upload.single('file'), async (req, res) => {
 router.post('/master-report', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   try {
-    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(req.file.buffer);
+    const wb = await loadWorkbookFromBuffer(req.file.buffer);
     let importedSales = 0, updatedIngs = 0;
 
     // 1. Import Sales Detail sheet
@@ -213,10 +226,7 @@ router.post('/master-report', upload.single('file'), async (req, res) => {
       const priceCol = hdr.price || hdr.harga || hdr['Harga'];
 
       if (dateCol !== undefined && nameCol !== undefined) {
-        const prodMap = new Map();
-        db.prepare('SELECT id, name FROM products WHERE active=1').all().forEach(p => {
-          prodMap.set(normName(p.name), p);
-        });
+        const matchProduct = buildProductMatcher(db);
 
         const insTxn = db.prepare("INSERT INTO transactions (transacted_at, payment_method) VALUES (?,'cash')");
         const insItem = db.prepare("INSERT INTO transaction_items (transaction_id, product_id, quantity, unit_price, line_total, hpp_at_sale) VALUES (?,?,?,?,?,0)");
@@ -229,11 +239,8 @@ router.post('/master-report', upload.single('file'), async (req, res) => {
             const dateRaw = row.getCell(dateCol).value;
             const nameRaw = row.getCell(nameCol).value;
             if (!dateRaw || !nameRaw) return;
-            let dateStr;
-            if (dateRaw instanceof Date) dateStr = dateRaw.toISOString().slice(0,10);
-            else dateStr = String(dateRaw).trim().slice(0,10);
-            const nameKey = normName(nameRaw);
-            const product = prodMap.get(nameKey);
+            const dateStr = normDate(dateRaw);
+            const product = matchProduct(nameRaw);
             if (!product) return;
             const qty = qtyCol !== undefined ? (Number(row.getCell(qtyCol).value)||1) : 1;
             const price = priceCol !== undefined ? Math.round(Number(row.getCell(priceCol).value)||0) : 0;
@@ -298,7 +305,7 @@ router.post('/master-report', upload.single('file'), async (req, res) => {
 router.post('/purchases', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   try {
-    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(req.file.buffer);
+    const wb = await loadWorkbookFromBuffer(req.file.buffer);
     const ws = wb.worksheets[0];
     const hdr = headerMap(ws);
     const ingCol = hdr.ingredient || hdr.bahan || hdr.name;

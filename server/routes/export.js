@@ -89,16 +89,18 @@ router.get('/menu', async (_req, res) => {
 // GET /api/export/recipes — recipe data with costs.
 router.get('/recipes', async (_req, res) => {
   const rows = db.prepare(`
-    SELECT p.name AS product, p.variant, p.category,
+    SELECT p.id AS product_id, p.name AS product, p.variant, p.category,
            i.name AS ingredient, r.quantity, i.base_unit AS unit,
            CAST(i.std_cost_per_base_micro AS REAL)/1e6 AS cost_per_base,
            CAST(r.quantity * i.std_cost_per_base_micro AS REAL)/1e6 AS line_cost,
            (SELECT price FROM product_prices pp WHERE pp.product_id=p.id AND pp.effective_to IS NULL ORDER BY pp.id DESC LIMIT 1) AS price,
            p.labor_cost, p.utility_cost, p.packaging_cost
-    FROM recipes r
-    JOIN products p ON p.id=r.product_id
-    JOIN ingredients i ON i.id=r.ingredient_id
+    FROM products p
+    LEFT JOIN recipes r ON r.product_id=p.id
+    LEFT JOIN ingredients i ON i.id=r.ingredient_id
     WHERE p.active=1
+      AND p.is_resale=0
+      AND COALESCE(p.category,'') NOT IN ('Snack','Speciality','Air Mineral','Custom')
     ORDER BY p.category, p.name, i.name
   `).all();
 
@@ -117,10 +119,42 @@ router.get('/recipes', async (_req, res) => {
     { header: 'Price', key: 'price', width: 14 },
     { header: 'Margin %', key: 'margin', width: 10 }
   ];
-  rows.forEach(r => {
-    const hpp = (r.line_cost||0) + (r.labor_cost||0) + (r.utility_cost||0) + (r.packaging_cost||0);
-    const margin = r.price > 0 ? Math.round((r.price - hpp) / r.price * 100) : '';
-    ws.addRow({ product: r.product, variant: r.variant||'', category: r.category||'', ingredient: r.ingredient, quantity: r.quantity, unit: r.unit, cost_per_base: r.cost_per_base, line_cost: r.line_cost, hpp_total: hpp, price: r.price||0, margin });
+
+  // Group by product so product-level cells (name, variant, category, HPP,
+  // price, margin) appear once as merged cells spanning that product's rows.
+  const groups = [];
+  for (const r of rows) {
+    let g = groups.length && groups[groups.length - 1].id === r.product_id ? groups[groups.length - 1] : null;
+    if (!g) { g = { id: r.product_id, head: r, lines: [] }; groups.push(g); }
+    g.lines.push(r);
+  }
+
+  // Merge the product-level columns (Product, Variant, Category, HPP, Price, Margin).
+  const MERGE_COLS = [1, 2, 3, 9, 10, 11];
+  groups.forEach(g => {
+    const h = g.head;
+    const ingredientCost = g.lines.reduce((s, r) => s + (r.line_cost || 0), 0);
+    const hpp = ingredientCost + (h.labor_cost || 0) + (h.utility_cost || 0) + (h.packaging_cost || 0);
+    const margin = h.price > 0 ? Math.round((h.price - hpp) / h.price * 100) : '';
+    const startRow = ws.rowCount + 1;
+    g.lines.forEach((r, idx) => {
+      ws.addRow({
+        product: idx === 0 ? h.product : '',
+        variant: idx === 0 ? (h.variant || '') : '',
+        category: idx === 0 ? (h.category || '') : '',
+        ingredient: r.ingredient || '',
+        quantity: r.quantity, unit: r.unit,
+        cost_per_base: r.cost_per_base, line_cost: r.line_cost,
+        hpp_total: idx === 0 ? hpp : '',
+        price: idx === 0 ? (h.price || 0) : '',
+        margin: idx === 0 ? margin : ''
+      });
+    });
+    const endRow = ws.rowCount;
+    if (endRow > startRow) {
+      MERGE_COLS.forEach(c => ws.mergeCells(startRow, c, endRow, c));
+    }
+    MERGE_COLS.forEach(c => { ws.getCell(startRow, c).alignment = { vertical: 'top' }; });
   });
   ws.getRow(1).font = { bold: true };
 
