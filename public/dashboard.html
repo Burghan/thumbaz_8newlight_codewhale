@@ -90,6 +90,70 @@
   .mtd-strip .val .delta { font-size:12px; font-weight:600; margin-left:6px; }
   .mtd-strip .val .delta.up { color:var(--positive); } .mtd-strip .val .delta.down { color:var(--danger); }
   .mtd-strip .foot { font-size:11px; color:var(--muted); margin-left:auto; }
+
+  /* Drill-down: clickable KPIs, top-products, chart bars */
+  .kpi.clickable { cursor:pointer; transition:transform .1s, box-shadow .1s; }
+  .kpi.clickable:hover { transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.08); }
+  .kpi .drill-hint { font-size:10px; color:var(--brand-600); margin-top:4px; opacity:0; transition:opacity .1s; }
+  .kpi.clickable:hover .drill-hint { opacity:1; }
+  .prod.clickable { cursor:pointer; border-radius:8px; margin:0 -6px 10px; padding:2px 6px; transition:background .1s; }
+  .prod.clickable:hover { background:var(--cream-soft); }
+  .chart rect.bar { cursor:pointer; }
+  .drill-link { color:var(--brand-600); cursor:pointer; font-weight:600; border-bottom:1px dashed transparent; }
+  .drill-link:hover { border-bottom-color:var(--brand-600); }
+  .pos { color:var(--positive); font-weight:600; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:600; background:#eef2f8; color:var(--brand-700); }
+  .go { display:inline-block; font-size:11px; color:var(--brand-600); border:1px solid var(--border); border-radius:8px; padding:2px 8px; text-decoration:none; white-space:nowrap; }
+  .go:hover { background:#eef2f8; }
+
+  /* Stock alert heatmap — one tile per low/out ingredient, colored by severity */
+  .heat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:6px; }
+  .heat-tile { position:relative; border-radius:8px; padding:8px 9px 7px; color:#fff; cursor:default; transition:transform .1s; }
+  .heat-tile:hover { transform:translateY(-1px); }
+  .heat-tile .heat-badge { position:absolute; top:5px; right:6px; font-size:10px; filter:drop-shadow(0 1px 1px rgba(0,0,0,.3)); }
+  .heat-tile .heat-name { display:block; font-size:11px; font-weight:700; line-height:1.25; margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:14px; }
+  .heat-tile .heat-qty { display:block; font-size:10px; opacity:.9; font-variant-numeric:tabular-nums; }
+
+  /* Slide-over drill-down drawer */
+  .drawer-backdrop { position:fixed; inset:0; background:rgba(20,28,45,.38); opacity:0; pointer-events:none; transition:opacity .2s; z-index:60; }
+  .drawer-backdrop.open { opacity:1; pointer-events:auto; }
+  .drawer { position:fixed; top:0; right:0; height:100%; width:min(480px, 94vw); background:var(--card); box-shadow:-8px 0 30px rgba(0,0,0,.18);
+    transform:translateX(100%); transition:transform .22s ease; z-index:61; display:flex; flex-direction:column; }
+  .drawer.open { transform:translateX(0); }
+  .drawer-head { display:flex; align-items:flex-start; gap:12px; padding:16px 18px; border-bottom:1px solid var(--border); }
+  .drawer-title { font-family:var(--font-brand); font-size:20px; font-weight:700; line-height:1.15; }
+  .drawer-sub { font-size:12px; color:var(--muted); margin-top:3px; }
+  .drawer-close { margin-left:auto; border:none; background:var(--cream-soft); width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:14px; color:var(--brand-ink); }
+  .drawer-close:hover { background:#e6ebf3; }
+  .drawer-body { padding:16px 18px; overflow:auto; }
+  .drawer-body h3 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:18px 0 8px; }
+  .drawer-body h3:first-child { margin-top:0; }
+  .drawer-body table { width:100%; border-collapse:collapse; font-size:13px; }
+  .drawer-body th, .drawer-body td { padding:6px 8px; text-align:left; border-bottom:1px solid var(--border); }
+  .drawer-body th.num, .drawer-body td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .dl-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); }
+  .dl-row .nm { flex:1; min-width:0; }
+  .dl-row .bar { flex:0 0 90px; height:6px; background:var(--cream-soft); border-radius:999px; overflow:hidden; min-width:60px; }
+  .dl-row .bar span { display:block; height:100%; background:var(--brand); border-radius:999px; }
+  .dl-row .amt { font-variant-numeric:tabular-nums; font-weight:600; white-space:nowrap; }
+  .dl-stat { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:4px; }
+  .dl-stat .b { border:1px solid var(--border); border-radius:10px; padding:8px 10px; }
+  .dl-stat .b .l { font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); font-weight:700; }
+  .dl-stat .b .n { font-family:var(--font-brand); font-size:17px; font-weight:700; }
+  .cost-tot { display:flex; justify-content:space-between; padding:8px 0; font-weight:700; border-top:2px solid var(--border); margin-top:2px; }
+  .drawer .go { display:inline-block; margin-top:4px; font-size:11px; color:var(--brand-600); border:1px solid var(--border); border-radius:8px; padding:2px 8px; text-decoration:none; white-space:nowrap; }
+  .drawer .go:hover { background:#eef2f8; }
+  .exp-head { cursor:pointer; font-weight:600; }
+  .exp-head .chev { display:inline-block; width:14px; color:var(--muted); transition:transform .15s; }
+  .exp-cat.open .exp-head .chev { transform:rotate(90deg); }
+  .exp-items { display:none; }
+  .exp-cat.open .exp-items { display:block; }
+  /* Named .dpnl- (not .pnl-) to avoid colliding with the waterfall bars above */
+  .dpnl-row { display:grid; grid-template-columns:1fr auto auto; gap:12px; align-items:baseline; padding:9px 0; border-bottom:1px solid var(--border); }
+  .dpnl-row.strong { font-weight:700; border-bottom:2px solid var(--border); background:var(--cream-soft); margin:0 -8px; padding:9px 8px; border-radius:6px; }
+  .dpnl-lbl { min-width:0; }
+  .dpnl-pct { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; text-align:right; }
+  .dpnl-amt { font-variant-numeric:tabular-nums; white-space:nowrap; }
 </style>
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#5c7da6" />
@@ -139,9 +203,27 @@
     <span class="foot" id="mFoot"></span>
   </div>
 
+  <div class="mtd-strip" id="tvyStrip">
+    <span class="dot" style="background:var(--brand);box-shadow:0 0 0 4px var(--cream-soft);"></span>
+    <div class="item"><span class="lbl" id="tvyTodayLbl">Today</span><span class="val" id="tvyToday">–</span></div>
+    <div class="item"><span class="lbl" id="tvyYestLbl">Yesterday</span><span class="val" id="tvyYesterday">–</span></div>
+    <span class="foot" id="tvyFoot"></span>
+  </div>
+
   <div class="status" id="status">⏳ Loading…</div>
   <div id="view" style="display:none"></div>
+  <div class="panel" id="stockAlertsPanel" style="display:none;margin-top:16px;"></div>
 </div>
+
+<div class="drawer-backdrop" id="drillBackdrop"></div>
+<aside class="drawer" id="drill" aria-hidden="true">
+  <div class="drawer-head">
+    <button class="drawer-close" id="drillBack" aria-label="Back" style="display:none;margin-right:-4px;">←</button>
+    <div><div class="drawer-title" id="drillTitle">—</div><div class="drawer-sub" id="drillSub"></div></div>
+    <button class="drawer-close" id="drillClose" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-body" id="drillBody"></div>
+</aside>
 
 <script src="/auth.js"></script>
   <script src="/pwa.js"></script>
@@ -207,6 +289,91 @@
   loadMTD();
   setInterval(loadMTD, 60000);
 
+  // Today vs yesterday — the "is today going well right now" pulse, distinct
+  // from MTD's month-long trajectory. Refreshes every 60s.
+  async function loadTodayVsYesterday(){
+    try {
+      const d = await jget('/api/reports/today-vs-yesterday');
+      document.getElementById('tvyTodayLbl').textContent = `Today (${d.today_label})`;
+      document.getElementById('tvyYestLbl').textContent = `Yesterday (${d.yesterday_label})`;
+      document.getElementById('tvyToday').innerHTML = Rp(d.today.revenue) + (d.delta_pct == null ? '' :
+        ` <span class="delta ${d.delta_pct>=0?'up':'down'}">${d.delta_pct>=0?'▲':'▼'} ${Math.abs(d.delta_pct)}%</span>`);
+      document.getElementById('tvyYesterday').textContent = Rp(d.yesterday.revenue);
+      document.getElementById('tvyFoot').textContent = `${d.today.orders} orders today vs ${d.yesterday.orders} yesterday`;
+    } catch {}
+  }
+  loadTodayVsYesterday();
+  setInterval(loadTodayVsYesterday, 60000);
+
+  // Stock alerts — low/out-of-stock ingredients + recent manual stock activity.
+  // Lives outside #view (like MTD/Today-vs-Yesterday) so it stays visible and
+  // independently refreshed regardless of the month filter. Reuses the same
+  // Inventory page endpoints/thresholds — no new backend needed.
+  const STOCK_UNIT_FALLBACK = { g: 200, ml: 500, pcs: 5, kg: 1, l: 1 };
+  // Severity tiers combine stock status with whether the ingredient feeds a
+  // top-10 seller — running out of something behind your best-sellers is a
+  // bigger deal than running out of a rarely-used one, even if both are "Out".
+  const HEAT_TIERS = {
+    outCritical:  { cls:'t3', bg:'#8a2c22', label:'Out · top seller' },
+    out:          { cls:'t2', bg:'var(--danger)', label:'Out of stock' },
+    lowCritical:  { cls:'t1', bg:'#c9822b', label:'Low · top seller' },
+    low:          { cls:'t0', bg:'#dba648', label:'Low stock' }
+  };
+  function severityOf(x) {
+    if (x.isOut) return x.isCritical ? HEAT_TIERS.outCritical : HEAT_TIERS.out;
+    return x.isCritical ? HEAT_TIERS.lowCritical : HEAT_TIERS.low;
+  }
+  async function loadStockAlerts(){
+    const panel = document.getElementById('stockAlertsPanel');
+    try {
+      const [stock, moves, criticalMap] = await Promise.all([
+        jget('/api/inventory/on-hand'),
+        jget('/api/inventory/adjustments'),
+        jget('/api/reports/critical-ingredients').catch(() => ({}))
+      ]);
+      const classified = (stock||[]).map(item => {
+        const qty = Number(item.quantity_base||0);
+        const min = item.min_stock > 0 ? Number(item.min_stock) : (STOCK_UNIT_FALLBACK[item.base_unit]||0);
+        const isOut = qty <= 0, isLow = !isOut && min > 0 && qty < min;
+        const criticalProducts = criticalMap[item.ingredient_id] ? [...new Set(criticalMap[item.ingredient_id])] : [];
+        return { ...item, qty, isOut, isLow, isCritical: criticalProducts.length>0, criticalProducts };
+      });
+      // Sort by severity tier (worst first), critical items breaking ties within a tier.
+      const tierRank = { t3:3, t2:2, t1:1, t0:0 };
+      const alerts = classified.filter(x=>x.isOut||x.isLow)
+        .sort((a,b)=> tierRank[severityOf(b).cls]-tierRank[severityOf(a).cls] || (a.qty-b.qty));
+
+      const heatmapHTML = alerts.length ? `<div class="heat-grid">${alerts.map(x=>{
+        const t = severityOf(x);
+        const title = `${x.name}: ${x.qty}${x.base_unit||''} — ${t.label}` + (x.criticalProducts.length ? ` — used in: ${x.criticalProducts.join(', ')}` : '');
+        return `<div class="heat-tile" style="background:${t.bg}" title="${esc(title)}">
+          ${x.isCritical?'<span class="heat-badge">🔥</span>':''}
+          <span class="heat-name">${esc(x.name)}</span>
+          <span class="heat-qty">${x.qty}${esc(x.base_unit||'')}</span>
+        </div>`;
+      }).join('')}</div>`
+        : `<div class="alert good" style="margin:0"><span class="ico">✅</span><span class="msg">All ingredients well stocked.</span></div>`;
+      const alertsHTML = heatmapHTML + (alerts.some(x=>x.isCritical) ? '<div class="foot" style="margin-top:6px">🔥 = used in a top-10 selling product this month</div>' : '');
+
+      const recent = (moves||[]).slice(0,6);
+      const moveTypeLabel = m => m.type === 'opening' ? '📋 Opening' : (m.qty_base >= 0 ? '➕ Added' : '➖ Removed');
+      const movesHTML = recent.length ? recent.map(m=>`
+        <div class="dl-row"><span class="nm">${esc(m.ingredient_name||'')} <span class="foot">${moveTypeLabel(m)}</span></span>
+        <span class="amt ${m.qty_base<0?'neg':'pos'}">${m.qty_base>0?'+':''}${m.qty_base}</span></div>`
+      ).join('') : '<div class="foot">No recent adjustments.</div>';
+
+      panel.innerHTML = `
+        <h2>📦 Stock Alerts <span class="h-note">${alerts.length} ingredient(s) need attention</span></h2>
+        ${alertsHTML}
+        <h2 style="margin-top:16px;font-size:13px;">Recent stock activity</h2>
+        ${movesHTML}
+        <a class="go" href="/inventory.html" style="display:inline-block;margin-top:10px;">→ Open Inventory</a>`;
+      panel.style.display = '';
+    } catch { panel.style.display = 'none'; }
+  }
+  loadStockAlerts();
+  setInterval(loadStockAlerts, 60000);
+
   const isOwner = A.role === 'admin';
   document.getElementById('title').textContent = isOwner ? '👑 Owner Dashboard' : '📊 Dashboard';
   document.getElementById('subtitle').textContent = isOwner
@@ -235,7 +402,7 @@
       const wknd = (dow === 0 || dow === 6) ? ' weekend' : '';
       const day = d.date.slice(8);
       const label = (i % 3 === 0) ? `<text class="axis" x="${x + bw/2}" y="${H-4}" text-anchor="middle">${day}</text>` : '';
-      bars += `<rect class="bar${wknd}" x="${x + 1}" y="${y}" width="${Math.max(bw-2,1)}" height="${Math.max(h,0)}" rx="2"><title>${d.date}: ${Rp(d.revenue)} · ${d.order_count} orders</title></rect>${label}`;
+      bars += `<rect class="bar${wknd}" data-date="${d.date}" x="${x + 1}" y="${y}" width="${Math.max(bw-2,1)}" height="${Math.max(h,0)}" rx="2"><title>${d.date}: ${Rp(d.revenue)} · ${d.order_count} orders — click for orders</title></rect>${label}`;
     });
     return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${g}${bars}</svg>`;
   }
@@ -249,44 +416,305 @@
     </div>`;
   }
 
+  // ---- drill-down drawer (same pattern/endpoints as Analytics) ----
+  const menuLink = name => `/menu.html?q=${encodeURIComponent(name)}`;
+  let products = [], payData = [], dailyData = [], summary = null; // cached for drill-downs
+
+  const drill = document.getElementById('drill');
+  const drillBackdrop = document.getElementById('drillBackdrop');
+  const drillTitle = document.getElementById('drillTitle');
+  const drillSub = document.getElementById('drillSub');
+  const drillBody = document.getElementById('drillBody');
+  const drillBackBtn = document.getElementById('drillBack');
+  function openDrawer(){ drill.classList.add('open'); drill.setAttribute('aria-hidden','false'); drillBackdrop.classList.add('open'); }
+  function closeDrawer(){ drill.classList.remove('open'); drill.setAttribute('aria-hidden','true'); drillBackdrop.classList.remove('open'); drillStack=[]; currentRender=null; drillBackBtn.style.display='none'; }
+  document.getElementById('drillClose').addEventListener('click', closeDrawer);
+  drillBackdrop.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+  // Navigation history within the drawer — lets a drill-down go several levels
+  // deep (e.g. Revenue → day → order) with a real Back step, not just Close.
+  let drillStack = [], currentRender = null;
+  function drillTo(renderFn, isTopLevel) {
+    if (isTopLevel) drillStack = [];
+    else if (currentRender) drillStack.push(currentRender);
+    currentRender = renderFn;
+    renderFn();
+    drillBackBtn.style.display = drillStack.length ? '' : 'none';
+  }
+  function goBack() {
+    const prev = drillStack.pop();
+    if (!prev) return;
+    currentRender = prev;
+    prev();
+    drillBackBtn.style.display = drillStack.length ? '' : 'none';
+  }
+  drillBackBtn.addEventListener('click', goBack);
+
+  function barRow(name, amount, total, extra='') {
+    const w = total > 0 ? Math.round(amount/total*100) : 0;
+    return `<div class="dl-row"><span class="nm">${name}</span><div class="bar"><span style="width:${w}%"></span></div><span class="amt">${Rp(amount)}</span>${extra}</div>`;
+  }
+
+  // delegated clicks for any drill-link or clickable product row (top products, drawer contents).
+  // Clicks originating from INSIDE the drawer push onto the back-stack; clicks
+  // from the main page (top products list) start a fresh top-level view.
+  document.addEventListener('click', e => {
+    const el = e.target.closest('.drill-link, .prod[data-act]'); if (!el) return;
+    const isNested = !!el.closest('#drill');
+    const act = el.getAttribute('data-act');
+    let fn;
+    if (act === 'day') fn = () => drillDay(el.getAttribute('data-date'));
+    else if (act === 'product') fn = () => drillProduct(Number(el.getAttribute('data-id')));
+    else if (act === 'orders') fn = () => drillProductOrders(Number(el.getAttribute('data-id')), el.getAttribute('data-name'));
+    else if (act === 'order') fn = () => drillOrder(Number(el.getAttribute('data-id')));
+    else return;
+    drillTo(fn, !isNested);
+  });
+
+  function drillRevenue() {
+    openDrawer();
+    const c = (summary && summary.current) || {};
+    drillTitle.textContent = 'Revenue breakdown';
+    drillSub.textContent = `${Rp(c.revenue)} · ${c.order_count||0} orders`;
+    const catMap = {}; products.forEach(p => { const k = p.category||'Uncategorized'; catMap[k] = (catMap[k]||0) + p.revenue; });
+    const cats = Object.entries(catMap).sort((a,b)=>b[1]-a[1]); const catTotal = cats.reduce((s,[,v])=>s+v,0)||1;
+    const top = products.slice().sort((a,b)=>b.revenue-a.revenue).slice(0,8); const prodTotal = products.reduce((s,p)=>s+p.revenue,0)||1;
+    const payTotal = payData.reduce((s,p)=>s+p.revenue,0)||1;
+    // Chronological (most recent first), not just top-by-revenue — this is the
+    // monthly → daily step of the drill chain, so every day needs to be reachable.
+    const days = (dailyData||[]).slice().sort((a,b)=>b.date.localeCompare(a.date)); const dayTotal = (dailyData||[]).reduce((s,d)=>s+d.revenue,0)||1;
+    drillBody.innerHTML = `
+      <h3>By category</h3>${cats.map(([n,v])=>barRow(esc(n),v,catTotal)).join('')||'<div class="foot">No data</div>'}
+      <h3>Top products</h3>${top.map(p=>`<div class="dl-row"><span class="nm"><span class="drill-link" data-act="product" data-id="${p.id}">${esc(p.name)}</span></span><div class="bar"><span style="width:${Math.round(p.revenue/prodTotal*100)}%"></span></div><span class="amt">${Rp(p.revenue)}</span></div>`).join('')||'<div class="foot">No data</div>'}
+      <h3>By payment method</h3>${payData.map(p=>barRow(esc((p.method||'?').toUpperCase()),p.revenue,payTotal,` <span class="foot">${p.share}%</span>`)).join('')||'<div class="foot">No data</div>'}
+      <h3>By day <span class="foot" style="text-transform:none;letter-spacing:0">— click a day for its orders</span></h3>
+      ${days.map(d=>`<div class="dl-row"><span class="nm"><span class="drill-link" data-act="day" data-date="${d.date}">${d.date}</span></span><div class="bar"><span style="width:${Math.round(d.revenue/dayTotal*100)}%"></span></div><span class="amt">${Rp(d.revenue)}</span></div>`).join('')||'<div class="foot">No data</div>'}`;
+  }
+
+  async function drillProduct(id) {
+    openDrawer();
+    drillTitle.textContent = 'Loading…'; drillSub.textContent = ''; drillBody.innerHTML = '<div class="foot">Loading…</div>';
+    try {
+      const d = await jget('/api/reports/product-detail?id=' + id + '&month=' + monthSel.value);
+      const p = d.product;
+      drillTitle.textContent = p.name;
+      drillSub.textContent = `${p.category||'—'}${p.variant?' · '+p.variant:''}${p.is_resale?' · resale':''}`;
+      const costLines = p.is_resale
+        ? `<div class="dl-row"><span class="nm">Buying price (resale)</span><span class="amt">${Rp(d.resale_cost)}</span></div>`
+        : (d.recipe.length ? d.recipe.map(r=>`<div class="dl-row"><span class="nm">${esc(r.name)} <span class="foot">${r.quantity} ${esc(r.base_unit)}</span></span><span class="amt">${Rp(r.cost)}</span></div>`).join('') : '<div class="foot">No recipe defined</div>');
+      const extra = [['Labor',p.labor_cost],['Utility',p.utility_cost],['Packaging',p.packaging_cost]].filter(([,v])=>v>0)
+        .map(([l,v])=>`<div class="dl-row"><span class="nm">${l}</span><span class="amt">${Rp(v)}</span></div>`).join('');
+      drillBody.innerHTML = `
+        <div class="dl-stat">
+          <div class="b"><div class="l">Price</div><div class="n">${Rp(p.price)}</div></div>
+          <div class="b"><div class="l">COGS</div><div class="n">${Rp(d.total_cogs)}</div></div>
+          <div class="b"><div class="l">Margin</div><div class="n ${d.margin_pct<0?'neg':'pos'}">${d.margin_pct}%</div></div>
+        </div>
+        <h3>Cost breakdown</h3>${costLines}${extra}
+        <div class="cost-tot"><span>Total COGS</span><span>${Rp(d.total_cogs)}</span></div>
+        <h3>This month (${monthSel.value})</h3>
+        <div class="dl-stat">
+          <div class="b"><div class="l">Sold</div><div class="n">${d.stats.qty}×</div></div>
+          <div class="b"><div class="l">Revenue</div><div class="n">${Rp(d.stats.revenue)}</div></div>
+          <div class="b"><div class="l">Orders</div><div class="n">${d.stats.orders}</div></div>
+        </div>
+        <h3>Sold on these days</h3>
+        ${d.by_day.length ? d.by_day.slice().reverse().map(x=>`<div class="dl-row"><span class="nm">${x.date}</span><span class="foot">${x.qty}×</span><span class="amt">${Rp(x.revenue)}</span></div>`).join('') : '<div class="foot">No sales this month</div>'}
+        <a class="go" href="${menuLink(p.name)}">✎ Edit in Menu Items</a>`;
+    } catch(e) { drillBody.innerHTML = '<div class="err">❌ ' + esc(e.message) + '</div>'; }
+  }
+
+  async function drillProductOrders(id, name) {
+    openDrawer();
+    drillTitle.textContent = name||'Orders'; drillSub.textContent = 'Orders this month'; drillBody.innerHTML = '<div class="foot">Loading…</div>';
+    try {
+      const rows = await jget('/api/reports/product-orders?id=' + id + '&month=' + monthSel.value);
+      if (!rows.length) { drillBody.innerHTML = '<div class="foot">No orders this month</div>'; return; }
+      const totQty = rows.reduce((s,r)=>s+r.quantity,0), totRev = rows.reduce((s,r)=>s+r.line_total,0);
+      drillSub.textContent = `${rows.length} orders · ${totQty}× · ${Rp(totRev)}`;
+      drillBody.innerHTML = `<table><thead><tr><th>Date</th><th>Order</th><th class="num">Qty</th><th class="num">Total</th><th>Pay</th></tr></thead><tbody>${
+        rows.map(r=>`<tr><td>${r.date}</td><td><span class="drill-link" data-act="order" data-id="${r.order_id}">#${r.order_id}</span></td><td class="num">${r.quantity}×</td><td class="num">${Rp(r.line_total)}</td><td><span class="pill">${esc(r.payment_method||'—')}</span></td></tr>`).join('')
+      }</tbody></table>
+      <a class="go" href="${menuLink(name)}" style="display:inline-block;margin-top:12px">✎ Edit in Menu Items</a>`;
+    } catch(e) { drillBody.innerHTML = '<div class="err">❌ ' + esc(e.message) + '</div>'; }
+  }
+
+  function drillCogs() {
+    openDrawer();
+    const c = (summary && summary.current) || {};
+    drillTitle.textContent = 'COGS breakdown';
+    drillSub.textContent = `${Rp(c.cost)} cost · ${Rp(c.revenue)} revenue → ${Rp((c.revenue||0)-(c.cost||0))} gross`;
+    const withCogs = products.filter(p=>p.cogs>0).sort((a,b)=>b.cogs-a.cogs);
+    const total = withCogs.reduce((s,p)=>s+p.cogs,0)||1;
+    drillBody.innerHTML = `
+      <div class="foot" style="margin-bottom:8px">Cost of goods sold, by product (highest first). Click a product for its recipe costing.</div>
+      <h3>COGS by product</h3>
+      ${withCogs.length ? withCogs.slice(0,20).map(p=>`<div class="dl-row"><span class="nm"><span class="drill-link" data-act="product" data-id="${p.id}">${esc(p.name)}</span> <span class="foot">${p.qty}×</span></span><div class="bar"><span style="width:${Math.round(p.cogs/total*100)}%"></span></div><span class="amt">${Rp(p.cogs)}</span></div>`).join('') : '<div class="foot">No COGS recorded this month</div>'}
+      ${withCogs.length>20?'<div class="foot" style="margin-top:8px">Showing top 20 of '+withCogs.length+' products</div>':''}`;
+  }
+
+  async function drillExpenses() {
+    openDrawer();
+    drillTitle.textContent = 'Expenses breakdown'; drillSub.textContent = ''; drillBody.innerHTML = '<div class="foot">Loading…</div>';
+    try {
+      const d = await jget('/api/reports/expense-breakdown?month=' + monthSel.value);
+      drillSub.textContent = `${Rp(d.total)} across ${d.categories.length} categories`;
+      if (!d.categories.length) { drillBody.innerHTML = '<div class="foot">No expenses this month</div>'; return; }
+      drillBody.innerHTML = `<h3>By category <span class="foot" style="text-transform:none;letter-spacing:0">— click to expand</span></h3>` + d.categories.map(cat => {
+        const items = cat.items.map(it=>`<div class="dl-row" style="padding-left:14px"><span class="nm foot">${esc(it.date)} · ${esc(it.description||'—')}</span><span class="amt foot">${Rp(it.amount)}</span></div>`).join('');
+        return `<div class="exp-cat"><div class="dl-row exp-head">
+            <span class="nm"><span class="chev">▸</span> ${esc(cat.category)} <span class="foot">(${cat.items.length})</span></span>
+            <div class="bar"><span style="width:${Math.round(cat.total/d.total*100)}%"></span></div>
+            <span class="amt">${Rp(cat.total)}</span></div>
+          <div class="exp-items">${items}</div></div>`;
+      }).join('');
+      drillBody.querySelectorAll('.exp-head').forEach(h=>h.addEventListener('click',()=>h.parentNode.classList.toggle('open')));
+    } catch(e) { drillBody.innerHTML = '<div class="err">❌ ' + esc(e.message) + '</div>'; }
+  }
+
+  async function drillOrder(id) {
+    openDrawer();
+    drillTitle.textContent = 'Order #' + id; drillSub.textContent = ''; drillBody.innerHTML = '<div class="foot">Loading…</div>';
+    try {
+      const o = await jget('/api/reports/order/' + id);
+      drillSub.textContent = `${o.date} · ${(o.payment_method||'—')} · ${o.items.length} items`;
+      drillBody.innerHTML = `
+        <h3>Items</h3>
+        <table><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr></thead><tbody>${
+          o.items.map(it=>`<tr><td><span class="drill-link" data-act="product" data-id="${it.product_id}">${esc(it.product_name||'?')}</span></td><td class="num">${it.quantity}×</td><td class="num">${Rp(it.unit_price)}</td><td class="num">${Rp(it.line_total)}</td></tr>`).join('')
+        }</tbody></table>
+        <div class="cost-tot"><span>Order total</span><span>${Rp(o.total)}</span></div>
+        ${o.notes?`<h3>Notes</h3><div class="foot">${esc(o.notes)}</div>`:''}`;
+    } catch(e) { drillBody.innerHTML = '<div class="err">❌ ' + esc(e.message) + '</div>'; }
+  }
+
+  function drillPnl() {
+    openDrawer();
+    const c = (summary && summary.current) || {};
+    const rev=c.revenue||0, cogs=c.cost||0, gross=rev-cogs, exp=c.expenses||0, net=rev-cogs-exp;
+    const mp = n => rev>0 ? Math.round(n/rev*100) : 0;
+    drillTitle.textContent = 'Profit & Loss'; drillSub.textContent = `${monthSel.value} · ${c.order_count||0} orders`;
+    const line = (lbl,val,cls,act,strong) => `<div class="dpnl-row ${strong?'strong':''}">
+        <span class="dpnl-lbl">${act?`<span class="drill-link" data-pnl="${act}">${lbl}</span>`:lbl}</span>
+        <span class="dpnl-pct">${mp(val)}%</span>
+        <span class="dpnl-amt ${cls||''}">${Rp(val)}</span></div>`;
+    drillBody.innerHTML = '<div class="foot" style="margin-bottom:8px">Click Revenue, COGS, or Expenses to drill into each.</div>'
+      + line('Revenue', rev, '', 'revenue')
+      + line('− Cost of goods (COGS)', cogs, 'neg', 'cogs')
+      + line('= Gross Profit', gross, gross<0?'neg':'pos', null, true)
+      + line('− Operating expenses', exp, 'neg', 'expenses')
+      + line('= Net Profit', net, net<0?'neg':'pos', null, true);
+    drillBody.querySelectorAll('[data-pnl]').forEach(el=>el.addEventListener('click',()=>{
+      const t = el.getAttribute('data-pnl');
+      if (t==='revenue') drillTo(drillRevenue); else if (t==='cogs') drillTo(drillCogs); else if (t==='expenses') drillTo(drillExpenses);
+    }));
+  }
+
+  // Day drill-down: summary first (revenue/orders/top products/payment mix).
+  // The raw order-by-order list stays collapsed behind an explicit toggle —
+  // only fetched once (same request) but not shown until asked for, so the
+  // default view answers "how did this day go", not a wall of transactions.
+  async function drillDay(date) {
+    openDrawer();
+    drillTitle.textContent = date; drillSub.textContent = 'Loading…'; drillBody.innerHTML = '<div class="foot">Loading…</div>';
+    try {
+      const orders = await jget('/api/transactions?date=' + encodeURIComponent(date));
+      if (!orders.length) { drillSub.textContent = ''; drillBody.innerHTML = '<div class="foot">No orders on this day</div>'; return; }
+      const totalRev = orders.reduce((s,o)=>s+o.total,0);
+      const itemCount = orders.reduce((s,o)=>s+o.items.reduce((si,it)=>si+it.quantity,0),0);
+      drillSub.textContent = `${orders.length} orders · ${Rp(totalRev)}`;
+
+      const prodMap = new Map(); // id -> {name, qty, revenue}
+      const payMap = new Map(); // method -> {count, revenue}
+      orders.forEach(o => {
+        const pay = o.payment_method || 'unknown';
+        const pv = payMap.get(pay) || { count: 0, revenue: 0 };
+        pv.count++; pv.revenue += o.total; payMap.set(pay, pv);
+        o.items.forEach(it => {
+          const pid = it.product_id;
+          const pv2 = prodMap.get(pid) || { name: it.product_name, qty: 0, revenue: 0 };
+          pv2.qty += it.quantity; pv2.revenue += it.line_total; prodMap.set(pid, pv2);
+        });
+      });
+      const topProducts = [...prodMap.entries()].sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,8);
+      const prodTotal = [...prodMap.values()].reduce((s,v)=>s+v.revenue,0)||1;
+      const payTotal = [...payMap.values()].reduce((s,v)=>s+v.revenue,0)||1;
+
+      const ordersTable = `<table><thead><tr><th>Order</th><th>Items</th><th class="num">Total</th><th>Pay</th></tr></thead><tbody>${
+        orders.map(o=>`<tr><td><span class="drill-link" data-act="order" data-id="${o.id}">#${o.id}</span></td><td>${o.items.map(it=>`${esc(it.product_name||'?')}×${it.quantity}`).join(', ')}</td><td class="num">${Rp(o.total)}</td><td><span class="pill">${esc(o.payment_method||'—')}</span></td></tr>`).join('')
+      }</tbody></table>`;
+
+      drillBody.innerHTML = `
+        <div class="dl-stat">
+          <div class="b"><div class="l">Revenue</div><div class="n">${Rp(totalRev)}</div></div>
+          <div class="b"><div class="l">Orders</div><div class="n">${orders.length}</div></div>
+          <div class="b"><div class="l">Items sold</div><div class="n">${itemCount}</div></div>
+        </div>
+        <h3>Top products</h3>
+        ${topProducts.map(([id,v])=>`<div class="dl-row"><span class="nm"><span class="drill-link" data-act="product" data-id="${id}">${esc(v.name||'?')}</span> <span class="foot">${v.qty}×</span></span><div class="bar"><span style="width:${Math.round(v.revenue/prodTotal*100)}%"></span></div><span class="amt">${Rp(v.revenue)}</span></div>`).join('')}
+        <h3>Payment mix</h3>
+        ${[...payMap.entries()].sort((a,b)=>b[1].revenue-a[1].revenue).map(([m,v])=>`<div class="dl-row"><span class="nm">${esc(m.toUpperCase())} <span class="foot">${v.count}×</span></span><div class="bar"><span style="width:${Math.round(v.revenue/payTotal*100)}%"></span></div><span class="amt">${Rp(v.revenue)}</span></div>`).join('')}
+        <div class="exp-cat">
+          <div class="dl-row exp-head"><span class="nm"><span class="chev">▸</span> View ${orders.length} individual order(s)</span></div>
+          <div class="exp-items">${ordersTable}</div>
+        </div>`;
+      drillBody.querySelectorAll('.exp-head').forEach(h=>h.addEventListener('click',()=>h.parentNode.classList.toggle('open')));
+    } catch(e) { drillBody.innerHTML = '<div class="err">❌ ' + esc(e.message) + '</div>'; }
+  }
+  document.addEventListener('click', e => {
+    const bar = e.target.closest('rect.bar[data-date]'); if (!bar) return;
+    drillTo(() => drillDay(bar.getAttribute('data-date')), true);
+  });
+
   // ---- owner view ----
   async function loadOwner(month) {
-    const [sum, days, top, recipes, inv] = await Promise.all([
+    const [sum, days, top, recipes, inv, prod, pay] = await Promise.all([
       jget('/api/reports/monthly-summary?month=' + month),
       jget('/api/reports/daily?month=' + month).catch(() => []),
       jget('/api/reports/top-products?month=' + month).catch(() => []),
       jget('/api/reports/recipe-costing').catch(() => []),
-      jget('/api/reports/inventory-valuation').catch(() => [])
+      jget('/api/reports/inventory-valuation').catch(() => []),
+      jget('/api/reports/product-sales?month=' + month).catch(() => []),
+      jget('/api/reports/payment-mix?month=' + month).catch(() => [])
     ]);
     const c = sum.current, p = sum.previous;
     const grossCur = c.revenue - c.cost, grossPrev = p.revenue - p.cost;
 
-    // KPI hero
+    // cache for drill-downs
+    summary = sum; products = prod || []; payData = pay || []; dailyData = days || [];
+
+    // KPI hero — each card opens a drill-down with the underlying detail
     const kpis = `<div class="kpis">
-      <div class="kpi hero">
+      <div class="kpi hero clickable" id="revKpi">
         <div class="lbl">Revenue</div><div class="val">${Rp(c.revenue)}</div>
         ${deltaHTML(c.revenue, p.revenue, true)}
         <div class="foot">${c.order_count} orders</div>
+        <div class="drill-hint">click to see where it came from →</div>
       </div>
-      <div class="kpi">
+      <div class="kpi clickable" id="grossKpi">
         <div class="lbl">Gross Profit</div><div class="val ${grossCur<0?'neg':''}">${Rp(grossCur)}</div>
         ${deltaHTML(grossCur, grossPrev, true)}
         <div class="foot">after COGS ${Rp(c.cost)}</div>
+        <div class="drill-hint">what makes up COGS →</div>
       </div>
-      <div class="kpi">
+      <div class="kpi clickable" id="expKpi">
         <div class="lbl">Expenses</div><div class="val">${Rp(c.expenses)}</div>
         ${deltaHTML(c.expenses, p.expenses, false)}
         <div class="foot">${pct(c.expenses, c.revenue)}% of revenue</div>
+        <div class="drill-hint">expenses by category →</div>
       </div>
-      <div class="kpi hero">
+      <div class="kpi hero clickable" id="netKpi">
         <div class="lbl">Net Profit</div><div class="val ${c.profit<0?'neg':''}">${Rp(c.profit)}</div>
         ${deltaHTML(c.profit, p.profit, true)}
         <div class="foot">${c.profit<0?'operating at a loss':'net positive'}</div>
+        <div class="drill-hint">full P&amp;L statement →</div>
       </div>
-      <div class="kpi">
+      <div class="kpi clickable" id="marginKpi">
         <div class="lbl">Net Margin</div><div class="val ${c.margin_pct<0?'neg':''}">${c.margin_pct}%</div>
         ${deltaHTML(c.margin_pct, p.margin_pct, true)}
         <div class="foot">avg order ${Rp(c.order_count? c.revenue/c.order_count:0)}</div>
+        <div class="drill-hint">full P&amp;L statement →</div>
       </div>
     </div>`;
 
@@ -309,7 +737,7 @@
     // top products
     const topMax = Math.max(...top.map(t => t.revenue), 1);
     const topHTML = top.length ? top.map((t, i) => `
-      <div class="prod">
+      <div class="prod clickable" data-act="product" data-id="${t.id}">
         <span class="rank">${i+1}</span>
         <span class="pname" title="${esc(t.name)}">${esc(t.name)}</span>
         <span class="pbar"><span style="width:${t.revenue/topMax*100}%"></span></span>
@@ -338,6 +766,13 @@
     </div>`;
 
     viewEl.innerHTML = kpis + mid + bottom;
+
+    // wire KPI drill-downs (elements just created above)
+    document.getElementById('revKpi').addEventListener('click', () => drillTo(drillRevenue, true));
+    document.getElementById('grossKpi').addEventListener('click', () => drillTo(drillCogs, true));
+    document.getElementById('expKpi').addEventListener('click', () => drillTo(drillExpenses, true));
+    document.getElementById('netKpi').addEventListener('click', () => drillTo(drillPnl, true));
+    document.getElementById('marginKpi').addEventListener('click', () => drillTo(drillPnl, true));
   }
 
   // ---- simple view (manager / staff) ----

@@ -2,6 +2,36 @@ const express = require('express');
 const db = require('../db');
 const router = express.Router();
 
+// ---- Today vs yesterday — the "is today going well right now" pulse check,
+// distinct from MTD's month-long trajectory. Dates derived from local calendar
+// parts (not toISOString/SQLite date('now'), both UTC) — same fix as /mtd.
+router.get('/today-vs-yesterday', (req, res) => {
+  const now = new Date();
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const todayStr = fmt(now);
+  const y = new Date(now); y.setDate(y.getDate() - 1);
+  const yestStr = fmt(y);
+
+  function figures(dateStr) {
+    const r = db.prepare(`SELECT COALESCE(SUM(ti.line_total),0) AS revenue,
+      COALESCE(SUM(CASE WHEN p.is_resale THEN COALESCE((SELECT ri.std_cost_per_base_micro FROM ingredients ri WHERE ri.id=p.resale_ingredient_id),0)/1e6
+      ELSE COALESCE((SELECT ROUND(SUM(r2.quantity*i2.std_cost_per_base_micro)/1e6) FROM recipes r2 JOIN ingredients i2 ON i2.id=r2.ingredient_id WHERE r2.product_id=p.id),0) END * ti.quantity),0) AS cogs,
+      COUNT(DISTINCT t.id) AS orders
+      FROM transactions t JOIN transaction_items ti ON ti.transaction_id=t.id JOIN products p ON p.id=ti.product_id
+      WHERE date(t.transacted_at) = ?`).get(dateStr);
+    const gross = r.revenue - r.cogs;
+    return { date: dateStr, revenue: r.revenue, cogs: r.cogs, gross_profit: gross, orders: r.orders,
+             margin_pct: r.revenue > 0 ? Math.round(gross / r.revenue * 100) : 0 };
+  }
+
+  const today = figures(todayStr), yesterday = figures(yestStr);
+  const deltaPct = yesterday.revenue > 0 ? Math.round((today.revenue - yesterday.revenue) / yesterday.revenue * 100) : null;
+
+  res.json({ today, yesterday, delta_pct: deltaPct,
+    today_label: now.toLocaleDateString('en', { weekday: 'long' }),
+    yesterday_label: y.toLocaleDateString('en', { weekday: 'long' }) });
+});
+
 // ---- Live "month-to-date" snapshot — unlike the monthly reports this needs no
 // filter, it's always the server's current month from day 1 through today. Meant
 // for a Dashboard/Analytics card that stays live regardless of the month picker.
@@ -100,7 +130,11 @@ router.get('/monthly', (req, res) => {
 // ---- Daily breakdown ----
 router.get('/daily', (req, res) => {
   const month = req.query.month||new Date().toISOString().slice(0,7);
-  const rows = db.prepare(`SELECT t.transacted_at AS date, SUM(ti.line_total) AS revenue, COUNT(DISTINCT t.id) AS order_count FROM transactions t JOIN transaction_items ti ON ti.transaction_id=t.id WHERE strftime('%Y-%m',t.transacted_at)=? GROUP BY t.transacted_at ORDER BY t.transacted_at`).all(month);
+  // Group by calendar day, not the full timestamp — same bug as daily-summary
+  // and cashflow's salesBy: transacted_at includes a time component, so grouping
+  // by it directly produced one row per transaction instead of one per day, and
+  // downstream drill-downs (matching date(t.transacted_at)) never matched.
+  const rows = db.prepare(`SELECT date(t.transacted_at) AS date, SUM(ti.line_total) AS revenue, COUNT(DISTINCT t.id) AS order_count FROM transactions t JOIN transaction_items ti ON ti.transaction_id=t.id WHERE strftime('%Y-%m',t.transacted_at)=? GROUP BY date(t.transacted_at) ORDER BY date(t.transacted_at)`).all(month);
   res.json(rows);
 });
 
@@ -147,7 +181,31 @@ router.get('/product-sales', (req, res) => {
 // ---- Top products by sales ----
 router.get('/top-products', (req, res) => {
   const month = req.query.month||new Date().toISOString().slice(0,7);
-  res.json(db.prepare(`SELECT p.name,SUM(ti.quantity) AS qty,SUM(ti.line_total) AS revenue FROM transaction_items ti JOIN transactions t ON t.id=ti.transaction_id JOIN products p ON p.id=ti.product_id WHERE strftime('%Y-%m',t.transacted_at)=? GROUP BY p.id ORDER BY revenue DESC LIMIT 5`).all(month));
+  res.json(db.prepare(`SELECT p.id,p.name,SUM(ti.quantity) AS qty,SUM(ti.line_total) AS revenue FROM transaction_items ti JOIN transactions t ON t.id=ti.transaction_id JOIN products p ON p.id=ti.product_id WHERE strftime('%Y-%m',t.transacted_at)=? GROUP BY p.id ORDER BY revenue DESC LIMIT 5`).all(month));
+});
+
+// ---- Which ingredients feed the top-selling products — for prioritizing
+// stock alerts. Running out of an ingredient behind a top-10 seller is a much
+// bigger deal than running out of one used only in a rarely-sold item.
+router.get('/critical-ingredients', (req, res) => {
+  const month = req.query.month || new Date().toISOString().slice(0, 7);
+  const limit = Number(req.query.limit) || 10;
+  const rows = db.prepare(`
+    WITH top AS (
+      SELECT p.id, p.name, SUM(ti.line_total) AS rev
+      FROM transaction_items ti JOIN transactions t ON t.id=ti.transaction_id JOIN products p ON p.id=ti.product_id
+      WHERE strftime('%Y-%m', t.transacted_at) = ?
+      GROUP BY p.id ORDER BY rev DESC LIMIT ?
+    )
+    SELECT r.ingredient_id, top.name AS product_name, top.rev
+    FROM recipes r JOIN top ON top.id = r.product_id
+    ORDER BY top.rev DESC
+  `).all(month, limit);
+  const map = {};
+  rows.forEach(r => {
+    (map[r.ingredient_id] = map[r.ingredient_id] || []).push(r.product_name);
+  });
+  res.json(map); // { "<ingredient_id>": ["Product A", "Product B", ...] }
 });
 
 // ---- Product detail (drill-down: costing breakdown + monthly sales) ----
