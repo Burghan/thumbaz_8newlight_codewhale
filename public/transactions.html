@@ -53,18 +53,19 @@
   .pager button { padding:6px 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); cursor:pointer; font-size:13px; }
   .pager button:disabled { opacity:.4; cursor:not-allowed; }
 
-  /* Slide-over drawer (same pattern as Dashboard/Analytics) */
-  .drawer-backdrop { position:fixed; inset:0; background:rgba(20,28,45,.38); opacity:0; pointer-events:none; transition:opacity .2s; z-index:60; }
+  /* Centered drill-down modal (same pattern as Dashboard/Analytics) */
+  .drawer-backdrop { position:fixed; inset:0; background:rgba(20,28,45,.45); opacity:0; pointer-events:none; transition:opacity .2s; z-index:60; }
   .drawer-backdrop.open { opacity:1; pointer-events:auto; }
-  .drawer { position:fixed; top:0; right:0; height:100%; width:min(480px, 94vw); background:var(--card); box-shadow:-8px 0 30px rgba(0,0,0,.18);
-    transform:translateX(100%); transition:transform .22s ease; z-index:61; display:flex; flex-direction:column; }
-  .drawer.open { transform:translateX(0); }
-  .drawer-head { display:flex; align-items:flex-start; gap:12px; padding:16px 18px; border-bottom:1px solid var(--border); }
+  .drawer { position:fixed; top:50%; left:50%; width:min(560px, 92vw); max-height:85vh; background:var(--card);
+    box-shadow:0 24px 64px rgba(0,0,0,.28); border-radius:20px; transform:translate(-50%,-48%) scale(.97); opacity:0;
+    transition:transform .18s ease, opacity .18s ease; z-index:61; display:flex; flex-direction:column; pointer-events:none; }
+  .drawer.open { transform:translate(-50%,-50%) scale(1); opacity:1; pointer-events:auto; }
+  .drawer-head { display:flex; align-items:flex-start; gap:12px; padding:16px 18px; border-bottom:1px solid var(--border); border-radius:20px 20px 0 0; }
   .drawer-title { font-family:var(--font-brand); font-size:20px; font-weight:700; line-height:1.15; }
   .drawer-sub { font-size:12px; color:var(--muted); margin-top:3px; }
   .drawer-close { margin-left:auto; border:none; background:var(--cream-soft); width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:14px; color:var(--brand-ink); }
   .drawer-close:hover { background:#e6ebf3; }
-  .drawer-body { padding:16px 18px; overflow:auto; }
+  .drawer-body { padding:16px 18px; overflow:auto; border-radius:0 0 20px 20px; }
   .drawer-body h3 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:18px 0 8px; }
   .drawer-body h3:first-child { margin-top:0; }
   .drawer-body table { width:100%; }
@@ -199,12 +200,17 @@
         fPayment = document.getElementById('fPayment'), fProduct = document.getElementById('fProduct'),
         qEl = document.getElementById('q');
 
-  // Default range: current month, so the page opens to something relevant.
+  // Default range: current month, unless the page was opened with filters in
+  // the URL (e.g. "View all transactions" links from a KPI drill-down).
+  const urlParams = new URLSearchParams(location.search);
   (function defaultRange(){
     const now = new Date();
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
-    state.from = fFrom.value = first.toISOString().slice(0,10);
-    state.to = fTo.value = now.toISOString().slice(0,10);
+    state.from = fFrom.value = urlParams.get('from') || first.toISOString().slice(0,10);
+    state.to = fTo.value = urlParams.get('to') || now.toISOString().slice(0,10);
+    if (urlParams.get('payment_method')) state.payment_method = fPayment.value = urlParams.get('payment_method');
+    if (urlParams.get('q')) state.q = qEl.value = urlParams.get('q');
+    if (urlParams.get('product_id')) state.product_id = urlParams.get('product_id');
   })();
 
   let productsById = new Map(), productsByName = new Map();
@@ -217,6 +223,9 @@
         productsByName.set(p.name, p.id);
         const o = document.createElement('option'); o.value = p.name; dl.appendChild(o);
       });
+      if (state.product_id && productsById.has(Number(state.product_id))) {
+        fProduct.value = productsById.get(Number(state.product_id));
+      }
     } catch {}
   }
 

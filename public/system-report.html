@@ -122,19 +122,20 @@
     .kpi .drill-hint { font-size: 10px; color: var(--brand-600); margin-top: 4px; opacity: 0; transition: opacity .1s; }
     .kpi.clickable:hover .drill-hint { opacity: 1; }
 
-    /* Slide-over drawer */
-    .drawer-backdrop { position: fixed; inset: 0; background: rgba(20,28,45,.38); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 60; }
+    /* Centered drill-down modal */
+    .drawer-backdrop { position: fixed; inset: 0; background: rgba(20,28,45,.45); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 60; }
     .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
-    .drawer { position: fixed; top: 0; right: 0; height: 100%; width: min(480px, 94vw); background: var(--card); box-shadow: -8px 0 30px rgba(0,0,0,.18);
-      transform: translateX(100%); transition: transform .22s ease; z-index: 61; display: flex; flex-direction: column; }
-    .drawer.wide { width: min(820px, 96vw); }
-    .drawer.open { transform: translateX(0); }
-    .drawer-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+    .drawer { position: fixed; top: 50%; left: 50%; width: min(560px, 92vw); max-height: 85vh; background: var(--card);
+      box-shadow: 0 24px 64px rgba(0,0,0,.28); border-radius: 20px; transform: translate(-50%,-48%) scale(.97); opacity: 0;
+      transition: transform .18s ease, opacity .18s ease; z-index: 61; display: flex; flex-direction: column; pointer-events: none; }
+    .drawer.wide { width: min(880px, 96vw); }
+    .drawer.open { transform: translate(-50%,-50%) scale(1); opacity: 1; pointer-events: auto; }
+    .drawer-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border); border-radius: 20px 20px 0 0; }
     .drawer-title { font-family: var(--font-brand); font-size: 20px; font-weight: 700; line-height: 1.15; }
     .drawer-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
     .drawer-close { margin-left: auto; border: none; background: var(--cream-soft); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--brand-ink); }
     .drawer-close:hover { background: #e6ebf3; }
-    .drawer-body { padding: 16px 18px; overflow: auto; }
+    .drawer-body { padding: 16px 18px; overflow: auto; border-radius: 0 0 20px 20px; }
     .drawer-body h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 18px 0 8px; }
     .drawer-body h3:first-child { margin-top: 0; }
     .drawer-body table { width: 100%; }
@@ -589,7 +590,10 @@
       // Chronological (most recent first), not just top-by-revenue — this is the
       // monthly → daily step of the drill chain, so every day needs to be reachable.
       const days=(dailyData||[]).slice().sort((a,b)=>b.date.localeCompare(a.date)); const dayTotal=(dailyData||[]).reduce((s,d)=>s+d.revenue,0)||1;
+      const [mY, mM] = monthSel.value.split('-').map(Number);
+      const mFrom = `${monthSel.value}-01`, mTo = `${monthSel.value}-${String(new Date(mY, mM, 0).getDate()).padStart(2,'0')}`;
       drillBody.innerHTML = `
+        <a class="go" href="/transactions.html?from=${mFrom}&to=${mTo}" style="display:inline-block;margin-bottom:14px">🧾 View all transactions this month</a>
         <div class="drill-grid-2">
           <div>
             <h3>By category</h3>${cats.map(([n,v])=>barRow(esc(n),v,catTotal)).join('')||'<div class="foot">No data</div>'}
