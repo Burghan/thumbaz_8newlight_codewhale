@@ -45,19 +45,35 @@ router.get('/summary', (_req, res) => {
   res.json(row || { total_items: 0, total_quantity: 0, total_value: 0 });
 });
 
-// List recent adjustments from stock_movements.
-router.get('/adjustments', (_req, res) => {
+// List recent stock movements, filterable by source. Default stays
+// manual-only (adjustment/opening) for existing callers (Dashboard's "recent
+// activity" spotlight, which would otherwise get drowned out by routine
+// per-sale usage rows). Inventory's Recent Movements panel picks a specific
+// source per request — filtering server-side (not a shared "recent N of any
+// type" window) so e.g. "Purchases" still finds the last purchases even
+// though sales vastly outnumber them and would otherwise push purchases out
+// of a combined recency window.
+const MOVE_TYPE_CLAUSES = {
+  all: `sm.type IN ('adjustment', 'opening', 'usage', 'purchase', 'transfer_in', 'transfer_out')`,
+  sale: `sm.type = 'usage'`,
+  purchase: `sm.type = 'purchase'`,
+  manual: `sm.type IN ('adjustment', 'opening', 'transfer_in', 'transfer_out')`,
+};
+router.get('/adjustments', (req, res) => {
+  const typeClause = MOVE_TYPE_CLAUSES[req.query.type] || `sm.type IN ('adjustment', 'opening')`;
+  const limit = Math.min(300, Math.max(1, parseInt(req.query.limit, 10) || 100));
   const rows = db.prepare(`
     SELECT sm.id, sm.ingredient_id, i.name AS ingredient_name,
            sm.type, sm.qty_base, sm.unit_cost_micro,
            CAST(sm.unit_cost_micro AS REAL)/1e6 AS unit_cost,
+           sm.ref_type, sm.ref_id,
            sm.note, sm.created_at
     FROM stock_movements sm
     JOIN ingredients i ON i.id = sm.ingredient_id
-    WHERE sm.type IN ('adjustment', 'opening')
+    WHERE ${typeClause}
     ORDER BY sm.created_at DESC
-    LIMIT 100
-  `).all();
+    LIMIT ?
+  `).all(limit);
   res.json(rows);
 });
 

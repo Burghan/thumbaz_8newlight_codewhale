@@ -64,6 +64,13 @@
     .btn-row { display: flex; gap: 6px; }
     .btn-row button { flex: 1; }
     .btn-row input { flex: 1; min-height: 36px; }
+
+    .move-filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 8px; }
+    .move-chip { width: auto; margin-top: 0; padding: 5px 10px; font-size: 12px; font-weight: 600;
+      background: var(--card); color: var(--muted); border: 1px solid var(--border); border-radius: 999px; }
+    .move-chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+    .move-src-link { color: var(--brand-600); text-decoration: none; font-weight: 600; }
+    .move-src-link:hover { text-decoration: underline; }
   </style>
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#5c7da6" />
@@ -160,8 +167,14 @@
         <!-- Recent Movements -->
         <div class="card stat-card" style="flex:1;min-height:0;">
           <div class="stat-card-header"><strong style="color:var(--accent);">Recent Movements</strong></div>
+          <div class="move-filters" id="moveFilters">
+            <button type="button" class="move-chip on" data-src="all">All</button>
+            <button type="button" class="move-chip" data-src="sale">📤 Sales</button>
+            <button type="button" class="move-chip" data-src="purchase">📥 Purchases</button>
+            <button type="button" class="move-chip" data-src="manual">🔧 Adjustments</button>
+          </div>
           <div class="table-wrap"><div class="list-scroll">
-            <table><thead><tr><th>Ingredient</th><th>Type</th><th class="num">Qty</th><th>Note</th></tr></thead>
+            <table><thead><tr><th>Ingredient</th><th>Type</th><th class="num">Qty</th><th>Note / Source</th></tr></thead>
             <tbody id="moveRows"><tr><td colspan="4">Loading…</td></tr></tbody></table>
           </div></div>
         </div>
@@ -188,9 +201,11 @@
     const auth = requireRole(['admin','manager']);
     let allStock = [], thresholds = { Gr: 200, Ml: 500, Pcs: 5 };
     let stockFilter = null; // null | 'out' | 'low' — drill-down from the stat cards
+    let allMoves = [], moveSrcFilter = 'all'; // 'all' | 'sale' | 'purchase' | 'manual'
 
     function formatRp(v) { if(v===null||v===undefined||v==='')return'—'; return 'Rp '+Math.round(Number(v||0)).toLocaleString('id-ID'); }
     function fmtQty(v) { return v!=null ? Number(v).toFixed(2) : '—'; }
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
     async function loadAll() {
       if(!auth)return;
@@ -202,9 +217,10 @@
       allStock = stock || [];
       renderStock(allStock);
 
-      // Movements
-      const moves = await fetch('/api/inventory/adjustments', opts).then(r=>r.json());
-      renderMovements(moves || []);
+      // Movements — source filter (chips below) re-fetches per source rather
+      // than slicing one shared window, so e.g. "Purchases" isn't crowded out
+      // by the much higher volume of per-sale usage rows.
+      await loadMovements();
 
       // Populate adjustment ingredient dropdown
       const ings = await fetch('/api/ingredients', opts).then(r=>r.json());
@@ -307,17 +323,43 @@
       document.getElementById('stockCount').textContent = stockFilter ? `${shown.length} of ${data.length} ingredients` : `${data.length} ingredients`;
     }
 
-    function renderMovements(data) {
+    // Movements come from three real sources: sales (auto-deducted per recipe),
+    // purchases (auto-added when recorded), and manual adjustments/opening/
+    // transfers. Each chip re-fetches its own source from the server rather
+    // than slicing one shared "recent N" window — sales vastly outnumber
+    // purchases, so a shared window would make "Purchases" look empty even
+    // when purchases exist, just further back than the last N of any type.
+    async function loadMovements() {
+      const h = authHeaders();
+      const moves = await fetch(`/api/inventory/adjustments?type=${moveSrcFilter}&limit=50`, { headers: h, credentials: 'same-origin' }).then(r=>r.json());
+      allMoves = moves || [];
+      renderMovements();
+    }
+
+    document.querySelectorAll('.move-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        moveSrcFilter = chip.dataset.src;
+        document.querySelectorAll('.move-chip').forEach(c => c.classList.toggle('on', c === chip));
+        loadMovements();
+      });
+    });
+
+    function renderMovements() {
       const tb = document.getElementById('moveRows'); tb.innerHTML = '';
-      if (!data.length) { tb.innerHTML = '<tr><td colspan="4">No movements yet</td></tr>'; return; }
-      data.slice(0, 50).forEach(m => {
+      if (!allMoves.length) { tb.innerHTML = '<tr><td colspan="4">No movements match this filter</td></tr>'; return; }
+      allMoves.slice(0, 50).forEach(m => {
         const tr = document.createElement('tr');
         const cls = (m.type==='usage'||m.qty_base<0) ? 'out-row' : '';
         if (cls) tr.classList.add(cls);
-        const typeLabel = { purchase: '📥 Buy', usage: '📤 Sale', adjustment: '🔧 Adj', opening: '📋 Open', transfer_in: '🚚 In' }[m.type] || m.type;
-        tr.innerHTML = `<td>${m.ingredient_name||''}</td><td>${typeLabel}</td>
+        const typeLabel = { purchase: '📥 Buy', usage: '📤 Sale', adjustment: '🔧 Adj', opening: '📋 Open', transfer_in: '🚚 In', transfer_out: '🚚 Out' }[m.type] || m.type;
+        // Sales are traceable back to the order that caused them; purchases
+        // and manual entries just show whatever note was recorded.
+        const source = m.ref_type === 'sale' && m.ref_id
+          ? `<a class="move-src-link" href="/transactions.html?q=${m.ref_id}" target="_blank" rel="noopener">via Sale #${m.ref_id}</a>`
+          : esc(m.note || '');
+        tr.innerHTML = `<td>${esc(m.ingredient_name)}</td><td>${typeLabel}</td>
           <td class="num ${m.qty_base<0?'low':''}">${m.qty_base>0?'+':''}${fmtQty(m.qty_base)}</td>
-          <td>${m.note||''}</td>`;
+          <td>${source}</td>`;
         tb.appendChild(tr);
       });
     }
