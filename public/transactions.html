@@ -24,9 +24,10 @@
   /* KPI strip */
   .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
   @media(max-width:760px){ .kpis{ grid-template-columns:repeat(2,1fr); } }
+  @media(max-width:420px){ .kpis{ grid-template-columns:1fr; } }
   .kpi { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 18px; box-shadow:var(--shadow-sm); }
   .kpi .lbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
-  .kpi .val { font-family:var(--font-brand); font-size:22px; font-weight:700; color:var(--brand-ink); margin-top:6px; font-variant-numeric:tabular-nums; }
+  .kpi .val { font-family:var(--font-brand); font-size:22px; font-weight:700; color:var(--brand-ink); margin-top:6px; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
   /* Filters */
   .filters { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 16px; margin-bottom:16px;
@@ -35,8 +36,13 @@
   .filters .fld label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; font-weight:700; }
   .filters input, .filters select { min-height:36px; padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg,#fff); color:var(--ink); }
   .filters #q { min-width:180px; }
-  .filters .clear { background:none; border:1px solid var(--border); border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer; color:var(--muted); }
+  .filters .clear { background:none; border:1px solid var(--border); border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer; color:var(--muted); min-height:36px; }
   .filters .clear:hover { background:var(--cream-soft); }
+  @media (max-width:640px) {
+    .filters { flex-direction:column; align-items:stretch; }
+    .filters .fld, .filters #q, .filters .clear { width:100%; }
+    .filters input, .filters select { min-height:44px; font-size:16px; width:100%; } /* 16px avoids iOS auto-zoom on focus */
+  }
 
   /* Table panel */
   .panel { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:0; box-shadow:var(--shadow-sm); overflow:hidden; }
@@ -49,8 +55,8 @@
   table.tx tbody tr { cursor:pointer; }
   table.tx td.num, table.tx th.num { text-align:right; font-variant-numeric:tabular-nums; }
 
-  .pager { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 16px; border-top:1px solid var(--border); font-size:13px; color:var(--muted); }
-  .pager button { padding:6px 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); cursor:pointer; font-size:13px; }
+  .pager { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 16px; border-top:1px solid var(--border); font-size:13px; color:var(--muted); flex-wrap:wrap; }
+  .pager button { padding:8px 14px; border-radius:8px; border:1px solid var(--border); background:var(--card); cursor:pointer; font-size:13px; min-height:38px; }
   .pager button:disabled { opacity:.4; cursor:not-allowed; }
 
   /* Centered drill-down modal (same pattern as Dashboard/Analytics) */
@@ -72,6 +78,12 @@
   .drawer-body th.num, .drawer-body td.num { text-align:right; font-variant-numeric:tabular-nums; }
   .cost-tot { display:flex; justify-content:space-between; padding:8px 0; font-weight:700; border-top:2px solid var(--border); margin-top:2px; }
 </style>
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#5c7da6" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="8 NewLight" />
 </head>
 <body class="theme-cafe">
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>

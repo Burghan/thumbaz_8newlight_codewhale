@@ -128,7 +128,6 @@
     .drawer { position: fixed; top: 50%; left: 50%; width: min(560px, 92vw); max-height: 85vh; background: var(--card);
       box-shadow: 0 24px 64px rgba(0,0,0,.28); border-radius: 20px; transform: translate(-50%,-48%) scale(.97); opacity: 0;
       transition: transform .18s ease, opacity .18s ease; z-index: 61; display: flex; flex-direction: column; pointer-events: none; }
-    .drawer.wide { width: min(880px, 96vw); }
     .drawer.open { transform: translate(-50%,-50%) scale(1); opacity: 1; pointer-events: auto; }
     .drawer-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border); border-radius: 20px 20px 0 0; }
     .drawer-title { font-family: var(--font-brand); font-size: 20px; font-weight: 700; line-height: 1.15; }
@@ -144,8 +143,6 @@
     .dl-row .bar { flex: 0 0 90px; }
     .dl-row .amt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
     .dl-stat { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 4px; }
-    .drill-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; align-items: start; }
-    @media (max-width: 700px) { .drill-grid-2 { grid-template-columns: 1fr; } }
     .dl-stat .b { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
     .dl-stat .b .l { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 700; }
     .dl-stat .b .n { font-family: var(--font-brand); font-size: 17px; font-weight: 700; }
@@ -543,7 +540,6 @@
       if (isTopLevel) drillStack = [];
       else if (currentRender) drillStack.push(currentRender);
       currentRender = renderFn;
-      drill.classList.remove('wide');
       renderFn();
       drillBackBtn.style.display = drillStack.length ? '' : 'none';
     }
@@ -579,7 +575,6 @@
 
     function drillRevenue(){
       openDrawer();
-      drill.classList.add('wide');
       const c = (summary&&summary.current) || {};
       drillTitle.textContent = 'Revenue breakdown';
       drillSub.textContent = `${Rp(c.revenue)} · ${c.order_count||0} orders`;
@@ -594,17 +589,11 @@
       const mFrom = `${monthSel.value}-01`, mTo = `${monthSel.value}-${String(new Date(mY, mM, 0).getDate()).padStart(2,'0')}`;
       drillBody.innerHTML = `
         <a class="go" href="/transactions.html?from=${mFrom}&to=${mTo}" style="display:inline-block;margin-bottom:14px">🧾 View all transactions this month</a>
-        <div class="drill-grid-2">
-          <div>
-            <h3>By category</h3>${cats.map(([n,v])=>barRow(esc(n),v,catTotal)).join('')||'<div class="foot">No data</div>'}
-            <h3>By payment method</h3>${payData.map(p=>barRow(esc((p.method||'?').toUpperCase()),p.revenue,payTotal,` <span class="foot">${p.share}%</span>`)).join('')||'<div class="foot">No data</div>'}
-          </div>
-          <div>
-            <h3>Top products</h3>${top.map(p=>`<div class="dl-row"><span class="nm"><span class="drill-link" data-act="product" data-id="${p.id}">${esc(p.name)}</span></span><div class="bar"><span style="width:${Math.round(p.revenue/prodTotal*100)}%"></span></div><span class="amt">${Rp(p.revenue)}</span></div>`).join('')||'<div class="foot">No data</div>'}
-            <h3>By day <span class="foot" style="text-transform:none;letter-spacing:0">— click a day for its orders</span></h3>
-            ${days.map(d=>`<div class="dl-row"><span class="nm"><span class="drill-link" data-act="day" data-date="${d.date}">${d.date}</span></span><div class="bar"><span style="width:${Math.round(d.revenue/dayTotal*100)}%"></span></div><span class="amt">${Rp(d.revenue)}</span></div>`).join('')||'<div class="foot">No data</div>'}
-          </div>
-        </div>`;
+        <h3>By category</h3>${cats.map(([n,v])=>barRow(esc(n),v,catTotal)).join('')||'<div class="foot">No data</div>'}
+        <h3>Top products</h3>${top.map(p=>`<div class="dl-row"><span class="nm"><span class="drill-link" data-act="product" data-id="${p.id}">${esc(p.name)}</span></span><div class="bar"><span style="width:${Math.round(p.revenue/prodTotal*100)}%"></span></div><span class="amt">${Rp(p.revenue)}</span></div>`).join('')||'<div class="foot">No data</div>'}
+        <h3>By payment method</h3>${payData.map(p=>barRow(esc((p.method||'?').toUpperCase()),p.revenue,payTotal,` <span class="foot">${p.share}%</span>`)).join('')||'<div class="foot">No data</div>'}
+        <h3>By day <span class="foot" style="text-transform:none;letter-spacing:0">— click a day for its orders</span></h3>
+        ${days.map(d=>`<div class="dl-row"><span class="nm"><span class="drill-link" data-act="day" data-date="${d.date}">${d.date}</span></span><div class="bar"><span style="width:${Math.round(d.revenue/dayTotal*100)}%"></span></div><span class="amt">${Rp(d.revenue)}</span></div>`).join('')||'<div class="foot">No data</div>'}`;
     }
 
     // Day drill-down: summary first (revenue/orders/top products/payment mix).
