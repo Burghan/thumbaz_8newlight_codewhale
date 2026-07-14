@@ -108,7 +108,7 @@
 
   /* Stock alert heatmap — one tile per low/out ingredient, colored by severity */
   .heat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:6px; }
-  .heat-tile { position:relative; border-radius:8px; padding:8px 9px 7px; color:#fff; cursor:default; transition:transform .1s; }
+  .heat-tile { position:relative; border-radius:8px; padding:8px 9px 7px; color:#fff; cursor:pointer; transition:transform .1s; }
   .heat-tile:hover { transform:translateY(-1px); }
   .heat-tile .heat-badge { position:absolute; top:5px; right:6px; font-size:10px; filter:drop-shadow(0 1px 1px rgba(0,0,0,.3)); }
   .heat-tile .heat-name { display:block; font-size:11px; font-weight:700; line-height:1.25; margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:14px; }
@@ -324,6 +324,9 @@
     if (x.isOut) return x.isCritical ? HEAT_TIERS.outCritical : HEAT_TIERS.out;
     return x.isCritical ? HEAT_TIERS.lowCritical : HEAT_TIERS.low;
   }
+  // Cached so drillIngredient() can render instantly without a refetch.
+  let stockClassified = [], stockMoves = [];
+
   async function loadStockAlerts(){
     const panel = document.getElementById('stockAlertsPanel');
     try {
@@ -339,6 +342,7 @@
         const criticalProducts = criticalMap[item.ingredient_id] ? [...new Set(criticalMap[item.ingredient_id])] : [];
         return { ...item, qty, isOut, isLow, isCritical: criticalProducts.length>0, criticalProducts };
       });
+      stockClassified = classified; stockMoves = moves || [];
       // Sort by severity tier (worst first), critical items breaking ties within a tier.
       const tierRank = { t3:3, t2:2, t1:1, t0:0 };
       const alerts = classified.filter(x=>x.isOut||x.isLow)
@@ -347,7 +351,7 @@
       const heatmapHTML = alerts.length ? `<div class="heat-grid">${alerts.map(x=>{
         const t = severityOf(x);
         const title = `${x.name}: ${x.qty}${x.base_unit||''} — ${t.label}` + (x.criticalProducts.length ? ` — used in: ${x.criticalProducts.join(', ')}` : '');
-        return `<div class="heat-tile" style="background:${t.bg}" title="${esc(title)}">
+        return `<div class="heat-tile drill-link" data-act="ingredient" data-id="${x.ingredient_id}" style="background:${t.bg}" title="${esc(title)}">
           ${x.isCritical?'<span class="heat-badge">🔥</span>':''}
           <span class="heat-name">${esc(x.name)}</span>
           <span class="heat-qty">${x.qty}${esc(x.base_unit||'')}</span>
@@ -469,6 +473,7 @@
     else if (act === 'product') fn = () => drillProduct(Number(el.getAttribute('data-id')));
     else if (act === 'orders') fn = () => drillProductOrders(Number(el.getAttribute('data-id')), el.getAttribute('data-name'));
     else if (act === 'order') fn = () => drillOrder(Number(el.getAttribute('data-id')));
+    else if (act === 'ingredient') fn = () => drillIngredient(Number(el.getAttribute('data-id')));
     else return;
     drillTo(fn, !isNested);
   });
@@ -591,6 +596,36 @@
         <div class="cost-tot"><span>Order total</span><span>${Rp(o.total)}</span></div>
         ${o.notes?`<h3>Notes</h3><div class="foot">${esc(o.notes)}</div>`:''}`;
     } catch(e) { drillBody.innerHTML = '<div class="err">❌ ' + esc(e.message) + '</div>'; }
+  }
+
+  // Ingredient drawer — reached from a Stock Alert tile. Reuses the data
+  // Dashboard already fetched for the heatmap (no extra request), and hands
+  // off to Inventory/Purchase with the ingredient pre-selected so the target
+  // page opens ready to act instead of another blank search.
+  function drillIngredient(id) {
+    openDrawer();
+    const item = stockClassified.find(x => x.ingredient_id === id);
+    if (!item) { drillTitle.textContent = 'Ingredient'; drillSub.textContent = ''; drillBody.innerHTML = '<div class="err">❌ Not found</div>'; return; }
+    const t = severityOf(item);
+    drillTitle.textContent = item.name;
+    drillSub.textContent = `${item.category || '—'} · ${t.label}`;
+    const min = item.min_stock > 0 ? Number(item.min_stock) : (STOCK_UNIT_FALLBACK[item.base_unit] || 0);
+    const shortfall = Math.max(0, min - item.qty);
+    const recentMoves = stockMoves.filter(m => m.ingredient_id === id).slice(0, 8);
+    const moveTypeLabel = m => m.type === 'opening' ? '📋 Opening' : (m.qty_base >= 0 ? '➕ Added' : '➖ Removed');
+    drillBody.innerHTML = `
+      <div class="dl-stat">
+        <div class="b"><div class="l">On hand</div><div class="n">${item.qty}${esc(item.base_unit||'')}</div></div>
+        <div class="b"><div class="l">Min stock</div><div class="n">${min}${esc(item.base_unit||'')}</div></div>
+        <div class="b"><div class="l">Shortfall</div><div class="n ${shortfall>0?'neg':''}">${shortfall}${esc(item.base_unit||'')}</div></div>
+      </div>
+      ${item.criticalProducts.length ? `<h3>Used in top-selling products</h3><div class="foot" style="margin-bottom:4px">${item.criticalProducts.map(esc).join(', ')}</div>` : ''}
+      <h3>Recent adjustments</h3>
+      ${recentMoves.length ? recentMoves.map(m=>`<div class="dl-row"><span class="nm">${moveTypeLabel(m)} <span class="foot">${esc(m.note||'')}</span></span><span class="amt ${m.qty_base<0?'neg':'pos'}">${m.qty_base>0?'+':''}${m.qty_base}</span></div>`).join('') : '<div class="foot">No recent adjustments</div>'}
+      <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+        <a class="go" href="/inventory.html?ingredient_id=${item.ingredient_id}&action=adjust">🔧 Adjust Stock</a>
+        <a class="go" href="/purchase.html?ingredient_id=${item.ingredient_id}">🛒 Add to Purchase</a>
+      </div>`;
   }
 
   function drillPnl() {

@@ -181,6 +181,17 @@
           allIngredients = data;
           data.forEach(i=>{ingredientsById[i.id]=i;});
           filterIngredients();
+
+          // Deep link from a Stock Alert drill-down (dashboard.html): pre-select
+          // the ingredient and jump to the purchase form instead of a blank search.
+          const params = new URLSearchParams(location.search);
+          const deepLinkId = params.get('ingredient_id');
+          if (deepLinkId && ingredientsById[deepLinkId]) {
+            ingredientSelect.value = deepLinkId;
+            updateHint();
+            document.getElementById('purchaseFormCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById('quantity').focus();
+          }
         });
     }
 

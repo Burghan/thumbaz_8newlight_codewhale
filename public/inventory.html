@@ -211,6 +211,18 @@
       const sel = document.getElementById('adjIngredient');
       sel.innerHTML = '<option value="">-- Select --</option>';
       (ings||[]).forEach(i=>{ const o = document.createElement('option'); o.value = i.id; o.textContent = i.name; sel.appendChild(o); });
+
+      // Deep link from a Stock Alert drill-down (dashboard.html): pre-select
+      // the ingredient and jump to the adjustment form instead of a blank search.
+      const params = new URLSearchParams(location.search);
+      const deepLinkId = params.get('ingredient_id');
+      if (deepLinkId && sel.querySelector(`option[value="${deepLinkId}"]`)) {
+        sel.value = deepLinkId;
+        if (params.get('action') === 'adjust') {
+          document.getElementById('adjCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          document.getElementById('adjQty').focus();
+        }
+      }
     }
 
     // Effective minimum: the ingredient's own min_stock, else a per-unit fallback.
