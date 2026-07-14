@@ -32,8 +32,11 @@ const ALIASES = {
   'americano': 'Americano Hot',        // plain / "Regular" americano = the hot one
   'americano regular': 'Americano Hot',
   'americano ice': 'Americano Ice',
+  'americano ice regular': 'Americano Ice', // "Regular" here = regular size, not the Hot variant
   'aires': 'Air + Es',
   'air es': 'Air + Es',
+  'air mineral botol': 'Mineral Water Botol', // renamed product, old export still uses the old name
+  'newlight latte regular': 'NewLight Latte Hot', // same "Regular" = Hot convention as Americano
 };
 
 function buildProductMatcher(db, { activeOnly = true } = {}) {

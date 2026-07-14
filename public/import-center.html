@@ -197,11 +197,10 @@
         const r = await fetch('/api/import/riwayat', { method:'POST', headers:h, body:fd });
         const d = await r.json();
         if (!r.ok) { statusEl.textContent = d.error || 'Import failed'; return; }
-        const unmatchedNames = Object.keys(d.unmatchedProducts||{});
         let html = `<div>${d.message}</div>`;
         if (d.duplicateReceiptsSkipped) html += `<div>Skipped ${d.duplicateReceiptsSkipped} already-imported receipt(s).</div>`;
         if (d.cancelledLinesSkipped) html += `<div>Skipped ${d.cancelledLinesSkipped} cancelled line(s).</div>`;
-        if (unmatchedNames.length) html += `<div style="color:var(--danger)">Unmatched products (add to menu or fix aliases): ${unmatchedNames.join(', ')}</div>`;
+        if (d.createdProducts && d.createdProducts.length) html += `<div style="color:var(--brand-600)">New product(s) added to the menu (set category/recipe when convenient): ${d.createdProducts.join(', ')}</div>`;
         if (d.outOfStock && d.outOfStock.length) html += `<div style="color:var(--danger)">Out of stock — needs restock: ${d.outOfStock.join(', ')}</div>`;
         statusEl.innerHTML = html;
       } catch { statusEl.textContent = 'Failed'; }

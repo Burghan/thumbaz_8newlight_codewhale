@@ -209,36 +209,59 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
       END AS hpp
     FROM products p WHERE p.id=?`).get(productId).hpp;
 
+  // A product name the matcher can't resolve (alias, exact, or variant-stripped
+  // base) is a genuinely new menu item, not a data-entry error — auto-create it
+  // (no recipe/category yet, priced at what this sale actually charged) rather
+  // than silently dropping the sale. Repeated occurrences of the same new name
+  // within this file reuse the same created product.
+  // Category 'Custom' — same semantics as the existing Custom Item placeholder:
+  // no recipe, priced on the fly. Recipe/HPP-based reports already exclude it.
+  const insertProduct = db.prepare(`INSERT INTO products (name, category, labor_cost, utility_cost, packaging_cost, active, is_resale) VALUES (?, 'Custom', 0, 0, 0, 1, 0)`);
+  const insertPrice = db.prepare('INSERT INTO product_prices (product_id, price) VALUES (?, ?)');
+  const createdThisImport = new Map(); // normalized name -> product row
+  function resolveOrCreateProduct(rawName, price) {
+    const existing = matchProduct(rawName);
+    if (existing) return { product: existing, created: false };
+    const key = normName(rawName);
+    if (createdThisImport.has(key)) return { product: createdThisImport.get(key), created: false };
+    const name = String(rawName).trim();
+    const info = insertProduct.run(name);
+    const product = { id: info.lastInsertRowid, name, is_resale: 0 };
+    if (price > 0) insertPrice.run(product.id, price);
+    createdThisImport.set(key, product);
+    return { product, created: true };
+  }
+
   // Group by receipt number, skipping cancelled lines and receipts already imported.
   const already = new Set(db.prepare("SELECT reference FROM transactions WHERE reference IS NOT NULL").all().map(r => r.reference));
   const txns = new Map();
-  let cancelledLines = 0, skippedDuplicateReceipts = new Set(), unmatched = {};
-
-  for (const row of sheetRows.slice(1)) {
-    const status = String(row[cStatus] || '').trim().toLowerCase();
-    if (status.includes('batal')) { cancelledLines++; continue; }
-    const no = String(row[cNo] || '').trim();
-    if (!no) continue;
-    if (already.has(no)) { skippedDuplicateReceipts.add(no); continue; }
-    const nameRaw = row[cProd];
-    if (!nameRaw) continue;
-    const product = matchProduct(nameRaw);
-    if (!product) { unmatched[String(nameRaw).trim()] = (unmatched[String(nameRaw).trim()] || 0) + 1; continue; }
-    const qty = Number(row[cQty] || 1) - Number(row[cCancel] || 0);
-    if (!(qty > 0)) continue;
-    const price = Math.round(Number(row[cPrice] || 0));
-    const dateStr = normDate(row[cDate]);
-    const jam = String(row[cJam] || '00:00:00').trim();
-    const pay = String(row[cPay] || '').toUpperCase().includes('QRIS') ? 'qris' : 'cash';
-    if (!txns.has(no)) txns.set(no, { at: `${dateStr} ${jam}`, pay, ref: no, items: [] });
-    txns.get(no).items.push({ pid: product.id, qty, price, hpp: hppFor(product.id) });
-  }
+  let cancelledLines = 0, skippedDuplicateReceipts = new Set(), createdProducts = new Set();
 
   const insT = db.prepare("INSERT INTO transactions (transacted_at,payment_method,reference) VALUES (?,?,?)");
   const insI = db.prepare("INSERT INTO transaction_items (transaction_id,product_id,quantity,unit_price,line_total,hpp_at_sale) VALUES (?,?,?,?,?,?)");
   let nt = 0, ni = 0, revenue = 0;
 
   db.transaction(() => {
+    for (const row of sheetRows.slice(1)) {
+      const status = String(row[cStatus] || '').trim().toLowerCase();
+      if (status.includes('batal')) { cancelledLines++; continue; }
+      const no = String(row[cNo] || '').trim();
+      if (!no) continue;
+      if (already.has(no)) { skippedDuplicateReceipts.add(no); continue; }
+      const nameRaw = row[cProd];
+      if (!nameRaw) continue;
+      const qty = Number(row[cQty] || 1) - Number(row[cCancel] || 0);
+      if (!(qty > 0)) continue;
+      const price = Math.round(Number(row[cPrice] || 0));
+      const { product, created } = resolveOrCreateProduct(nameRaw, price);
+      if (created) createdProducts.add(product.name);
+      const dateStr = normDate(row[cDate]);
+      const jam = String(row[cJam] || '00:00:00').trim();
+      const pay = String(row[cPay] || '').toUpperCase().includes('QRIS') ? 'qris' : 'cash';
+      if (!txns.has(no)) txns.set(no, { at: `${dateStr} ${jam}`, pay, ref: no, items: [] });
+      txns.get(no).items.push({ pid: product.id, qty, price, hpp: hppFor(product.id) });
+    }
+
     for (const [, t] of txns) {
       const tr = insT.run(t.at, t.pay, t.ref);
       nt++;
@@ -257,11 +280,12 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
     WHERE inv.quantity_base<=0 AND i.active=1 ORDER BY i.name`).all();
 
   res.json({
-    message: `Imported: ${nt} transactions, ${ni} line-items, revenue Rp${revenue.toLocaleString('id-ID')}. Inventory deducted automatically.`,
+    message: `Imported: ${nt} transactions, ${ni} line-items, revenue Rp${revenue.toLocaleString('id-ID')}. Inventory deducted automatically.`
+      + (createdProducts.size ? ` ${createdProducts.size} new product(s) added to the menu — set their category/recipe when convenient.` : ''),
     transactions: nt, lineItems: ni, revenue,
     cancelledLinesSkipped: cancelledLines,
     duplicateReceiptsSkipped: skippedDuplicateReceipts.size,
-    unmatchedProducts: unmatched,
+    createdProducts: [...createdProducts],
     outOfStock: outOfStock.map(r => `${r.name} (${r.base_unit})`)
   });
 });
