@@ -3,36 +3,85 @@ const db = require('../db');
 const router = express.Router();
 
 // List transactions with items.
+// Legacy mode (used by Dashboard/Analytics drill-down): ?date=YYYY-MM-DD only,
+// returns a bare array with each order's full items[] — response shape kept
+// exactly as-is so those callers don't need to change.
+// List mode (used by the Transactions page): presence of `page` switches to
+// filterable/sortable/paginated summary rows — { orders, total, kpi }.
 router.get('/', (req, res) => {
-  const date = req.query.date || '';
-  // transacted_at is a full timestamp ('YYYY-MM-DD HH:MM:SS'); a plain date
-  // string would never exact-match it, so this filters by calendar day.
-  let where = '';
-  if (date) where = `WHERE date(t.transacted_at) = ?`;
-  const rows = db.prepare(`
-    SELECT t.id, t.transacted_at AS date, t.payment_method, t.reference, t.notes,
-           ti.id AS item_id, ti.product_id, p.name AS product_name,
-           ti.quantity, ti.unit_price, ti.line_total, ti.hpp_at_sale
+  const { date, from, to, payment_method, product_id, q, sort, dir, page } = req.query;
+
+  if (!page) {
+    let where = '';
+    if (date) where = `WHERE date(t.transacted_at) = ?`;
+    const rows = db.prepare(`
+      SELECT t.id, t.transacted_at AS date, t.payment_method, t.reference, t.notes,
+             ti.id AS item_id, ti.product_id, p.name AS product_name,
+             ti.quantity, ti.unit_price, ti.line_total, ti.hpp_at_sale
+      FROM transactions t
+      LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
+      LEFT JOIN products p ON p.id = ti.product_id
+      ${where}
+      ORDER BY t.transacted_at DESC, t.id DESC
+    `).all(...(date ? [date] : []));
+
+    const grouped = new Map();
+    for (const r of rows) {
+      if (!grouped.has(r.id)) grouped.set(r.id, {
+        id: r.id, date: r.date, payment_method: r.payment_method,
+        reference: r.reference, notes: r.notes, items: [], total: 0
+      });
+      const t = grouped.get(r.id);
+      if (r.item_id) {
+        t.items.push({ id: r.item_id, product_id: r.product_id, product_name: r.product_name, quantity: r.quantity, unit_price: r.unit_price, line_total: r.line_total });
+        t.total += r.line_total;
+      }
+    }
+    return res.json([...grouped.values()]);
+  }
+
+  const clauses = [];
+  const params = [];
+  if (from) { clauses.push('date(t.transacted_at) >= ?'); params.push(from); }
+  if (to) { clauses.push('date(t.transacted_at) <= ?'); params.push(to); }
+  if (payment_method) { clauses.push('t.payment_method = ?'); params.push(payment_method); }
+  if (q) { clauses.push('(t.reference LIKE ? OR CAST(t.id AS TEXT) = ?)'); params.push(`%${q}%`, String(q).replace(/^#/, '')); }
+  if (product_id) { clauses.push('EXISTS (SELECT 1 FROM transaction_items x WHERE x.transaction_id = t.id AND x.product_id = ?)'); params.push(Number(product_id)); }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+
+  const kpi = db.prepare(`
+    SELECT COUNT(DISTINCT t.id) AS orders, COALESCE(SUM(ti.line_total),0) AS revenue, COALESCE(SUM(ti.quantity),0) AS items
+    FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
+    ${where}
+  `).get(...params);
+
+  const SORT_COLS = { date: 't.transacted_at', total: 'total', items: 'item_count', id: 't.id' };
+  const sortCol = SORT_COLS[sort] || 't.transacted_at';
+  const sortDir = dir === 'asc' ? 'ASC' : 'DESC';
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize, 10) || 50));
+
+  const orders = db.prepare(`
+    SELECT t.id, t.transacted_at AS date, t.payment_method, t.reference,
+           COALESCE(SUM(ti.line_total),0) AS total,
+           COALESCE(SUM(ti.quantity),0) AS item_count,
+           GROUP_CONCAT(p.name || ' ×' || ti.quantity, ', ') AS items_preview
     FROM transactions t
     LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
     LEFT JOIN products p ON p.id = ti.product_id
     ${where}
-    ORDER BY t.transacted_at DESC, t.id DESC
-  `).all(...(date ? [date] : []));
+    GROUP BY t.id
+    ORDER BY ${sortCol} ${sortDir}
+    LIMIT ? OFFSET ?
+  `).all(...params, pageSize, (pageNum - 1) * pageSize);
 
-  const grouped = new Map();
-  for (const r of rows) {
-    if (!grouped.has(r.id)) grouped.set(r.id, {
-      id: r.id, date: r.date, payment_method: r.payment_method,
-      reference: r.reference, notes: r.notes, items: [], total: 0
-    });
-    const t = grouped.get(r.id);
-    if (r.item_id) {
-      t.items.push({ id: r.item_id, product_id: r.product_id, product_name: r.product_name, quantity: r.quantity, unit_price: r.unit_price, line_total: r.line_total });
-      t.total += r.line_total;
-    }
-  }
-  res.json([...grouped.values()]);
+  res.json({
+    orders,
+    total: kpi.orders,
+    page: pageNum,
+    pageSize,
+    kpi: { revenue: kpi.revenue, orders: kpi.orders, items: kpi.items, avg: kpi.orders ? Math.round(kpi.revenue / kpi.orders) : 0 }
+  });
 });
 
 // Daily summary.

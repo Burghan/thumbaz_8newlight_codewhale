@@ -8,6 +8,7 @@
     { type: 'group', label: '📊  Management', children: [
       { href: '/dashboard.html', label: 'Overview' },
       { href: '/system-report.html', label: 'Analytics' },
+      { href: '/transactions.html', label: 'Transactions' },
       { href: '/budget.html', label: 'Budget' },
     ]},
     { type: 'link', href: '/pos.html', label: '🛒  POS' },

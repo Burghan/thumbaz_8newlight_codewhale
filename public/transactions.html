@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Transactions – 8 NewLight</title>
+<link rel="stylesheet" href="/sidebar.css"/><link rel="stylesheet" href="/theme.css"/>
+<style>
+  body { margin:0; color:var(--ink); }
+  .wrap { padding:16px; max-width:1280px; margin:0 auto; }
+  @media(min-width:900px){ .wrap{ padding:24px; } }
+
+  .head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+  .head h1 { margin:0; font-size:24px; }
+  .head .spacer { flex:1; }
+  .head .who { font-size:13px; color:var(--muted); }
+  .head button { margin:0; min-height:40px; padding:8px 14px; font-size:14px; border-radius:10px; cursor:pointer; font-weight:600; }
+  .head .icon-btn { background:var(--card); color:var(--brand-ink); border:1px solid var(--border); }
+  .head #exportBtn { background:var(--brand); color:#fff; border:none; }
+  .sub { color:var(--muted); font-size:14px; margin:2px 0 18px; }
+
+  .status { padding:40px; text-align:center; color:var(--muted); font-size:15px; }
+  .err { color:var(--danger); font-weight:600; }
+
+  /* KPI strip */
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  @media(max-width:760px){ .kpis{ grid-template-columns:repeat(2,1fr); } }
+  .kpi { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 18px; box-shadow:var(--shadow-sm); }
+  .kpi .lbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
+  .kpi .val { font-family:var(--font-brand); font-size:22px; font-weight:700; color:var(--brand-ink); margin-top:6px; font-variant-numeric:tabular-nums; }
+
+  /* Filters */
+  .filters { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 16px; margin-bottom:16px;
+    display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+  .filters .fld { display:flex; flex-direction:column; gap:4px; }
+  .filters .fld label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; font-weight:700; }
+  .filters input, .filters select { min-height:36px; padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg,#fff); color:var(--ink); }
+  .filters #q { min-width:180px; }
+  .filters .clear { background:none; border:1px solid var(--border); border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer; color:var(--muted); }
+  .filters .clear:hover { background:var(--cream-soft); }
+
+  /* Table panel */
+  .panel { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:0; box-shadow:var(--shadow-sm); overflow:hidden; }
+  .tbl-wrap { overflow-x:auto; }
+  table.tx { width:100%; border-collapse:collapse; }
+  table.tx th { cursor:pointer; user-select:none; white-space:nowrap; }
+  table.tx th .arrow { opacity:.4; font-size:10px; margin-left:3px; }
+  table.tx th.active .arrow { opacity:1; }
+  table.tx td.items-preview { max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  table.tx tbody tr { cursor:pointer; }
+  table.tx td.num, table.tx th.num { text-align:right; font-variant-numeric:tabular-nums; }
+
+  .pager { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 16px; border-top:1px solid var(--border); font-size:13px; color:var(--muted); }
+  .pager button { padding:6px 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); cursor:pointer; font-size:13px; }
+  .pager button:disabled { opacity:.4; cursor:not-allowed; }
+
+  /* Slide-over drawer (same pattern as Dashboard/Analytics) */
+  .drawer-backdrop { position:fixed; inset:0; background:rgba(20,28,45,.38); opacity:0; pointer-events:none; transition:opacity .2s; z-index:60; }
+  .drawer-backdrop.open { opacity:1; pointer-events:auto; }
+  .drawer { position:fixed; top:0; right:0; height:100%; width:min(480px, 94vw); background:var(--card); box-shadow:-8px 0 30px rgba(0,0,0,.18);
+    transform:translateX(100%); transition:transform .22s ease; z-index:61; display:flex; flex-direction:column; }
+  .drawer.open { transform:translateX(0); }
+  .drawer-head { display:flex; align-items:flex-start; gap:12px; padding:16px 18px; border-bottom:1px solid var(--border); }
+  .drawer-title { font-family:var(--font-brand); font-size:20px; font-weight:700; line-height:1.15; }
+  .drawer-sub { font-size:12px; color:var(--muted); margin-top:3px; }
+  .drawer-close { margin-left:auto; border:none; background:var(--cream-soft); width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:14px; color:var(--brand-ink); }
+  .drawer-close:hover { background:#e6ebf3; }
+  .drawer-body { padding:16px 18px; overflow:auto; }
+  .drawer-body h3 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:18px 0 8px; }
+  .drawer-body h3:first-child { margin-top:0; }
+  .drawer-body table { width:100%; }
+  .drawer-body th.num, .drawer-body td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .cost-tot { display:flex; justify-content:space-between; padding:8px 0; font-weight:700; border-top:2px solid var(--border); margin-top:2px; }
+</style>
+</head>
+<body class="theme-cafe">
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
+    <div class="brand-text">
+      <div class="brand-title">8 NewLight Coffee Bar</div>
+      <div class="brand-subtitle">Back Office</div>
+    </div>
+  </div>
+</aside>
+
+<div class="wrap">
+  <div class="head">
+    <button class="icon-btn" id="menuToggle" aria-label="Menu">☰</button>
+    <h1>🧾 Transactions</h1>
+    <div class="spacer"></div>
+    <span class="who" id="who"></span>
+    <button id="exportBtn">⬇ Export CSV</button>
+  </div>
+  <p class="sub">Browse, filter and drill into every order</p>
+
+  <div class="kpis">
+    <div class="kpi"><div class="lbl">Revenue</div><div class="val" id="kRevenue">–</div></div>
+    <div class="kpi"><div class="lbl">Orders</div><div class="val" id="kOrders">–</div></div>
+    <div class="kpi"><div class="lbl">Items sold</div><div class="val" id="kItems">–</div></div>
+    <div class="kpi"><div class="lbl">Avg / order</div><div class="val" id="kAvg">–</div></div>
+  </div>
+
+  <div class="filters">
+    <div class="fld"><label>From</label><input type="date" id="fFrom"/></div>
+    <div class="fld"><label>To</label><input type="date" id="fTo"/></div>
+    <div class="fld"><label>Payment</label>
+      <select id="fPayment"><option value="">All</option><option value="cash">Cash</option><option value="qris">QRIS</option><option value="transfer">Transfer</option></select>
+    </div>
+    <div class="fld"><label>Product</label>
+      <input list="productList" id="fProduct" placeholder="All products"/>
+      <datalist id="productList"></datalist>
+    </div>
+    <div class="fld"><label>Search</label><input type="text" id="q" placeholder="Order # or reference"/></div>
+    <button class="clear" id="clearBtn">Clear filters</button>
+  </div>
+
+  <div class="status" id="status">⏳ Loading…</div>
+  <div class="panel" id="panel" style="display:none">
+    <div class="tbl-wrap">
+      <table class="tx">
+        <thead><tr>
+          <th data-sort="date">Date/Time <span class="arrow">▾</span></th>
+          <th data-sort="id">Order #</th>
+          <th>Items</th>
+          <th>Pay</th>
+          <th class="num" data-sort="items">Qty</th>
+          <th class="num" data-sort="total">Total <span class="arrow">▾</span></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <span id="pageInfo"></span>
+      <div>
+        <button id="prevBtn">← Prev</button>
+        <button id="nextBtn">Next →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="drawer-backdrop" id="drillBackdrop"></div>
+<aside class="drawer" id="drill" aria-hidden="true">
+  <div class="drawer-head">
+    <div><div class="drawer-title" id="drillTitle">—</div><div class="drawer-sub" id="drillSub"></div></div>
+    <button class="drawer-close" id="drillClose" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-body" id="drillBody"></div>
+</aside>
+
+<script src="/auth.js"></script>
+<script src="/pwa.js"></script>
+<script src="/sidebar.js"></script>
+<script>
+  const A = requireRole(['admin','manager']);
+  const statusEl = document.getElementById('status');
+  const panelEl = document.getElementById('panel');
+  if (!A || !A.id) { statusEl.innerHTML = '<span class="err">❌ Not logged in</span>'; throw Error('no auth'); }
+  document.getElementById('who').textContent = `${A.name} · ${A.role}`;
+
+  const Rp = v => 'Rp ' + Math.round(v || 0).toLocaleString('id-ID');
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const jget = url => fetch(url, { headers: authHeaders(), credentials: 'same-origin' })
+    .then(r => r.ok ? r.json() : Promise.reject(new Error(`${url} → ${r.status}`)));
+
+  // ---- drawer ----
+  const drill = document.getElementById('drill');
+  const drillBackdrop = document.getElementById('drillBackdrop');
+  const drillTitle = document.getElementById('drillTitle');
+  const drillSub = document.getElementById('drillSub');
+  const drillBody = document.getElementById('drillBody');
+  function openDrawer(){ drill.classList.add('open'); drill.setAttribute('aria-hidden','false'); drillBackdrop.classList.add('open'); }
+  function closeDrawer(){ drill.classList.remove('open'); drill.setAttribute('aria-hidden','true'); drillBackdrop.classList.remove('open'); }
+  document.getElementById('drillClose').addEventListener('click', closeDrawer);
+  drillBackdrop.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+  async function drillOrder(id) {
+    openDrawer();
+    drillTitle.textContent = 'Order #' + id; drillSub.textContent = ''; drillBody.innerHTML = '<div class="foot">Loading…</div>';
+    try {
+      const o = await jget('/api/reports/order/' + id);
+      drillSub.textContent = `${o.date} · ${(o.payment_method||'—')} · ${o.items.length} items`;
+      drillBody.innerHTML = `
+        <h3>Items</h3>
+        <table><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr></thead><tbody>${
+          o.items.map(it=>`<tr><td><a href="/menu.html?q=${encodeURIComponent(it.product_name||'')}">${esc(it.product_name||'?')}</a></td><td class="num">${it.quantity}×</td><td class="num">${Rp(it.unit_price)}</td><td class="num">${Rp(it.line_total)}</td></tr>`).join('')
+        }</tbody></table>
+        <div class="cost-tot"><span>Order total</span><span>${Rp(o.total)}</span></div>
+        ${o.notes?`<h3>Notes</h3><div class="foot">${esc(o.notes)}</div>`:''}
+        <div class="foot" style="margin-top:14px">Reference: ${esc(o.reference||'—')}</div>`;
+    } catch(e) { drillBody.innerHTML = '<div class="err">❌ ' + esc(e.message) + '</div>'; }
+  }
+
+  // ---- filters / sort / pagination state ----
+  const state = { from:'', to:'', payment_method:'', product_id:'', q:'', sort:'date', dir:'desc', page:1, pageSize:50 };
+  const fFrom = document.getElementById('fFrom'), fTo = document.getElementById('fTo'),
+        fPayment = document.getElementById('fPayment'), fProduct = document.getElementById('fProduct'),
+        qEl = document.getElementById('q');
+
+  // Default range: current month, so the page opens to something relevant.
+  (function defaultRange(){
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    state.from = fFrom.value = first.toISOString().slice(0,10);
+    state.to = fTo.value = now.toISOString().slice(0,10);
+  })();
+
+  let productsById = new Map(), productsByName = new Map();
+  async function loadProducts() {
+    try {
+      const products = await jget('/api/products');
+      const dl = document.getElementById('productList');
+      products.forEach(p => {
+        productsById.set(p.id, p.name);
+        productsByName.set(p.name, p.id);
+        const o = document.createElement('option'); o.value = p.name; dl.appendChild(o);
+      });
+    } catch {}
+  }
+
+  let debounceTimer = null;
+  function scheduleLoad() { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => { state.page = 1; load(); }, 300); }
+
+  fFrom.addEventListener('change', () => { state.from = fFrom.value; scheduleLoad(); });
+  fTo.addEventListener('change', () => { state.to = fTo.value; scheduleLoad(); });
+  fPayment.addEventListener('change', () => { state.payment_method = fPayment.value; scheduleLoad(); });
+  fProduct.addEventListener('input', () => { state.product_id = productsByName.get(fProduct.value) || ''; scheduleLoad(); });
+  qEl.addEventListener('input', () => { state.q = qEl.value.trim(); scheduleLoad(); });
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    fFrom.value = ''; fTo.value = ''; fPayment.value = ''; fProduct.value = ''; qEl.value = '';
+    state.from = state.to = state.payment_method = state.product_id = state.q = '';
+    state.page = 1; load();
+  });
+
+  document.querySelectorAll('table.tx th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (state.sort === col) state.dir = state.dir === 'asc' ? 'desc' : 'asc';
+      else { state.sort = col; state.dir = col === 'date' || col === 'total' ? 'desc' : 'asc'; }
+      state.page = 1; load();
+    });
+  });
+
+  document.getElementById('prevBtn').addEventListener('click', () => { if (state.page > 1) { state.page--; load(); } });
+  document.getElementById('nextBtn').addEventListener('click', () => { state.page++; load(); });
+
+  function updateSortHeaders() {
+    document.querySelectorAll('table.tx th[data-sort]').forEach(th => {
+      const active = th.dataset.sort === state.sort;
+      th.classList.toggle('active', active);
+      const arrow = th.querySelector('.arrow');
+      if (arrow) arrow.textContent = active ? (state.dir === 'asc' ? '▴' : '▾') : '▾';
+    });
+  }
+
+  async function load() {
+    updateSortHeaders();
+    const params = new URLSearchParams();
+    if (state.from) params.set('from', state.from);
+    if (state.to) params.set('to', state.to);
+    if (state.payment_method) params.set('payment_method', state.payment_method);
+    if (state.product_id) params.set('product_id', state.product_id);
+    if (state.q) params.set('q', state.q);
+    params.set('sort', state.sort); params.set('dir', state.dir);
+    params.set('page', state.page); params.set('pageSize', state.pageSize);
+
+    try {
+      const d = await jget('/api/transactions?' + params.toString());
+      statusEl.style.display = 'none'; panelEl.style.display = '';
+
+      document.getElementById('kRevenue').textContent = Rp(d.kpi.revenue);
+      document.getElementById('kOrders').textContent = d.kpi.orders.toLocaleString('id-ID');
+      document.getElementById('kItems').textContent = d.kpi.items.toLocaleString('id-ID');
+      document.getElementById('kAvg').textContent = Rp(d.kpi.avg);
+
+      const rows = document.getElementById('rows');
+      rows.innerHTML = d.orders.length ? d.orders.map(o => `
+        <tr data-id="${o.id}">
+          <td>${esc(o.date)}</td>
+          <td>#${o.id}</td>
+          <td class="items-preview" title="${esc(o.items_preview||'')}">${esc(o.items_preview||'—')}</td>
+          <td><span class="pill">${esc(o.payment_method||'—')}</span></td>
+          <td class="num">${o.item_count}</td>
+          <td class="num">${Rp(o.total)}</td>
+        </tr>`).join('') : '<tr><td colspan="6" class="foot" style="text-align:center;padding:30px">No transactions match these filters</td></tr>';
+      rows.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => drillOrder(tr.dataset.id)));
+
+      const totalPages = Math.max(1, Math.ceil(d.total / d.pageSize));
+      document.getElementById('pageInfo').textContent = `Page ${d.page} of ${totalPages} · ${d.total.toLocaleString('id-ID')} order(s)`;
+      document.getElementById('prevBtn').disabled = d.page <= 1;
+      document.getElementById('nextBtn').disabled = d.page >= totalPages;
+    } catch (e) {
+      statusEl.style.display = ''; panelEl.style.display = 'none';
+      statusEl.innerHTML = '<span class="err">❌ ' + esc(e.message) + '</span>';
+    }
+  }
+
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const rows = [...document.querySelectorAll('table.tx tbody tr[data-id]')];
+    if (!rows.length) return;
+    const header = ['Date/Time','Order #','Items','Payment','Qty','Total'];
+    const lines = [header.join(',')];
+    document.querySelectorAll('#rows tr[data-id]').forEach(tr => {
+      const cells = [...tr.children].map(td => td.textContent.replace(/"/g,'""'));
+      lines.push(cells.map(c => `"${c}"`).join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `transactions-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  });
+
+  loadProducts();
+  load();
+</script>
+</body>
+</html>
