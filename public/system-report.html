@@ -284,6 +284,7 @@
   <div class="drawer-backdrop" id="drillBackdrop"></div>
   <aside class="drawer" id="drill" aria-hidden="true">
     <div class="drawer-head">
+      <button class="drawer-close" id="drillBack" aria-label="Back" style="display:none;margin-right:-4px;">←</button>
       <div><div class="drawer-title" id="drillTitle">—</div><div class="drawer-sub" id="drillSub"></div></div>
       <button class="drawer-close" id="drillClose" aria-label="Close">✕</button>
     </div>
@@ -380,10 +381,10 @@
         <div class="kpi clickable" id="expKpi"><div class="label">Expenses</div><div class="value">${Rp(c.expenses)}</div>${delta(c.expenses,p.expenses,false)}<div class="foot">${pct(c.expenses,c.revenue)}% of rev</div><div class="drill-hint">expenses by category →</div></div>
         <div class="kpi hero clickable" id="netKpi"><div class="label">Net Profit</div><div class="value ${c.profit<0?'neg':''}">${Rp(c.profit)}</div>${delta(c.profit,p.profit)}<div class="foot">${c.profit<0?'net loss':'net positive'}</div><div class="drill-hint">full P&amp;L statement →</div></div>
         <div class="kpi"><div class="label">Net Margin</div><div class="value ${c.margin_pct<0?'neg':''}">${c.margin_pct}%</div>${delta(c.margin_pct,p.margin_pct)}<div class="foot">avg order ${Rp(c.order_count?c.revenue/c.order_count:0)}</div></div>`;
-      const rk = document.getElementById('revKpi'); if (rk) rk.addEventListener('click', drillRevenue);
-      const gk = document.getElementById('grossKpi'); if (gk) gk.addEventListener('click', drillCogs);
-      const ek = document.getElementById('expKpi'); if (ek) ek.addEventListener('click', drillExpenses);
-      const nk = document.getElementById('netKpi'); if (nk) nk.addEventListener('click', drillPnl);
+      const rk = document.getElementById('revKpi'); if (rk) rk.addEventListener('click', () => drillTo(drillRevenue, true));
+      const gk = document.getElementById('grossKpi'); if (gk) gk.addEventListener('click', () => drillTo(drillCogs, true));
+      const ek = document.getElementById('expKpi'); if (ek) ek.addEventListener('click', () => drillTo(drillExpenses, true));
+      const nk = document.getElementById('netKpi'); if (nk) nk.addEventListener('click', () => drillTo(drillPnl, true));
     }
 
     const DOT = { good:'🟢', warn:'🟡', bad:'🔴' };
@@ -524,24 +525,51 @@
     const drillTitle = document.getElementById('drillTitle');
     const drillSub = document.getElementById('drillSub');
     const drillBody = document.getElementById('drillBody');
+    const drillBackBtn = document.getElementById('drillBack');
     function openDrawer(){ drill.classList.add('open'); drill.setAttribute('aria-hidden','false'); drillBackdrop.classList.add('open'); }
-    function closeDrawer(){ drill.classList.remove('open'); drill.setAttribute('aria-hidden','true'); drillBackdrop.classList.remove('open'); }
+    function closeDrawer(){ drill.classList.remove('open'); drill.setAttribute('aria-hidden','true'); drillBackdrop.classList.remove('open'); drillStack=[]; currentRender=null; drillBackBtn.style.display='none'; }
     document.getElementById('drillClose').addEventListener('click', closeDrawer);
     drillBackdrop.addEventListener('click', closeDrawer);
     document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDrawer(); });
+
+    // Navigation history within the drawer — lets a drill-down go several levels
+    // deep (e.g. Revenue → day → order) with a real Back step, not just Close.
+    let drillStack = [], currentRender = null;
+    function drillTo(renderFn, isTopLevel) {
+      if (isTopLevel) drillStack = [];
+      else if (currentRender) drillStack.push(currentRender);
+      currentRender = renderFn;
+      renderFn();
+      drillBackBtn.style.display = drillStack.length ? '' : 'none';
+    }
+    function goBack() {
+      const prev = drillStack.pop();
+      if (!prev) return;
+      currentRender = prev;
+      prev();
+      drillBackBtn.style.display = drillStack.length ? '' : 'none';
+    }
+    drillBackBtn.addEventListener('click', goBack);
 
     function barRow(name, amount, total, extra=''){
       const w = total>0 ? Math.round(amount/total*100) : 0;
       return `<div class="dl-row"><span class="nm">${name}</span><div class="bar"><span style="width:${w}%"></span></div><span class="amt">${Rp(amount)}</span>${extra}</div>`;
     }
 
-    // delegated clicks for any drill-link (tables + inside the drawer)
+    // delegated clicks for any drill-link (tables + inside the drawer). Clicks
+    // originating from INSIDE the drawer push onto the back-stack; clicks from
+    // the main page (tables) start a fresh top-level view.
     document.addEventListener('click', e=>{
       const el = e.target.closest('.drill-link'); if(!el) return;
-      const act = el.getAttribute('data-act'), id = Number(el.getAttribute('data-id'));
-      if(act==='product') drillProduct(id);
-      else if(act==='orders') drillProductOrders(id, el.getAttribute('data-name'));
-      else if(act==='order') drillOrder(id);
+      const isNested = !!el.closest('#drill');
+      const act = el.getAttribute('data-act');
+      let fn;
+      if(act==='day') fn = () => drillDay(el.getAttribute('data-date'));
+      else if(act==='product') fn = () => drillProduct(Number(el.getAttribute('data-id')));
+      else if(act==='orders') fn = () => drillProductOrders(Number(el.getAttribute('data-id')), el.getAttribute('data-name'));
+      else if(act==='order') fn = () => drillOrder(Number(el.getAttribute('data-id')));
+      else return;
+      drillTo(fn, !isNested);
     });
 
     function drillRevenue(){
@@ -553,12 +581,64 @@
       const cats=Object.entries(catMap).sort((a,b)=>b[1]-a[1]); const catTotal=cats.reduce((s,[,v])=>s+v,0)||1;
       const top=products.slice().sort((a,b)=>b.revenue-a.revenue).slice(0,8); const prodTotal=products.reduce((s,p)=>s+p.revenue,0)||1;
       const payTotal=payData.reduce((s,p)=>s+p.revenue,0)||1;
-      const days=(dailyData||[]).slice().sort((a,b)=>b.revenue-a.revenue).slice(0,6); const dayTotal=(dailyData||[]).reduce((s,d)=>s+d.revenue,0)||1;
+      // Chronological (most recent first), not just top-by-revenue — this is the
+      // monthly → daily step of the drill chain, so every day needs to be reachable.
+      const days=(dailyData||[]).slice().sort((a,b)=>b.date.localeCompare(a.date)); const dayTotal=(dailyData||[]).reduce((s,d)=>s+d.revenue,0)||1;
       drillBody.innerHTML = `
         <h3>By category</h3>${cats.map(([n,v])=>barRow(esc(n),v,catTotal)).join('')||'<div class="foot">No data</div>'}
         <h3>Top products</h3>${top.map(p=>`<div class="dl-row"><span class="nm"><span class="drill-link" data-act="product" data-id="${p.id}">${esc(p.name)}</span></span><div class="bar"><span style="width:${Math.round(p.revenue/prodTotal*100)}%"></span></div><span class="amt">${Rp(p.revenue)}</span></div>`).join('')||'<div class="foot">No data</div>'}
         <h3>By payment method</h3>${payData.map(p=>barRow(esc((p.method||'?').toUpperCase()),p.revenue,payTotal,` <span class="foot">${p.share}%</span>`)).join('')||'<div class="foot">No data</div>'}
-        <h3>Top days</h3>${days.map(d=>barRow(d.date,d.revenue,dayTotal)).join('')||'<div class="foot">No data</div>'}`;
+        <h3>By day <span class="foot" style="text-transform:none;letter-spacing:0">— click a day for its orders</span></h3>
+        ${days.map(d=>`<div class="dl-row"><span class="nm"><span class="drill-link" data-act="day" data-date="${d.date}">${d.date}</span></span><div class="bar"><span style="width:${Math.round(d.revenue/dayTotal*100)}%"></span></div><span class="amt">${Rp(d.revenue)}</span></div>`).join('')||'<div class="foot">No data</div>'}`;
+    }
+
+    // Day drill-down: summary first (revenue/orders/top products/payment mix).
+    // The raw order-by-order list stays collapsed behind an explicit toggle —
+    // only fetched once (same request) but not shown until asked for, so the
+    // default view answers "how did this day go", not a wall of transactions.
+    async function drillDay(date){
+      drillTitle.textContent = date; drillSub.textContent = 'Loading…'; drillBody.innerHTML = '<div class="foot">Loading…</div>';
+      try {
+        const orders = await jget('/api/transactions?date=' + encodeURIComponent(date));
+        if (!orders.length) { drillSub.textContent = ''; drillBody.innerHTML = '<div class="foot">No orders on this day</div>'; return; }
+        const totalRev = orders.reduce((s,o)=>s+o.total,0);
+        const itemCount = orders.reduce((s,o)=>s+o.items.reduce((si,it)=>si+it.quantity,0),0);
+        drillSub.textContent = `${orders.length} orders · ${Rp(totalRev)}`;
+
+        const prodMap = new Map(), payMap = new Map();
+        orders.forEach(o => {
+          const pay = o.payment_method || 'unknown';
+          const pv = payMap.get(pay) || { count: 0, revenue: 0 };
+          pv.count++; pv.revenue += o.total; payMap.set(pay, pv);
+          o.items.forEach(it => {
+            const pv2 = prodMap.get(it.product_id) || { name: it.product_name, qty: 0, revenue: 0 };
+            pv2.qty += it.quantity; pv2.revenue += it.line_total; prodMap.set(it.product_id, pv2);
+          });
+        });
+        const topProducts = [...prodMap.entries()].sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,8);
+        const prodTotal = [...prodMap.values()].reduce((s,v)=>s+v.revenue,0)||1;
+        const payTotal = [...payMap.values()].reduce((s,v)=>s+v.revenue,0)||1;
+
+        const ordersTable = `<table><thead><tr><th>Order</th><th>Items</th><th class="num">Total</th><th>Pay</th></tr></thead><tbody>${
+          orders.map(o=>`<tr><td><span class="drill-link" data-act="order" data-id="${o.id}">#${o.id}</span></td><td>${o.items.map(it=>`${esc(it.product_name||'?')}×${it.quantity}`).join(', ')}</td><td class="num">${Rp(o.total)}</td><td><span class="pill">${esc(o.payment_method||'—')}</span></td></tr>`).join('')
+        }</tbody></table>`;
+
+        drillBody.innerHTML = `
+          <div class="dl-stat">
+            <div class="b"><div class="l">Revenue</div><div class="n">${Rp(totalRev)}</div></div>
+            <div class="b"><div class="l">Orders</div><div class="n">${orders.length}</div></div>
+            <div class="b"><div class="l">Items sold</div><div class="n">${itemCount}</div></div>
+          </div>
+          <h3>Top products</h3>
+          ${topProducts.map(([id,v])=>`<div class="dl-row"><span class="nm"><span class="drill-link" data-act="product" data-id="${id}">${esc(v.name||'?')}</span> <span class="foot">${v.qty}×</span></span><div class="bar"><span style="width:${Math.round(v.revenue/prodTotal*100)}%"></span></div><span class="amt">${Rp(v.revenue)}</span></div>`).join('')}
+          <h3>Payment mix</h3>
+          ${[...payMap.entries()].sort((a,b)=>b[1].revenue-a[1].revenue).map(([m,v])=>`<div class="dl-row"><span class="nm">${esc(m.toUpperCase())} <span class="foot">${v.count}×</span></span><div class="bar"><span style="width:${Math.round(v.revenue/payTotal*100)}%"></span></div><span class="amt">${Rp(v.revenue)}</span></div>`).join('')}
+          <div class="exp-cat">
+            <div class="dl-row exp-head"><span class="nm"><span class="chev">▸</span> View ${orders.length} individual order(s)</span></div>
+            <div class="exp-items">${ordersTable}</div>
+          </div>`;
+        drillBody.querySelectorAll('.exp-head').forEach(h=>h.addEventListener('click',()=>h.parentNode.classList.toggle('open')));
+      } catch(e) { drillBody.innerHTML = '<div class="err">❌ ' + esc(e.message) + '</div>'; }
     }
 
     async function drillProduct(id){
@@ -676,7 +756,7 @@
         + line('= Net Profit', net, net<0?'neg':'pos', null, true);
       drillBody.querySelectorAll('[data-pnl]').forEach(el=>el.addEventListener('click',()=>{
         const t=el.getAttribute('data-pnl');
-        if(t==='revenue') drillRevenue(); else if(t==='cogs') drillCogs(); else if(t==='expenses') drillExpenses();
+        if(t==='revenue') drillTo(drillRevenue); else if(t==='cogs') drillTo(drillCogs); else if(t==='expenses') drillTo(drillExpenses);
       }));
     }
 
