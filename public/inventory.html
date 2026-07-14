@@ -10,8 +10,8 @@
     body { font-family: inherit; margin: 0; padding: 0; background: transparent; color: var(--ink); }
     .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; }
     .topbar, .page-sub, .stats, .filter-bar { flex: 0 0 auto; }
-    .main-area { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 380px; gap: 12px; min-height: 0; overflow: hidden; }
-    @media(max-width:800px){ .main-area { grid-template-columns: 1fr; } }
+    .main-area { flex: 1 1 auto; display: grid; grid-template-columns: 1.3fr 260px 1fr; gap: 12px; min-height: 0; overflow: hidden; }
+    @media(max-width:800px){ .main-area { grid-template-columns: 1fr; overflow-y: auto; } }
 
     .topbar { display: flex; align-items: center; gap: 10px; }
     .topbar h1 { margin: 0; flex: 1; font-size: 20px; }
@@ -143,41 +143,38 @@
         </div></div>
       </div>
 
-      <!-- Right: Adjustments + Movements -->
-      <div style="display:flex;flex-direction:column;gap:12px;overflow:hidden;">
-        <!-- Quick Adjustment -->
-        <div class="card" id="adjCard">
-          <strong style="color:var(--accent);">Stock Adjustment</strong>
-          <div class="hint" style="margin-bottom:6px;">Click a row on the left, or pick below — then Add or Remove.</div>
-          <label>Ingredient</label>
-          <select id="adjIngredient"></select>
-          <div class="dir-toggle">
-            <button type="button" id="dirAdd" class="on add">＋ Add</button>
-            <button type="button" id="dirRemove" class="remove">－ Remove</button>
-          </div>
-          <div class="btn-row" style="margin-top:8px;">
-            <input id="adjQty" type="number" step="0.01" min="0" placeholder="Quantity" />
-            <select id="adjReason" style="width:auto;flex:0 0 auto;min-width:100px;"><option value="adjustment">Adjustment</option><option value="opening">Opening Stock</option><option value="transfer_in">Transfer In</option></select>
-          </div>
-          <input id="adjNote" placeholder="Note (optional)" style="margin-top:4px;" />
-          <button id="saveAdj">Save Adjustment</button>
-          <div class="status" id="adjStatus"></div>
+      <!-- Middle: Quick Adjustment -->
+      <div class="card" id="adjCard" style="overflow-y:auto;min-height:0;">
+        <strong style="color:var(--accent);">Stock Adjustment</strong>
+        <div class="hint" style="margin-bottom:6px;">Click a row on the left, or pick below — then Add or Remove.</div>
+        <label>Ingredient</label>
+        <select id="adjIngredient"></select>
+        <div class="dir-toggle">
+          <button type="button" id="dirAdd" class="on add">＋ Add</button>
+          <button type="button" id="dirRemove" class="remove">－ Remove</button>
         </div>
+        <div class="btn-row" style="margin-top:8px;">
+          <input id="adjQty" type="number" step="0.01" min="0" placeholder="Quantity" />
+          <select id="adjReason" style="width:auto;flex:0 0 auto;min-width:100px;"><option value="adjustment">Adjustment</option><option value="opening">Opening Stock</option><option value="transfer_in">Transfer In</option></select>
+        </div>
+        <input id="adjNote" placeholder="Note (optional)" style="margin-top:4px;" />
+        <button id="saveAdj">Save Adjustment</button>
+        <div class="status" id="adjStatus"></div>
+      </div>
 
-        <!-- Recent Movements -->
-        <div class="card stat-card" style="flex:1;min-height:0;">
-          <div class="stat-card-header"><strong style="color:var(--accent);">Recent Movements</strong></div>
-          <div class="move-filters" id="moveFilters">
-            <button type="button" class="move-chip on" data-src="all">All</button>
-            <button type="button" class="move-chip" data-src="sale">📤 Sales</button>
-            <button type="button" class="move-chip" data-src="purchase">📥 Purchases</button>
-            <button type="button" class="move-chip" data-src="manual">🔧 Adjustments</button>
-          </div>
-          <div class="table-wrap"><div class="list-scroll">
-            <table><thead><tr><th>Ingredient</th><th>Type</th><th class="num">Qty</th><th>Note / Source</th></tr></thead>
-            <tbody id="moveRows"><tr><td colspan="4">Loading…</td></tr></tbody></table>
-          </div></div>
+      <!-- Right: Recent Movements — its own full-height column, not squeezed under the form -->
+      <div class="card stat-card">
+        <div class="stat-card-header"><strong style="color:var(--accent);">Recent Movements</strong></div>
+        <div class="move-filters" id="moveFilters">
+          <button type="button" class="move-chip on" data-src="all">All</button>
+          <button type="button" class="move-chip" data-src="sale">📤 Sales</button>
+          <button type="button" class="move-chip" data-src="purchase">📥 Purchases</button>
+          <button type="button" class="move-chip" data-src="manual">🔧 Adjustments</button>
         </div>
+        <div class="table-wrap"><div class="list-scroll">
+          <table><thead><tr><th>Ingredient</th><th>Type</th><th class="num">Qty</th><th>Note / Source</th></tr></thead>
+          <tbody id="moveRows"><tr><td colspan="4">Loading…</td></tr></tbody></table>
+        </div></div>
       </div>
     </div>
 
