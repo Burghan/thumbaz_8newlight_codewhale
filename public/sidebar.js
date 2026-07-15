@@ -11,7 +11,8 @@
       { href: '/transactions.html', label: 'Transactions' },
       { href: '/budget.html', label: 'Budget' },
     ]},
-    { type: 'link', href: '/pos.html', label: '🛒  POS' },
+    { type: 'link', href: '/pos/ui/1/register', label: '🛒  POS' },
+    { type: 'link', href: '/kitchen.html', label: '🔔  Kitchen' },
     { type: 'link', href: '/inventory.html', label: '📦  Inventory' },
     { type: 'divider' },
     { type: 'group', label: '📋  Product', children: [
@@ -78,7 +79,7 @@
     if (sidebar.querySelector('a[href="/home.html"][data-home="1"]')) return;
     const auth = getAuth() || {};
     const home = document.createElement('a');
-    home.href = auth.role === 'staff' ? '/pos.html' : '/dashboard.html';
+    home.href = auth.role === 'staff' ? '/pos/ui/1/register' : '/dashboard.html';
     home.dataset.home = '1';
     home.textContent = 'Home';
     // Insert as the first top-level nav item (after the brand) so it does not
@@ -91,22 +92,12 @@
     }
   }
 
-  function addNewPosLink() {
-    if (sidebar.querySelector('a[href="/pos/ui/1/register"]')) return;
-    const posLink = sidebar.querySelector('a[href="/pos.html"]');
-    if (!posLink || !posLink.parentNode) return;
-    const link = document.createElement('a');
-    link.href = '/pos/ui/1/register';
-    link.textContent = 'New POS';
-    posLink.parentNode.insertBefore(link, posLink.nextSibling);
-  }
-
   function filterLinksByRole() {
     const auth = getAuth();
     if (!auth || !auth.role) return;
 
     if (auth.role === 'staff') {
-    const allowed = new Set(['/pos.html', '/pos/ui/1/register', '/clock.html', '/logout.html']);
+    const allowed = new Set(['/pos/ui/1/register', '/kitchen.html', '/clock.html', '/logout.html']);
       sidebar.querySelectorAll('a[href]').forEach(link => {
         const href = link.getAttribute('href');
         if (!allowed.has(href)) {
@@ -180,7 +171,6 @@
   }
 
   addHomeLink();
-  addNewPosLink();
 
   const ICONS = {
     '/dashboard.html': `
@@ -197,17 +187,11 @@
         <path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1l2.1-2.1M17 7l2.1-2.1" />
       </svg>
     `,
-    '/pos.html': `
+    '/pos/ui/1/register': `
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="9" cy="19" r="1.5" />
         <circle cx="17" cy="19" r="1.5" />
         <path d="M3 4h2l2.4 9.6a2 2 0 0 0 2 1.4h7.6a2 2 0 0 0 2-1.5l1.2-6.5H7.2" />
-      </svg>
-    `,
-    '/pos/ui/1/register': `
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="4" y="4" width="16" height="16" rx="3" />
-        <path d="M8 9h8M8 13h8M8 17h5" />
       </svg>
     `,
     '/clock.html': `

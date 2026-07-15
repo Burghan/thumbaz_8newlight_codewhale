@@ -4,7 +4,7 @@ const DEFAULT_THEME = 'newlight';
 const ROLE_HOME = {
   admin: '/dashboard.html',
   manager: '/dashboard.html',
-  staff: '/pos.html'
+  staff: '/pos/ui/1/register'
 };
 
 function applyTheme(theme) {

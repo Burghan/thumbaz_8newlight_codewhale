@@ -4,7 +4,7 @@
 // wrong stock or old prices would be actively harmful. Only the static shell
 // (css/js/icons/manifest) is cached, so those load instantly while every page
 // navigation and every API call always goes straight to the network.
-const CACHE = 'newlight-shell-v2';
+const CACHE = 'newlight-shell-v4';
 const SHELL_ASSETS = [
   '/sidebar.css',
   '/theme.css',

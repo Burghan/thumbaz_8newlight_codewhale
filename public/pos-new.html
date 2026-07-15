@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>8 NewLight POS — New Concept</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <link rel="stylesheet" href="/pos-new.css" />
+  <link rel="stylesheet" href="/pos-new-setup.css" />
+</head>
+<body class="odoo-shell">
+  <button class="menu-toggle" id="menuToggle">☰ Menu</button>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span>
+      <div class="brand-text">
+        <div class="brand-title">8 NewLight Coffee</div>
+        <div class="brand-subtitle">Navigation</div>
+      </div>
+    </div>
+  </aside>
+
+  <header class="pos-topbar">
+    <div class="pos-brand">
+      <img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" class="pos-logo" />
+      <div class="pos-brand-text">8 NewLight POS</div>
+    </div>
+    <div class="pos-actions">
+      <button class="pos-link" id="cashMoveBtn" type="button">Cash In/Out</button>
+      <!-- Hold/Orders (client-side only, not tied to real sales) isn't in use for now — hidden, not deleted. -->
+      <button class="pos-link" id="ordersBtn" type="button" style="display:none;">
+        Orders <span class="pos-badge" id="ordersBadge">0</span>
+      </button>
+    </div>
+    <div class="pos-status">
+      <div class="pos-menu">
+        <button class="pos-menu-btn" type="button" aria-haspopup="true" aria-expanded="false">POS ▾</button>
+        <div class="pos-menu-dropdown" role="menu">
+          <a role="menuitem" href="/pos.html">Current POS</a>
+          <a role="menuitem" href="/pos/ui/1/register">New Concept</a>
+        </div>
+      </div>
+      <div class="pos-user" id="posUser">--</div>
+      <div class="pos-clock" id="clock">--:--</div>
+      <span class="pos-wifi" aria-label="Connection">📶</span>
+      <a class="pos-close" href="/logout.html">Close</a>
+    </div>
+  </header>
+
+  <main class="odoo-main">
+    <div class="app">
+      <div class="pos-flow" id="posFlow">
+        <!-- Tables/Orders/Direct Sale are hidden (not in use) — with only Register
+             left, a tab strip has nothing to switch between, so it's dropped
+             rather than shown as a single dead-looking button. The buttons stay
+             in the DOM (display:none) so flowTabs.forEach() in pos-new.js keeps
+             working unchanged; bringing any of these back just needs the
+             display:none removed here. -->
+        <div class="flow-tabs" style="display:none;">
+          <button class="flow-tab" data-flow="tables">Tables</button>
+          <button class="flow-tab active" data-flow="register">Register</button>
+          <button class="flow-tab" data-flow="orders">Orders</button>
+          <button class="flow-tab pill" data-flow="direct">Direct Sale</button>
+        </div>
+        <div class="flow-actions">
+          <div class="flow-search">
+            <span class="search-icon">🔍</span>
+            <input id="searchInput" type="search" placeholder="Search products..." />
+          </div>
+        </div>
+      </div>
+
+      <section class="layout" id="registerView">
+        <section class="order-panel">
+          <div class="order-header">
+            <div>
+              <h2>Order</h2>
+              <div class="muted" id="orderMetaLine">Ticket #1024</div>
+            </div>
+            <div class="order-meta">
+              <select id="orderType" class="select">
+                <option value="dine_in">Dine In</option>
+                <option value="takeaway">Takeaway</option>
+                <option value="delivery">Delivery</option>
+              </select>
+              <button class="ghost" id="clearOrder">Clear</button>
+            </div>
+          </div>
+
+          <div class="customer-card">
+            <div>
+              <label class="label">Customer</label>
+              <input id="customerInput" type="text" placeholder="Name / phone" />
+            </div>
+            <div>
+              <label class="label">Loyalty</label>
+              <input id="loyaltyInput" type="text" placeholder="Member ID" />
+            </div>
+          </div>
+
+          <div class="order-list" id="orderList"></div>
+
+          <div class="order-summary">
+            <div class="summary-row">
+              <span>Subtotal</span>
+              <strong id="subtotal">Rp 0</strong>
+            </div>
+            <div class="summary-row">
+              <span>Tax</span>
+              <strong id="tax">Rp 0</strong>
+            </div>
+            <div class="summary-row">
+              <span>Discount</span>
+              <strong id="discount">Rp 0</strong>
+            </div>
+            <div class="summary-row">
+              <span>Loyalty Points</span>
+              <strong id="loyaltyPoints">0</strong>
+            </div>
+            <div class="summary-row total">
+              <span>Total</span>
+              <strong id="total">Rp 0</strong>
+            </div>
+          </div>
+
+        <div class="action-grid hidden" id="actionGrid">
+          <button class="pay primary" id="payNow">Pay</button>
+          <button class="pay" id="splitBtn">Split Bill</button>
+          <button class="pay" id="holdBtn" style="display:none;">Hold</button>
+          <button class="pay" id="invoiceBtn">Invoice</button>
+          <button class="pay" id="refundBtn">Void Last Sale</button>
+          <button class="pay" id="loyaltyBtn">Loyalty</button>
+        </div>
+
+        <div class="numpad-odoo" id="numpadTop">
+          <div id="numpadPreActions">
+            <div class="numpad-actions-row five">
+              <button class="numpad-chip" data-action="customer">Customer</button>
+              <button class="numpad-chip" data-action="note">Note</button>
+              <button class="numpad-chip" data-action="dine">Dine</button>
+              <button class="numpad-chip" data-action="course">Course</button>
+              <button class="numpad-chip ghost dots" data-action="more">...</button>
+            </div>
+          </div>
+          <div id="numpadPostActions" class="hidden">
+            <div class="numpad-actions-row four">
+              <button class="numpad-chip" data-action="customer">Customer</button>
+              <button class="numpad-chip" data-action="note">Note</button>
+              <button class="numpad-chip" data-action="dine">Dine In</button>
+              <button class="numpad-chip ghost dots" data-action="more">...</button>
+            </div>
+          </div>
+          <div class="numpad-main">
+            <div class="numpad" id="numpad">
+              <button data-key="1">1</button>
+              <button data-key="2">2</button>
+              <button data-key="3">3</button>
+              <button class="action" data-action="qty">Qty</button>
+              <button data-key="4">4</button>
+              <button data-key="5">5</button>
+              <button data-key="6">6</button>
+              <button class="action" data-action="disc">%</button>
+              <button data-key="7">7</button>
+              <button data-key="8">8</button>
+              <button data-key="9">9</button>
+              <button class="action" data-action="price">Price</button>
+              <button class="action" data-action="sign">+/-</button>
+              <button data-key="0">0</button>
+              <button data-key=".">.</button>
+              <button class="action danger" data-action="del">⌫</button>
+            </div>
+          </div>
+          <div class="numpad-footer hidden" id="numpadFooter">
+            <button class="footer-action send" data-action="update_kitchen" id="sendOrderBtn">Send to Bar</button>
+            <button class="footer-action primary" data-action="payment">Payment</button>
+          </div>
+        </div>
+      </section>
+
+        <section class="catalog-panel">
+          <div class="catalog-header">
+            <div>
+              <h2>Products</h2>
+              <div class="muted">Tap to add • Use numpad to edit</div>
+            </div>
+            <div class="catalog-header-actions">
+              <button class="ghost" id="priceCheckBtn" type="button">Price Check</button>
+              <button class="ghost" id="addCustomItemBtn" type="button">Add Custom Item</button>
+              <button class="ghost" id="manageModifiersBtn" type="button">Manage Modifiers</button>
+            </div>
+          </div>
+
+          <div class="category-row" id="categoryRow"></div>
+
+          <div class="product-grid" id="productGrid"></div>
+        </section>
+      </section>
+
+      <section class="orders-view hidden" id="ordersView">
+        <div class="orders-list-panel">
+          <div class="orders-list-header">
+            <div class="orders-search-bar">
+              <span class="search-icon">🔍</span>
+              <input id="posOrdersSearch" type="search" placeholder="Search Orders..." />
+            </div>
+            <select id="posOrdersFilter" class="select">
+              <option value="">Active</option>
+              <option value="ongoing">Ongoing</option>
+              <option value="paid">Paid</option>
+              <option value="invoice">Invoice</option>
+            </select>
+            <div class="orders-chips" id="posOrdersTypeChips">
+              <button class="chip-btn active" data-type="">All</button>
+              <button class="chip-btn" data-type="dine_in">Dine In</button>
+              <button class="chip-btn" data-type="takeaway">Takeout</button>
+              <button class="chip-btn" data-type="delivery">Delivery</button>
+            </div>
+          </div>
+          <div class="orders-list" id="posOrdersList"></div>
+        </div>
+        <div class="orders-detail-panel">
+          <div class="orders-detail-header">
+            <div>
+              <div class="orders-detail-title" id="posOrderTitle">Select an order</div>
+              <div class="muted" id="posOrderMeta">--</div>
+            </div>
+            <span class="status-pill ongoing hidden" id="posOrderStatus">Ongoing</span>
+          </div>
+          <div class="orders-detail-items" id="posOrderItems"></div>
+          <div class="orders-detail-summary">
+            <div class="summary-row">
+              <span>Subtotal</span>
+              <strong id="posOrderSubtotal">Rp 0</strong>
+            </div>
+            <div class="summary-row">
+              <span>Tax</span>
+              <strong id="posOrderTax">Rp 0</strong>
+            </div>
+            <div class="summary-row total">
+              <span>Total</span>
+              <strong id="posOrderTotal">Rp 0</strong>
+            </div>
+          </div>
+          <button class="pay primary" id="posOrderAction" disabled>Load Order</button>
+        </div>
+      </section>
+
+      <section class="tables-view hidden" id="tablesView">
+        <section class="layout tables-layout">
+          <section class="table-grid" id="tableGrid"></section>
+        </section>
+      </section>
+    </div>
+  </main>
+
+  <div class="modal" id="payModal">
+    <div class="modal-card">
+      <h3>Payment</h3>
+      <div class="modal-total" id="modalTotal">Rp 0</div>
+      <div class="modal-row">
+        <label>Payment Type</label>
+        <select id="paymentType" class="select">
+          <option value="cash">Cash</option>
+          <option value="card">Card</option>
+          <option value="qris">QRIS</option>
+        </select>
+      </div>
+      <div class="modal-row payment-options">
+        <button class="pay payment-customer" id="paymentCustomerBtn" type="button">
+          <span id="paymentCustomerName">Customer</span>
+        </button>
+        <label class="invoice-toggle">
+          <span>Invoice</span>
+          <input id="invoiceCheck" type="checkbox" />
+        </label>
+      </div>
+      <div class="modal-row">
+        <label>Amount Tendered</label>
+        <input id="tendered" type="text" inputmode="decimal" placeholder="0" />
+      </div>
+      <div class="modal-row">
+        <label>Change</label>
+        <div class="modal-total" id="changeValue">Rp 0</div>
+      </div>
+      <div class="modal-actions">
+        <button class="pay" id="closePay">Back</button>
+        <button class="pay primary" id="confirmPay">Pay</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modifierModal">
+    <div class="modal-card large">
+      <div class="modal-head">
+        <div>
+          <h3>Modifiers</h3>
+          <div class="muted" id="modifierItem">Select an item</div>
+        </div>
+        <button class="ghost" id="closeModifier">Close</button>
+      </div>
+      <div class="modifier-list" id="modifierList"></div>
+      <div class="modifier-custom">
+        <div>
+          <label>Custom name</label>
+          <input id="customModName" type="text" placeholder="Add-on name" />
+        </div>
+        <div>
+          <label>Price</label>
+          <input id="customModPrice" type="number" step="1" placeholder="0" />
+        </div>
+        <button class="pay" id="addCustomMod">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="manageModifiersModal">
+    <div class="modal-card large">
+      <div class="modal-head">
+        <div>
+          <h3>Manage Modifiers</h3>
+          <div class="muted">Add, edit, or disable modifiers used in the Modifiers picker.</div>
+        </div>
+        <button class="ghost" id="closeManageModifiers">Close</button>
+      </div>
+      <div class="modifier-custom">
+        <div>
+          <label>New modifier name</label>
+          <input id="newModifierName" type="text" placeholder="Name" />
+        </div>
+        <div>
+          <label>Price</label>
+          <input id="newModifierPrice" type="number" step="1" placeholder="0" />
+        </div>
+        <button class="pay primary" id="createModifierBtn" type="button">Add</button>
+      </div>
+      <div class="manage-modifier-list" id="manageModifierList"></div>
+      <div class="muted">Disabled modifiers are hidden from the picker but remain on past receipts.</div>
+    </div>
+  </div>
+
+  <div class="modal" id="customerModal">
+    <div class="modal-card large">
+      <div class="modal-head">
+        <div>
+          <h3>Customers</h3>
+          <div class="muted">Select or create a customer.</div>
+        </div>
+        <button class="ghost" id="closeCustomerModal">Close</button>
+      </div>
+      <div class="modal-row">
+        <label>Search</label>
+        <input id="customerSearch" type="text" placeholder="Search by name, phone, email" />
+      </div>
+      <div class="customer-list" id="customerList"></div>
+      <div class="modal-divider"></div>
+      <div class="modal-row">
+        <label>Create Customer</label>
+        <input id="customerCreateName" type="text" placeholder="Name" />
+      </div>
+      <div class="modal-row">
+        <label>Member ID</label>
+        <input id="customerCreateMemberId" type="text" placeholder="Member ID" />
+      </div>
+      <div class="modal-row">
+        <label>Phone</label>
+        <input id="customerCreatePhone" type="text" placeholder="Phone" />
+      </div>
+      <div class="modal-row">
+        <label>Email</label>
+        <input id="customerCreateEmail" type="text" placeholder="Email" />
+      </div>
+      <div class="modal-actions">
+        <button class="pay" id="clearCustomer">Clear</button>
+        <button class="pay primary" id="createCustomer">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="splitModal">
+    <div class="modal-card large">
+      <div class="modal-head">
+        <div>
+          <h3>Split Bill</h3>
+          <div class="muted">Move items to Bill B</div>
+        </div>
+        <button class="ghost" id="closeSplit">Close</button>
+      </div>
+      <div class="split-grid">
+        <div>
+          <div class="split-title">Bill A</div>
+          <div class="split-list" id="billA"></div>
+          <div class="split-total">Total: <span id="billATotal">Rp 0</span></div>
+        </div>
+        <div>
+          <div class="split-title">Bill B</div>
+          <div class="split-list" id="billB"></div>
+          <div class="split-total">Total: <span id="billBTotal">Rp 0</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="modal" id="promptModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h3 id="promptTitle">Edit</h3>
+          <div class="muted" id="promptHint">Provide a value</div>
+        </div>
+        <button class="ghost" id="promptClose">Close</button>
+      </div>
+      <div class="modal-row">
+        <label id="promptLabel">Value</label>
+        <input id="promptInput" type="text" />
+      </div>
+      <div class="modal-actions">
+        <button class="pay" id="promptCancel">Cancel</button>
+        <button class="pay primary" id="promptSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="infoModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h3 id="infoTitle">Info</h3>
+          <div class="muted" id="infoMessage">Message</div>
+        </div>
+        <button class="ghost" id="infoClose">Close</button>
+      </div>
+      <div class="modal-actions single">
+        <button class="pay primary" id="infoOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="actionsModal">
+    <div class="modal-card large">
+      <div class="modal-head">
+        <div>
+          <h3>Actions</h3>
+          <div class="muted">Order tools and payments</div>
+        </div>
+        <button class="ghost" id="closeActions">Close</button>
+      </div>
+      <div class="actions-grid" id="actionsGrid">
+        <button class="action-tile primary" data-action="pay">Payment</button>
+        <button class="action-tile" data-action="bill">Bill</button>
+        <button class="action-tile" data-action="guests">Guests</button>
+        <button class="action-tile" data-action="split">Split</button>
+        <button class="action-tile" data-action="set_table">Set Table</button>
+        <button class="action-tile" data-action="set_tab">Set Tab</button>
+        <button class="action-tile" data-action="update_kitchen">Update Kitchen</button>
+        <button class="action-tile" data-action="transfer">Transfer / Merge</button>
+        <button class="action-tile" data-action="course">Transfer Course</button>
+        <button class="action-tile" data-action="edit_name">Edit Order Name</button>
+        <button class="action-tile" data-action="pricelist">Pricelist</button>
+        <button class="action-tile" data-action="refund">Refund</button>
+        <button class="action-tile" data-action="cash_in">Cash In</button>
+        <button class="action-tile" data-action="cash_out">Cash Out</button>
+        <button class="action-tile" data-action="close_session">Close Shift</button>
+        <button class="action-tile" data-action="info">Info</button>
+        <button class="action-tile" data-action="cancel">Cancel Order</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="cashMoveModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h3>Cash In/Out</h3>
+          <div class="muted">Select cash movement type.</div>
+        </div>
+        <button class="ghost" id="closeCashMove">Close</button>
+      </div>
+      <div class="modal-actions single">
+        <button class="pay" id="cashMoveIn">Cash In</button>
+        <button class="pay" id="cashMoveOut">Cash Out</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="closeSessionModal">
+    <div class="modal-card large">
+      <div class="modal-head">
+        <div>
+          <h3>Close Shift</h3>
+          <div class="muted" id="closeSessionSubhead">Review expected vs counted.</div>
+        </div>
+        <button class="ghost" id="closeSessionClose">Close</button>
+      </div>
+      <div class="modal-row">
+        <label>Expected Cash</label>
+        <div class="modal-total" id="expectedCash">Rp 0</div>
+      </div>
+      <div class="modal-row">
+        <label>Expected Breakdown</label>
+        <div class="muted" id="expectedBreakdown">Opening + Sales + Cash In/Out</div>
+      </div>
+      <div class="modal-row">
+        <label>Counted Cash</label>
+        <input id="countedCash" type="number" placeholder="0" />
+      </div>
+      <div class="modal-row">
+        <label>Expected Card</label>
+        <div class="modal-total" id="expectedCard">Rp 0</div>
+      </div>
+      <div class="modal-row">
+        <label>Counted Card</label>
+        <input id="countedCard" type="number" placeholder="0" />
+      </div>
+      <div class="modal-row">
+        <label>Expected QRIS</label>
+        <div class="modal-total" id="expectedQris">Rp 0</div>
+      </div>
+      <div class="modal-row">
+        <label>Counted QRIS</label>
+        <input id="countedQris" type="number" placeholder="0" />
+      </div>
+      <div class="modal-row">
+        <label>Notes</label>
+        <input id="closeSessionNotes" type="text" placeholder="e.g. Cash short, variance explained" />
+      </div>
+      <div class="modal-actions">
+        <button class="pay" id="closeSessionCancel">Cancel</button>
+        <button class="pay primary" id="closeSessionConfirm">Close Shift</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="receiptModal">
+    <div class="modal-card receipt">
+      <div class="receipt-left">
+          <div class="receipt-success">
+            <div class="receipt-check">✓</div>
+            <div>
+            <div class="receipt-title" id="receiptTitle">Payment Successful</div>
+            <div class="receipt-amount" id="receiptTotal">Rp 0</div>
+          </div>
+        </div>
+        <button class="pay" id="printReceipt">Print Full Receipt</button>
+        <div class="receipt-email">
+          <input id="receiptEmail" type="email" placeholder="e.g. customer@mail.com" />
+          <button class="pay primary" id="sendReceipt">Send</button>
+        </div>
+        <button class="pay primary" id="newOrder">New Order</button>
+      </div>
+      <div class="receipt-right" id="receiptPreview">
+        <div class="receipt-paper">
+          <div class="receipt-logo">
+            <img id="receiptLogoImg" alt="Store logo" />
+            <div id="receiptLogoText">8 NewLight</div>
+          </div>
+          <div class="receipt-meta">
+            <div id="receiptTicket">Ticket #0000</div>
+            <div id="receiptTime">--</div>
+            <div id="receiptCashier">Served by: --</div>
+            <div id="receiptOrderType">Order Type: --</div>
+            <div id="receiptCustomer" class="hidden">Customer: --</div>
+          </div>
+          <div class="receipt-divider"></div>
+          <div class="receipt-items" id="receiptItems"></div>
+          <div class="receipt-divider"></div>
+          <div class="receipt-line"><span>Subtotal</span><span id="receiptSubtotal">Rp 0</span></div>
+          <div class="receipt-line"><span>Tax</span><span id="receiptTax">Rp 0</span></div>
+          <div class="receipt-line total"><span>Total</span><span id="receiptTotal2">Rp 0</span></div>
+          <div class="receipt-line" id="receiptChangeLine" style="display:none;">
+            <span>Change</span>
+            <span id="receiptChange">Rp 0</span>
+          </div>
+          <div class="receipt-divider"></div>
+          <div class="receipt-qr">
+            <img id="receiptQr" alt="Receipt QR" />
+          </div>
+          <div class="receipt-footer" id="receiptFooterText">Thank you!</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/pos-new-data.js"></script>
+  <script src="/pos-new-tables.js"></script>
+  <script src="/pos-new.js"></script>
+  <script src="/sidebar.js"></script>
+</body>
+</html>
