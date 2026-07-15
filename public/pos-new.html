@@ -74,6 +74,16 @@
 
       <section class="layout" id="registerView">
         <section class="order-panel">
+          <!-- Phone-width only: collapsed by default so the product grid is
+               the main view; tapping this expands the full cart/numpad/pay
+               panel as a bottom sheet. Hidden entirely on tablet/desktop. -->
+          <button class="mobile-cart-toggle" id="mobileCartToggle" type="button">
+            <span class="mobile-cart-summary">
+              <span id="mobileCartCount">0 items</span>
+              <span id="mobileCartTotal">Rp 0</span>
+            </span>
+            <span class="mobile-cart-chevron" aria-hidden="true">▲</span>
+          </button>
           <div class="order-header">
             <div>
               <h2>Order</h2>

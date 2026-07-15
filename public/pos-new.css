@@ -26,6 +26,10 @@ body {
   font-family: var(--font-body);
   background: radial-gradient(circle at top, #ffffff 0%, #faf7ef 55%, #f4efe4 100%);
   color: var(--ink);
+  /* The two-column .layout grid has real min-widths — without this, a
+     narrow phone forces horizontal page overflow, and iOS Safari is known
+     to mis-position position:fixed modals (like Payment) when that happens. */
+  overflow-x: hidden;
 }
 
 .pos-topbar {
@@ -996,6 +1000,7 @@ body {
   border-radius: 12px;
   border: 1px solid var(--border);
   background: #f1f1f3;
+  color: var(--ink);
   font-weight: 700;
   padding: 12px;
   cursor: pointer;
@@ -1004,14 +1009,17 @@ body {
   gap: 2px;
 }
 
+/* Payment/Send to Bar are the two checkout actions — solid brand blue with
+   white text, not the near-white gradient that made "Payment" unreadable. */
 .footer-action.primary {
-  background: linear-gradient(180deg, #ffffff 0%, #f2f5fb 100%);
-  border-color: #d3d9e6;
+  background: var(--accent, #5c7da6);
+  border-color: var(--accent, #5c7da6);
+  color: #fff;
 }
 
 .footer-action.send {
-  background: #4d6c93;
-  border-color: #3e5b7f;
+  background: var(--accent-2, #3e5b7f);
+  border-color: var(--accent-2, #3e5b7f);
   color: #fff;
 }
 
@@ -1876,4 +1884,174 @@ body {
 .qty-btn,
 .numpad button {
   letter-spacing: 0.03em;
+}
+
+/* ============================================================
+   Tablet landscape — app-like fixed viewport (mirrors pos.html's 12"
+   tablet treatment). Without this, .app's `min-height: 100vh` stacks on
+   top of the sticky topbar's own height, guaranteeing page-level scroll
+   on every device. Here the page itself never scrolls — the order list
+   and product grid each scroll internally instead, so the numpad and
+   Payment/Send to Bar footer always stay in view. Applies whenever the
+   tablet is rotated into landscape (not just one fixed size).
+   ============================================================ */
+@media (min-width: 900px) and (orientation: landscape) {
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .pos-topbar {
+    flex: 0 0 auto;
+  }
+
+  .odoo-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    overflow: hidden;
+  }
+
+  .app {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .pos-flow {
+    flex: 0 0 auto;
+  }
+
+  .layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .order-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .order-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .numpad-odoo {
+    flex: 0 0 auto;
+  }
+
+  .catalog-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .product-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    align-content: start;
+    padding-right: 4px;
+  }
+}
+
+/* ============================================================
+   Phone (both orientations, under the tablet breakpoint) — the
+   two-column .layout has real min-widths (320px + 420px + gap), so below
+   900px it's collapsed to a single column: the product grid is the main
+   scrollable view, and the order panel becomes a bottom-sheet collapsed
+   to a slim "N items · Total" bar by default, expanding to the full
+   cart/numpad/payment on tap. This also removes the horizontal page
+   overflow that was pushing the Payment modal off-screen on iPhone.
+   ============================================================ */
+.mobile-cart-toggle {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .layout {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    padding: 14px;
+    gap: 0;
+  }
+
+  .catalog-panel {
+    order: 1;
+    padding-bottom: 76px;
+  }
+
+  .order-panel {
+    order: 2;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    border-radius: 18px 18px 0 0;
+    max-height: 58px;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+    box-shadow: 0 -10px 26px rgba(20, 32, 46, 0.18);
+  }
+
+  .order-panel.expanded {
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+
+  /* Collapsed: only the toggle bar shows. Expanded: everything shows. */
+  .order-panel:not(.expanded) > *:not(.mobile-cart-toggle) {
+    display: none;
+  }
+
+  .mobile-cart-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: transparent;
+    border: none;
+    padding: 14px 18px;
+    font-family: inherit;
+    font-weight: 700;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .mobile-cart-summary {
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+  }
+
+  #mobileCartTotal {
+    color: var(--accent, #5c7da6);
+  }
+
+  .mobile-cart-chevron {
+    transition: transform 0.2s ease;
+    color: var(--muted);
+  }
+
+  .order-panel.expanded .mobile-cart-chevron {
+    transform: rotate(180deg);
+  }
 }

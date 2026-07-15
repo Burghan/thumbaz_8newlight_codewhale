@@ -177,6 +177,10 @@ const manageModifierList = document.getElementById('manageModifierList');
 const newModifierName = document.getElementById('newModifierName');
 const newModifierPrice = document.getElementById('newModifierPrice');
 const createModifierBtn = document.getElementById('createModifierBtn');
+const mobileCartToggle = document.getElementById('mobileCartToggle');
+const mobileCartCount = document.getElementById('mobileCartCount');
+const mobileCartTotal = document.getElementById('mobileCartTotal');
+const orderPanelEl = document.querySelector('.order-panel');
 
 function loadHeldOrders() {
   try {
@@ -813,6 +817,11 @@ function updateTotals() {
     const rate = Number(settings.loyaltyRate || 1);
     const points = base > 0 ? Math.floor(total / base) * rate : 0;
     loyaltyPointsEl.textContent = String(points);
+  }
+  if (mobileCartCount && mobileCartTotal) {
+    const itemCount = state.order.reduce((sum, item) => sum + item.qty, 0);
+    mobileCartCount.textContent = `${itemCount} item${itemCount === 1 ? '' : 's'}`;
+    mobileCartTotal.textContent = formatCurrency(total);
   }
 }
 
@@ -2427,6 +2436,14 @@ if (addCustomItemBtn) {
     state.inputMode = 'price';
     state.buffer = '';
     renderOrder();
+  });
+}
+
+// Phone-width bottom sheet — collapsed by default (see .mobile-cart-toggle
+// in pos-new.css), tap to expand the full cart/numpad/payment panel.
+if (mobileCartToggle && orderPanelEl) {
+  mobileCartToggle.addEventListener('click', () => {
+    orderPanelEl.classList.toggle('expanded');
   });
 }
 
