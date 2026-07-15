@@ -3,6 +3,25 @@ const db = require('../db');
 const { deductStockForSale } = require('../lib/stock');
 const router = express.Router();
 
+// Resolve the price_delta (whole rupiah) for one modifier entry attached to a
+// cart line. Entries come in two shapes from pos.html:
+//   { id, price_delta? }                         → a saved modifier (table lookup)
+//   { custom_name, price_delta, ... }            → a one-off custom add-on
+// A client-supplied price_delta always wins so overrides/customs are honoured;
+// otherwise we trust the modifiers table so a stale/absent client price can't
+// under-charge. Unknown ids contribute 0.
+function modifierDelta(entry, getModPrice) {
+  if (!entry || typeof entry !== 'object') return 0;
+  if (entry.price_delta !== undefined && entry.price_delta !== null && Number.isFinite(Number(entry.price_delta))) {
+    return Math.round(Number(entry.price_delta));
+  }
+  if (entry.id !== undefined && entry.id !== null) {
+    const row = getModPrice.get(Number(entry.id));
+    return row ? Math.round(Number(row.price_delta) || 0) : 0;
+  }
+  return 0;
+}
+
 // POST /api/sales — adapter for coffee-pos format → our transactions table.
 router.post('/', (req, res) => {
   const b = req.body || {};
@@ -11,6 +30,8 @@ router.post('/', (req, res) => {
 
   const paymentMap = { cash: 'cash', qris: 'qris', transfer: 'transfer', card: 'transfer' };
   const payment = paymentMap[b.payment_type] || 'cash';
+
+  const getModPrice = db.prepare('SELECT price_delta FROM modifiers WHERE id = ?');
 
   const tx = db.transaction(() => {
     const txn = db.prepare(
@@ -26,8 +47,14 @@ router.post('/', (req, res) => {
 
     for (const item of items) {
       const qty = Number(item.quantity || 1);
-      const price = Math.round(Number(item.price || 0));
-      insItem.run(txnId, item.product_id, qty, price, qty * price);
+      const base = Math.round(Number(item.price || 0));
+      // Fold each attached modifier's price into the recorded unit price so the
+      // stored line_total matches what the customer was actually charged
+      // (previously modifiers were shown in the cart but lost at checkout).
+      const modSum = (Array.isArray(item.modifiers) ? item.modifiers : [])
+        .reduce((sum, m) => sum + modifierDelta(m, getModPrice), 0);
+      const effective = base + modSum;
+      insItem.run(txnId, item.product_id, qty, effective, qty * effective);
     }
     return txnId;
   });
@@ -43,6 +70,8 @@ router.post('/', (req, res) => {
 
   res.json({
     success: true,
+    sale_id: txn.id,
+    message: 'Sale completed',
     sale: {
       id: txn.id,
       created_at: txn.transacted_at,
@@ -52,9 +81,35 @@ router.post('/', (req, res) => {
   });
 });
 
-// Void a sale (soft-delete).
+// POST /api/sales/:id/void — reverse a sale: restore the inventory it deducted
+// and remove the transaction so it no longer counts toward revenue.
 router.post('/:id/void', (req, res) => {
-  // The POS just needs a success response.
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid sale id' });
+
+  const txn = db.prepare('SELECT id FROM transactions WHERE id = ?').get(id);
+  if (!txn) return res.status(404).json({ error: 'Sale not found' });
+
+  const voidTx = db.transaction(() => {
+    // Usage movements record qty_base as negative (what was deducted). Add it
+    // back by subtracting that negative amount from current stock.
+    const movements = db.prepare(
+      `SELECT ingredient_id, qty_base FROM stock_movements
+       WHERE ref_type = 'sale' AND ref_id = ? AND type = 'usage'`
+    ).all(id);
+    const bump = db.prepare(
+      `UPDATE inventory SET quantity_base = quantity_base - ?, updated_at = datetime('now')
+       WHERE ingredient_id = ?`
+    );
+    for (const m of movements) {
+      bump.run(Number(m.qty_base) || 0, m.ingredient_id);
+    }
+    db.prepare('DELETE FROM stock_movements WHERE ref_type = ? AND ref_id = ?').run('sale', id);
+    db.prepare('DELETE FROM transaction_items WHERE transaction_id = ?').run(id);
+    db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
+  });
+
+  voidTx();
   res.json({ success: true, message: 'Sale voided' });
 });
 
