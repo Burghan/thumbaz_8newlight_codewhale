@@ -34,7 +34,7 @@ app.use('/api/inventory', manager, require('./routes/inventory'));
 app.use('/api/receipt', manager, require('./routes/receipt'));
 app.use('/api/transactions', manager, require('./routes/transactions'));
 app.use('/api/sales', manager, require('./routes/sales'));
-app.get('/api/modifiers', (req, res) => res.json([]));
+app.use('/api/modifiers', requireRole(['admin', 'manager', 'staff']), require('./routes/modifiers'));
 app.get('/api/clock/status', (req, res) => res.json({active:false,employee:null}));
 app.use('/api/reports', manager, require('./routes/reports'));
 app.use('/api/budget', manager, require('./routes/budget'));
