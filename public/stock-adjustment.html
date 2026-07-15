@@ -40,21 +40,21 @@
     .picker h2 { display: flex; align-items: baseline; gap: 8px; }
     .picker h2 .count { font-size: 12px; font-weight: 400; color: var(--muted); }
     #pickSearch { width: 100%; padding: 9px 12px; font-size: 14px; min-height: 40px; border-radius: 8px; box-sizing: border-box; border: 1px solid var(--border); margin-bottom: 8px; }
-    .pick-head { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 8px 12px;
+    .pick-head, .pick-row { display: grid; grid-template-columns: 1.5fr 1fr 90px 64px; gap: 10px; align-items: center; }
+    .pick-head { padding: 8px 12px;
       font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; color: var(--muted);
       border: 1px solid var(--border); border-bottom: none; border-radius: 10px 10px 0 0; background: var(--card-tint, #f4f1ea); }
     .pick-head .num { text-align: right; }
     .pick-list { flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 0 0 10px 10px; }
-    .pick-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;
-      padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .pick-row { padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
     .pick-row:last-child { border-bottom: none; }
     .pick-row:hover { background: var(--card-tint, #f4f1ea); }
     .pick-row.selected { background: rgba(92,125,166,0.12); outline: 2px solid var(--brand); outline-offset: -2px; }
     .pick-row.out { background: rgba(240,132,27,0.08); }
     .pick-row.low { background: rgba(176,0,32,0.05); }
     .pick-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pick-name .cat { font-weight: 400; color: var(--muted); font-size: 12px; }
-    .pick-qty { font-variant-numeric: tabular-nums; font-size: 13px; white-space: nowrap; }
+    .pick-cat { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pick-qty { font-variant-numeric: tabular-nums; font-size: 13px; white-space: nowrap; text-align: right; }
     .pick-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
     .pick-badge.out { background: var(--danger); color: #fff; }
     .pick-badge.low { background: #f5e2c0; color: #8a5a10; }
@@ -141,7 +141,7 @@
       <div class="card picker">
         <h2>Select Ingredient <span class="count" id="pickCount"></span></h2>
         <input id="pickSearch" type="text" placeholder="Search ingredient…" />
-        <div class="pick-head"><span>Ingredient</span><span class="num">On Hand</span><span>Status</span></div>
+        <div class="pick-head"><span>Ingredient</span><span>Category</span><span class="num">On Hand</span><span>Status</span></div>
         <div class="pick-list" id="pickList"><div class="hint" style="padding:12px">Loading…</div></div>
       </div>
 
@@ -231,9 +231,10 @@
         const badge = c.isOut ? '<span class="pick-badge out">Out</span>'
           : c.isLow ? '<span class="pick-badge low">Low</span>'
           : '<span class="pick-badge ok">OK</span>';
-        const cat = it.category && it.category !== '__resale' ? ` <span class="cat">· ${esc(it.category)}</span>` : '';
+        const cat = it.category && it.category !== '__resale' ? esc(it.category) : '—';
         return `<div class="pick-row ${cls} ${it.ingredient_id===selectedId?'selected':''}" data-id="${it.ingredient_id}">
-          <span class="pick-name">${esc(it.name)}${cat}</span>
+          <span class="pick-name">${esc(it.name)}</span>
+          <span class="pick-cat">${cat}</span>
           <span class="pick-qty">${fmtQty(c.qty)} ${esc(it.base_unit||'')}</span>
           ${badge}</div>`;
       }).join('');
