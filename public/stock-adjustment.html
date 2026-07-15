@@ -11,7 +11,23 @@
     .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; }
     .topbar { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
     .topbar h1 { margin: 0; flex: 1; font-size: 20px; }
-    .page-sub { color: var(--muted); font-size: 14px; margin: 2px 0 16px; flex: 0 0 auto; }
+    .page-sub { color: var(--muted); font-size: 14px; margin: 2px 0 14px; flex: 0 0 auto; }
+
+    /* KPI strip — doubles as the list filter (click a card to filter). */
+    .stats { flex: 0 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    @media(max-width:760px){ .stats { grid-template-columns: repeat(2,1fr); } }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; box-shadow: var(--shadow-sm); }
+    .stat.clickable { cursor: pointer; transition: transform .1s, box-shadow .1s; }
+    .stat.clickable:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .stat.on { border-color: var(--brand); border-width: 2px; padding: 11px 15px; }
+    .stat.warn.on { border-color: var(--danger); }
+    .stat.amber.on { border-color: #c98a2b; }
+    .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .stat .value { font-family: var(--font-brand); font-size: 26px; font-weight: 700; color: var(--brand-ink); margin-top: 2px; }
+    .stat.warn .value { color: var(--danger); }
+    .stat.amber .value { color: #c98a2b; }
+    .stat.good .value { color: var(--positive); }
+    .stat .hint { font-size: 11px; color: var(--muted); margin-top: 1px; }
 
     .wrap { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr 380px; gap: 14px; }
     @media(max-width:820px){ .wrap { grid-template-columns: 1fr; overflow-y: auto; } }
@@ -21,14 +37,14 @@
 
     /* Left: ingredient picker */
     .picker { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-    .pick-filters { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
-    .pick-chip { padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
-      background: var(--card); color: var(--muted); border: 1px solid var(--border); border-radius: 999px; }
-    .pick-chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
-    .pick-chip.warn.on { background: var(--danger); border-color: var(--danger); }
-    .pick-chip.amber.on { background: #c98a2b; border-color: #c98a2b; }
+    .picker h2 { display: flex; align-items: baseline; gap: 8px; }
+    .picker h2 .count { font-size: 12px; font-weight: 400; color: var(--muted); }
     #pickSearch { width: 100%; padding: 9px 12px; font-size: 14px; min-height: 40px; border-radius: 8px; box-sizing: border-box; border: 1px solid var(--border); margin-bottom: 8px; }
-    .pick-list { flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+    .pick-head { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; padding: 8px 12px;
+      font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; color: var(--muted);
+      border: 1px solid var(--border); border-bottom: none; border-radius: 10px 10px 0 0; background: var(--card-tint, #f4f1ea); }
+    .pick-head .num { text-align: right; }
+    .pick-list { flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 0 0 10px 10px; }
     .pick-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;
       padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
     .pick-row:last-child { border-bottom: none; }
@@ -113,15 +129,19 @@
     </div>
     <p class="page-sub">Pick an ingredient from the list — low &amp; out-of-stock are highlighted at the top — then add or remove stock.</p>
 
+    <div class="stats">
+      <div class="stat clickable on" data-filter="all"><div class="label">All Ingredients</div><div class="value" id="statAll">–</div><div class="hint">click a card to filter</div></div>
+      <div class="stat clickable warn" data-filter="out"><div class="label">⛔ Out of Stock</div><div class="value" id="statOut">–</div><div class="hint">can't produce</div></div>
+      <div class="stat clickable amber" data-filter="low"><div class="label">⚠ Low Stock</div><div class="value" id="statLow">–</div><div class="hint">reorder soon</div></div>
+      <div class="stat good"><div class="label">✓ Well-stocked</div><div class="value" id="statOk">–</div><div class="hint" id="statOkSub"></div></div>
+    </div>
+
     <div class="wrap">
       <!-- Left: pick the ingredient from a live, highlighted stock list -->
       <div class="card picker">
-        <div class="pick-filters">
-          <span class="pick-chip on" data-filter="all">All</span>
-          <span class="pick-chip warn" data-filter="out">⛔ Out</span>
-          <span class="pick-chip amber" data-filter="low">⚠ Low</span>
-        </div>
+        <h2>Select Ingredient <span class="count" id="pickCount"></span></h2>
         <input id="pickSearch" type="text" placeholder="Search ingredient…" />
+        <div class="pick-head"><span>Ingredient</span><span class="num">On Hand</span><span>Status</span></div>
         <div class="pick-list" id="pickList"><div class="hint" style="padding:12px">Loading…</div></div>
       </div>
 
@@ -177,6 +197,16 @@
       return { qty, min, isOut, isLow };
     }
 
+    function updateStats() {
+      let out = 0, low = 0, ok = 0;
+      stockList.forEach(it => { const c = classify(it); if (c.isOut) out++; else if (c.isLow) low++; else ok++; });
+      document.getElementById('statAll').textContent = stockList.length;
+      document.getElementById('statOut').textContent = out;
+      document.getElementById('statLow').textContent = low;
+      document.getElementById('statOk').textContent = ok;
+      document.getElementById('statOkSub').textContent = stockList.length ? `${Math.round(ok/stockList.length*100)}% healthy` : '';
+    }
+
     function renderList() {
       const q = document.getElementById('pickSearch').value.trim().toLowerCase();
       // Worst-first: out, then low, then ok — so the ingredients that usually
@@ -192,6 +222,7 @@
         })
         .sort((a,b) => rank(a)-rank(b) || (a.name||'').localeCompare(b.name||''));
 
+      document.getElementById('pickCount').textContent = `${rows.length} shown`;
       const list = document.getElementById('pickList');
       if (!rows.length) { list.innerHTML = '<div class="hint" style="padding:12px">No ingredients match.</div>'; return; }
       list.innerHTML = rows.map(it => {
@@ -232,6 +263,7 @@
       if (!auth) return;
       const opts = { headers: authHeaders(), credentials: 'same-origin' };
       stockList = await fetch('/api/inventory/on-hand', opts).then(r=>r.json()) || [];
+      updateStats();
       renderList();
       if (keepSelection && selectedId) selectIngredient(selectedId);
     }
@@ -241,10 +273,12 @@
       if (row) selectIngredient(row.dataset.id);
     });
     document.getElementById('pickSearch').addEventListener('input', renderList);
-    document.querySelectorAll('.pick-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        pickFilter = chip.dataset.filter;
-        document.querySelectorAll('.pick-chip').forEach(c => c.classList.toggle('on', c === chip));
+    // KPI cards double as the list filter. Clicking a filterable card sets the
+    // filter; clicking the active one again resets to All.
+    document.querySelectorAll('.stat[data-filter]').forEach(card => {
+      card.addEventListener('click', () => {
+        pickFilter = (pickFilter === card.dataset.filter && card.dataset.filter !== 'all') ? 'all' : card.dataset.filter;
+        document.querySelectorAll('.stat[data-filter]').forEach(c => c.classList.toggle('on', c.dataset.filter === pickFilter));
         renderList();
       });
     });
