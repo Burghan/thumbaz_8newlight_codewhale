@@ -22,6 +22,7 @@
     label:first-child { margin-top: 0; }
     select, input { width: 100%; padding: 10px 12px; font-size: 14px; min-height: 42px; border-radius: 8px; box-sizing: border-box; border: 1px solid var(--border); }
     button { background: var(--brand); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; padding: 12px 16px; font-size: 14px; width: 100%; margin-top: 14px; }
+    button.secondary { background: var(--card); color: var(--brand-700); border: 1px solid var(--border); }
     .hint { font-size: 12px; color: var(--muted); }
     .status { font-size: 13px; color: var(--muted); margin-top: 8px; min-height: 18px; }
 
@@ -105,7 +106,10 @@
           </div>
           <label>Note (optional)</label>
           <input id="adjNote" placeholder="e.g. physical count correction" />
-          <button id="saveAdj">Save Adjustment</button>
+          <div class="btn-row">
+            <button id="cancelAdj" class="secondary">Cancel</button>
+            <button id="saveAdj">Save Adjustment</button>
+          </div>
           <div class="status" id="adjStatus"></div>
         </div>
       </div>
@@ -174,6 +178,9 @@
     }
     document.getElementById('dirAdd').addEventListener('click', ()=>setAdjDirection(1));
     document.getElementById('dirRemove').addEventListener('click', ()=>setAdjDirection(-1));
+
+    // Cancel — discard whatever's typed and return to Inventory.
+    document.getElementById('cancelAdj').addEventListener('click', ()=>{ location.href = '/inventory.html'; });
 
     document.getElementById('saveAdj').addEventListener('click', async ()=>{
       const iid = document.getElementById('adjIngredient').value;

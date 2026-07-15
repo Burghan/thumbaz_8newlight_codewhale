@@ -137,7 +137,7 @@
     <div class="main-area">
       <!-- Top: Stock Table, full width — all 7 columns need real room. -->
       <div class="main-top card stat-card">
-        <div class="stat-card-header"><strong style="color:var(--accent);">Stock On Hand</strong> <span class="hint" id="stockCount">–</span> <span class="hint" id="stockFilterHint" style="color:var(--brand-600);cursor:pointer;"></span></div>
+        <div class="stat-card-header"><strong style="color:var(--accent);">Stock On Hand</strong> <span class="hint" id="stockCount">–</span> <span class="hint">· click a row to see its movements below</span> <span class="hint" id="stockFilterHint" style="color:var(--brand-600);cursor:pointer;"></span></div>
         <div class="table-wrap"><div class="list-scroll">
           <table><thead><tr><th>Ingredient</th><th>Category</th><th class="num">Qty</th><th>Unit</th><th class="num">Avg Cost</th><th class="num">Value</th><th>Status</th></tr></thead>
           <tbody id="stockRows"><tr><td colspan="7">Loading…</td></tr></tbody></table>
@@ -153,7 +153,7 @@
           <strong style="color:var(--accent);">Recent Movements</strong>
           <span class="hint" id="moveIngredientLabel"></span>
           <a class="hint move-clear" id="moveAdjustLink" href="#" style="display:none;">🔧 adjust this</a>
-          <a class="hint move-clear" id="moveClear" style="display:none;">✕ clear</a>
+          <a class="hint move-clear" id="moveClear" style="display:none;">← back to all movements</a>
         </div>
         <div class="move-filters" id="moveFilters">
           <button type="button" class="move-chip on" data-src="all">All</button>
@@ -167,18 +167,6 @@
         </div></div>
       </div>
     </div>
-
-    <!-- Threshold Editor -->
-    <div class="card" style="flex:0 0 auto;margin-top:12px;padding:10px 14px;">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <strong style="color:var(--accent);">Stock Thresholds:</strong>
-        <label style="margin:0;">Gram <input id="thGr" type="number" style="width:80px;min-height:30px;margin:0;" /></label>
-        <label style="margin:0;">ml <input id="thMl" type="number" style="width:80px;min-height:30px;margin:0;" /></label>
-        <label style="margin:0;">pcs <input id="thPcs" type="number" style="width:80px;min-height:30px;margin:0;" /></label>
-        <button id="saveTh" class="secondary" style="width:auto;margin:0;">Save</button>
-        <span class="hint" id="thStatus"></span>
-      </div>
-    </div>
   </div>
 
   <script src="/auth.js"></script>
@@ -186,7 +174,7 @@
   <script src="/sidebar.js"></script>
   <script>
     const auth = requireRole(['admin','manager']);
-    let allStock = [], thresholds = { Gr: 200, Ml: 500, Pcs: 5 };
+    let allStock = [];
     let stockFilter = null; // null | 'out' | 'low' — drill-down from the stat cards
     let allMoves = [], moveSrcFilter = 'all'; // 'all' | 'sale' | 'purchase' | 'manual'
     let moveIngredientFilter = null, moveIngredientName = '';
@@ -376,23 +364,6 @@
       updateMoveIngredientLabel();
       loadMovements();
       document.querySelector('.main-bottom').scrollIntoView({ behavior:'smooth', block:'nearest' });
-    });
-
-    // Thresholds
-    document.getElementById('saveTh').addEventListener('click', async ()=>{
-      const gr = Number(document.getElementById('thGr').value);
-      const ml = Number(document.getElementById('thMl').value);
-      const pcs = Number(document.getElementById('thPcs').value);
-      const items = [];
-      allStock.forEach(s => {
-        if (s.base_unit === 'g' && gr>0) items.push({ ingredient_id: s.ingredient_id, min_stock: gr });
-        else if (s.base_unit === 'ml' && ml>0) items.push({ ingredient_id: s.ingredient_id, min_stock: ml });
-        else if (s.base_unit === 'pcs' && pcs>0) items.push({ ingredient_id: s.ingredient_id, min_stock: pcs });
-      });
-      if (!items.length) return;
-      await fetch('/api/inventory/thresholds', { method:'PUT', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify(items) });
-      document.getElementById('thStatus').textContent = `Updated ${items.length} items`;
-      loadAll();
     });
 
     document.getElementById('refreshBtn').addEventListener('click', loadAll);
