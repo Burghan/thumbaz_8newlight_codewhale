@@ -62,6 +62,13 @@ const MOVE_TYPE_CLAUSES = {
 router.get('/adjustments', (req, res) => {
   const typeClause = MOVE_TYPE_CLAUSES[req.query.type] || `sm.type IN ('adjustment', 'opening')`;
   const limit = Math.min(300, Math.max(1, parseInt(req.query.limit, 10) || 100));
+  // Optional ingredient scope — used when Inventory highlights "movements for
+  // this ingredient" after clicking a Stock On Hand row.
+  const ingredientId = parseInt(req.query.ingredient_id, 10);
+  const params = [];
+  let where = typeClause;
+  if (ingredientId) { where += ` AND sm.ingredient_id = ?`; params.push(ingredientId); }
+  params.push(limit);
   const rows = db.prepare(`
     SELECT sm.id, sm.ingredient_id, i.name AS ingredient_name,
            sm.type, sm.qty_base, sm.unit_cost_micro,
@@ -70,10 +77,10 @@ router.get('/adjustments', (req, res) => {
            sm.note, sm.created_at
     FROM stock_movements sm
     JOIN ingredients i ON i.id = sm.ingredient_id
-    WHERE ${typeClause}
+    WHERE ${where}
     ORDER BY sm.created_at DESC
     LIMIT ?
-  `).all(limit);
+  `).all(...params);
   res.json(rows);
 });
 

@@ -623,7 +623,7 @@
       <h3>Recent adjustments</h3>
       ${recentMoves.length ? recentMoves.map(m=>`<div class="dl-row"><span class="nm">${moveTypeLabel(m)} <span class="foot">${esc(m.note||'')}</span></span><span class="amt ${m.qty_base<0?'neg':'pos'}">${m.qty_base>0?'+':''}${m.qty_base}</span></div>`).join('') : '<div class="foot">No recent adjustments</div>'}
       <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
-        <a class="go" href="/inventory.html?ingredient_id=${item.ingredient_id}&action=adjust">🔧 Adjust Stock</a>
+        <a class="go" href="/stock-adjustment.html?ingredient_id=${item.ingredient_id}">🔧 Adjust Stock</a>
         <a class="go" href="/purchase.html?ingredient_id=${item.ingredient_id}">🛒 Add to Purchase</a>
       </div>`;
   }
