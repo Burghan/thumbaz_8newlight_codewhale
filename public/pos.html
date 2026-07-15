@@ -632,6 +632,27 @@
       }
     }
 
+    /* 12" tablet in landscape (e.g. 1280×768, 5:3) and other wide-but-short
+       screens: turn the POS into an app-like layout that fills the viewport,
+       so it fits the device without the whole page scrolling. The order column
+       and the product grid each scroll on their own instead. */
+    @media (min-width: 1025px) and (max-height: 820px) {
+      body.pos-page { overflow: hidden; }
+      body.pos-page .content { max-width: none; height: 100vh; height: 100dvh; box-sizing: border-box; padding: 10px; }
+      .pos-shell { height: 100%; gap: 12px; align-items: stretch; }
+      .pos-left, .pos-right { min-height: 0; }
+      /* Left order column: the stack of cards scrolls as one column. */
+      .pos-left { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding-right: 4px; }
+      /* Right catalog: toolbar stays put, only the product grid scrolls. */
+      .pos-right { display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+      .pos-right .product-grid { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 4px; align-content: start; }
+      .pos-card { padding: 12px; }
+      .receipt-list { max-height: 240px; }
+      /* Slightly denser tiles so more fit in the shorter height. */
+      .product-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+      .product-thumb { height: 74px; }
+    }
+
     @media (max-width: 640px) {
       .pos-header {
         flex-direction: column;
