@@ -77,6 +77,15 @@
   .drawer-body table { width:100%; }
   .drawer-body th.num, .drawer-body td.num { text-align:right; font-variant-numeric:tabular-nums; }
   .cost-tot { display:flex; justify-content:space-between; padding:8px 0; font-weight:700; border-top:2px solid var(--border); margin-top:2px; }
+
+  .void-trigger { margin-top:16px; background:none; border:1px solid var(--danger); color:var(--danger); border-radius:10px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; }
+  .void-trigger:hover { background:rgba(196,60,48,.08); }
+  .void-warn { font-size:13px; color:var(--muted); margin-bottom:12px; }
+  .void-choice-row { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
+  .void-choice-btn { text-align:left; padding:12px 14px; border:1px solid var(--border); border-radius:10px; background:var(--card); cursor:pointer; font-size:13px; font-weight:600; color:var(--ink); }
+  .void-choice-btn:hover { border-color:var(--brand); background:var(--cream-soft); }
+  .void-choice-sub { display:block; font-weight:400; font-size:11px; color:var(--muted); margin-top:2px; }
+  .void-back { background:none; border:1px solid var(--border); border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer; color:var(--muted); }
 </style>
 <link rel="manifest" href="/manifest.json" />
 <meta name="theme-color" content="#5c7da6" />
@@ -202,8 +211,53 @@
         }</tbody></table>
         <div class="cost-tot"><span>Order total</span><span>${Rp(o.total)}</span></div>
         ${o.notes?`<h3>Notes</h3><div class="foot">${esc(o.notes)}</div>`:''}
-        <div class="foot" style="margin-top:14px">Reference: ${esc(o.reference||'—')}</div>`;
+        <div class="foot" style="margin-top:14px">Reference: ${esc(o.reference||'—')}</div>
+        <button class="void-trigger" id="voidTrigger">🗑️ Void this transaction</button>`;
+      document.getElementById('voidTrigger').addEventListener('click', () => renderVoidChoice(id, o));
     } catch(e) { drillBody.innerHTML = '<div class="err">❌ ' + esc(e.message) + '</div>'; }
+  }
+
+  // ---- Void, direct from the transaction drawer ----
+  // Same reversal the POS's shift-scoped void uses (POST /api/sales/:id/void),
+  // but reachable for any historical order via this back-office list, not just
+  // today's shift.
+  function renderVoidChoice(id, o) {
+    drillTitle.textContent = 'Void Order #' + id; drillSub.textContent = '';
+    drillBody.innerHTML = `
+      <div class="void-warn">This permanently deletes the transaction (revenue reverses). Choose whether the ingredients should be returned to stock.</div>
+      <div class="void-choice-row">
+        <button class="void-choice-btn" id="voidYes">Yes — return ingredients<span class="void-choice-sub">The order was never actually made (mis-tap, cancelled, test).</span></button>
+        <button class="void-choice-btn" id="voidNo">No — keep inventory as used<span class="void-choice-sub">The order was made; only the sale record reverses (comp, correction).</span></button>
+      </div>
+      <button class="void-back" id="voidCancel">← Back to order</button>`;
+    document.getElementById('voidCancel').addEventListener('click', () => drillOrder(id));
+    document.getElementById('voidYes').addEventListener('click', () => promptVoidReason(id, o, true));
+    document.getElementById('voidNo').addEventListener('click', () => promptVoidReason(id, o, false));
+  }
+
+  function promptVoidReason(id, o, restock) {
+    const reason = prompt(`Reason for voiding order #${id}${restock ? ' (ingredients will be returned to stock)' : ' (inventory stays consumed)'}:`, '');
+    if (reason === null) { renderVoidChoice(id, o); return; }
+    submitVoid(id, restock, reason.trim());
+  }
+
+  async function submitVoid(id, restock, reason) {
+    drillBody.innerHTML = '<div class="foot">Voiding…</div>';
+    try {
+      const res = await fetch(`/api/sales/${id}/void`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ reason, restock })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Void failed');
+      closeDrawer();
+      load();
+      alert(`Order #${id} voided.${restock ? ' Ingredients returned to stock.' : ' Inventory kept as used.'}`);
+    } catch (e) {
+      drillBody.innerHTML = `<div class="err">❌ ${esc(e.message)}</div><button class="void-back" id="voidRetryBack">← Back</button>`;
+      document.getElementById('voidRetryBack').addEventListener('click', () => drillOrder(id));
+    }
   }
 
   // ---- filters / sort / pagination state ----
