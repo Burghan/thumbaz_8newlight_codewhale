@@ -1459,6 +1459,34 @@ body {
   margin-top: 2px;
 }
 
+.custom-recipe-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 12px 0 6px;
+}
+
+.custom-recipe-list {
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.custom-recipe-row {
+  display: grid;
+  grid-template-columns: 1fr 96px auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.custom-recipe-row input[data-field="qty"] {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fffaf6;
+}
+
 .manage-modifier-row label {
   font-size: 11px;
   color: var(--muted);

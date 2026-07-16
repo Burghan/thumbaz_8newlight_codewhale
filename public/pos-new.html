@@ -354,6 +354,38 @@
     </div>
   </div>
 
+  <div class="modal" id="customItemModal">
+    <div class="modal-card large">
+      <div class="modal-head">
+        <div>
+          <h3>Custom Item</h3>
+          <div class="muted">Set a name and price, and (optionally) an on-the-fly recipe so inventory is deducted when sold.</div>
+        </div>
+        <button class="ghost" id="closeCustomItem" type="button">Close</button>
+      </div>
+      <div class="modifier-custom">
+        <div>
+          <label>Name</label>
+          <input id="customItemName" type="text" placeholder="Custom Item" />
+        </div>
+        <div>
+          <label>Price (Rp)</label>
+          <input id="customItemPrice" type="number" step="1" placeholder="0" />
+        </div>
+      </div>
+      <div class="custom-recipe-head">
+        <strong>Recipe (optional)</strong>
+        <button class="ghost" id="addCustomIngredientBtn" type="button">+ Add ingredient</button>
+      </div>
+      <div class="custom-recipe-list" id="customRecipeList"></div>
+      <div class="muted" id="customRecipeCost">Recipe cost: Rp 0 · margin —</div>
+      <div class="modal-actions">
+        <button class="pay" id="cancelCustomItem" type="button">Cancel</button>
+        <button class="pay primary" id="confirmCustomItem" type="button">Add to order</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal" id="customerModal">
     <div class="modal-card large">
       <div class="modal-head">

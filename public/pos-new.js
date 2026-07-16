@@ -640,9 +640,23 @@ async function initProducts() {
   } catch (err) {
     products = loadProducts().filter((item) => item.active !== false);
   }
-  // No "All" chip — categories are the real product categories only. Default
-  // the active filter to the first category so a real one is selected on load.
-  categories = Array.from(new Set(products.map((item) => item.category))).filter(Boolean);
+  // No "All" chip — categories are the real product categories only.
+  const rawCategories = Array.from(new Set(products.map((item) => item.category))).filter(Boolean);
+  // Order chips by total quantity sold (most-sold first); categories with no
+  // sales fall to the end, alphabetical among themselves. Falls back to plain
+  // alphabetical order if the sales endpoint is unavailable.
+  let salesRank = {};
+  try {
+    const res = await fetch('/api/pos-category-sales', { headers: typeof authHeaders === 'function' ? authHeaders() : {} });
+    if (res.ok) {
+      (await res.json()).forEach((row) => { salesRank[row.category] = Number(row.qty) || 0; });
+    }
+  } catch (err) { /* keep default order on failure */ }
+  categories = rawCategories.sort((a, b) => {
+    const diff = (salesRank[b] || 0) - (salesRank[a] || 0);
+    return diff !== 0 ? diff : String(a).localeCompare(String(b));
+  });
+  // Default the active filter to the first (most-sold) category.
   if (state.category === 'All' || !categories.includes(state.category)) {
     state.category = categories[0] || '';
   }
@@ -741,6 +755,7 @@ function renderOrder() {
       <div class="order-item-note">${formatCurrency(item.price)} × ${item.qty} ${item.discount ? `• ${item.discount}% off` : ''}</div>
       ${item.course ? `<div class="order-item-note">Course: ${item.course}</div>` : ''}
       ${item.modifiers.map((mod) => `<div class=\"order-item-note\">• ${mod.name} (${formatCurrency(mod.price)})</div>`).join('')}
+      ${(item.extra_ingredients || []).map((ing) => `<div class=\"order-item-note\">▪ ${ing.name || 'ingredient'} ${ing.qty_base}${ing.base_unit || ''}</div>`).join('')}
       ${item.note ? `<div class="order-item-note">${item.note}</div>` : ''}
       <div class="order-item-actions">
         <div class="qty-stepper">
@@ -1960,7 +1975,11 @@ confirmPay.addEventListener('click', async () => {
         price,
         quantity: item.qty,
         custom_name: item.isCustom ? item.name : null,
-        modifiers
+        modifiers,
+        extra_ingredients: (item.extra_ingredients || []).map((ing) => ({
+          ingredient_id: ing.ingredient_id,
+          qty_base: ing.qty_base
+        }))
       };
     }),
     payment_type: method,
@@ -2475,22 +2494,118 @@ if (priceCheckBtn) {
   });
 }
 
-// Add Custom Item — a one-off line not tied to a real menu product, ported
-// from pos.html's addCustomItem(). Price starts at 0; select it and use the
-// numpad's "Price" key to set it, same flow as any other line.
-if (addCustomItemBtn) {
-  addCustomItemBtn.addEventListener('click', () => {
-    if (!customProductId) {
-      openInfo('Not configured', 'No "Custom Item" product found in the menu.');
-      return;
-    }
-    const customCount = state.order.filter((row) => row.isCustom).length + 1;
-    const nameInput = window.prompt('Custom item name', `Custom Item ${customCount}`);
-    if (nameInput === null) return; // cancelled
-    const name = nameInput.trim() || `Custom Item ${customCount}`;
-    const priceInput = window.prompt(`Price for "${name}" (Rp)`, '0');
-    if (priceInput === null) return; // cancelled
-    const price = Math.max(0, Math.round(Number(String(priceInput).replace(/[^0-9.]/g, '')) || 0));
+// Add Custom Item — a one-off line not tied to a real menu product. The modal
+// captures name + price and an optional on-the-fly recipe (ingredient + qty
+// lines) that deduct inventory at checkout via the sale's extra_ingredients.
+const customItemModal = document.getElementById('customItemModal');
+const customItemName = document.getElementById('customItemName');
+const customItemPrice = document.getElementById('customItemPrice');
+const addCustomIngredientBtn = document.getElementById('addCustomIngredientBtn');
+const customRecipeList = document.getElementById('customRecipeList');
+const customRecipeCost = document.getElementById('customRecipeCost');
+const confirmCustomItem = document.getElementById('confirmCustomItem');
+const closeCustomItem = document.getElementById('closeCustomItem');
+const cancelCustomItem = document.getElementById('cancelCustomItem');
+
+let posIngredientsCache = null;
+async function fetchPosIngredients() {
+  if (posIngredientsCache) return posIngredientsCache;
+  try {
+    const res = await fetch('/api/pos-ingredients', { headers: typeof authHeaders === 'function' ? authHeaders() : {} });
+    posIngredientsCache = res.ok ? await res.json() : [];
+  } catch (err) {
+    posIngredientsCache = [];
+  }
+  return posIngredientsCache;
+}
+
+function ingredientOptionsHtml(selectedId) {
+  const opts = ['<option value="">Select ingredient…</option>'];
+  (posIngredientsCache || []).forEach((ing) => {
+    const sel = Number(selectedId) === Number(ing.id) ? ' selected' : '';
+    const nm = String(ing.name || '').replace(/</g, '&lt;');
+    opts.push(`<option value="${ing.id}"${sel}>${nm} (${ing.base_unit})</option>`);
+  });
+  return opts.join('');
+}
+
+function customRecipeRows() {
+  return Array.from(customRecipeList.querySelectorAll('.custom-recipe-row')).map((row) => {
+    const sel = row.querySelector('select[data-field="ingredient"]');
+    const qtyEl = row.querySelector('input[data-field="qty"]');
+    const ingredientId = sel && sel.value ? Number(sel.value) : null;
+    const qty = qtyEl ? Number(qtyEl.value) : 0;
+    const ing = (posIngredientsCache || []).find((i) => Number(i.id) === ingredientId);
+    return { ingredientId, qty, ing };
+  });
+}
+
+function updateCustomRecipeCost() {
+  let cost = 0;
+  customRecipeRows().forEach(({ qty, ing }) => {
+    if (ing && qty > 0) cost += Number(ing.std_cost_per_base || 0) * qty;
+  });
+  cost = Math.round(cost);
+  const price = Math.round(Number(customItemPrice.value || 0));
+  const margin = price - cost;
+  const pct = price > 0 ? Math.round((margin / price) * 100) : 0;
+  customRecipeCost.textContent = price > 0 || cost > 0
+    ? `Recipe cost: ${formatCurrency(cost)} · margin ${formatCurrency(margin)} (${pct}%)`
+    : 'Recipe cost: Rp 0 · margin —';
+}
+
+function addCustomRecipeRow(selectedId, qty) {
+  const row = document.createElement('div');
+  row.className = 'custom-recipe-row';
+  row.innerHTML = `
+    <select class="select" data-field="ingredient">${ingredientOptionsHtml(selectedId)}</select>
+    <input type="number" step="0.01" min="0" data-field="qty" placeholder="Qty" value="${qty || ''}" />
+    <button class="ghost" type="button" data-action="remove">✕</button>
+  `;
+  row.querySelector('[data-action="remove"]').addEventListener('click', () => { row.remove(); updateCustomRecipeCost(); });
+  row.querySelector('select').addEventListener('change', updateCustomRecipeCost);
+  row.querySelector('input').addEventListener('input', updateCustomRecipeCost);
+  customRecipeList.appendChild(row);
+}
+
+async function openCustomItemModal() {
+  if (!customItemModal) return;
+  if (!customProductId) {
+    openInfo('Not configured', 'No "Custom Item" product found in the menu.');
+    return;
+  }
+  await fetchPosIngredients();
+  const customCount = state.order.filter((row) => row.isCustom).length + 1;
+  customItemName.value = `Custom Item ${customCount}`;
+  customItemPrice.value = '';
+  customRecipeList.innerHTML = '';
+  updateCustomRecipeCost();
+  customItemModal.classList.add('active');
+  customItemName.focus();
+}
+
+function closeCustomItemModal() { customItemModal?.classList.remove('active'); }
+
+if (addCustomItemBtn) addCustomItemBtn.addEventListener('click', openCustomItemModal);
+if (addCustomIngredientBtn) addCustomIngredientBtn.addEventListener('click', () => addCustomRecipeRow('', ''));
+if (customItemPrice) customItemPrice.addEventListener('input', updateCustomRecipeCost);
+if (closeCustomItem) closeCustomItem.addEventListener('click', closeCustomItemModal);
+if (cancelCustomItem) cancelCustomItem.addEventListener('click', closeCustomItemModal);
+customItemModal?.addEventListener('click', (event) => { if (event.target === customItemModal) closeCustomItemModal(); });
+
+if (confirmCustomItem) {
+  confirmCustomItem.addEventListener('click', () => {
+    const name = (customItemName.value || '').trim() || 'Custom Item';
+    const price = Math.max(0, Math.round(Number(customItemPrice.value || 0)));
+    // Collect valid recipe lines; skip empty/incomplete rows.
+    const extra = customRecipeRows()
+      .filter(({ ingredientId, qty }) => ingredientId && qty > 0)
+      .map(({ ingredientId, qty, ing }) => ({
+        ingredient_id: ingredientId,
+        qty_base: qty,
+        name: ing ? ing.name : '',
+        base_unit: ing ? ing.base_unit : ''
+      }));
     const line = {
       lineId: crypto.randomUUID(),
       id: customProductId,
@@ -2500,12 +2615,14 @@ if (addCustomItemBtn) {
       note: '',
       discount: 0,
       modifiers: [],
+      extra_ingredients: extra,
       isCustom: true
     };
     state.order.push(line);
     state.selectedLineId = line.lineId;
     state.inputMode = 'qty';
     state.buffer = '';
+    closeCustomItemModal();
     renderOrder();
   });
 }

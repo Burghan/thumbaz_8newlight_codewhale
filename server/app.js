@@ -36,6 +36,8 @@ app.use('/api/transactions', manager, require('./routes/transactions'));
 app.use('/api/sales', manager, require('./routes/sales'));
 app.use('/api/modifiers', requireRole(['admin', 'manager', 'staff']), require('./routes/modifiers'));
 app.use('/api/kitchen', requireRole(['admin', 'manager', 'staff']), require('./routes/kitchen'));
+app.use('/api/pos-ingredients', requireRole(['admin', 'manager', 'staff']), require('./routes/pos-ingredients'));
+app.use('/api/pos-category-sales', requireRole(['admin', 'manager', 'staff']), require('./routes/pos-category-sales'));
 app.use('/api/qr', requireRole(['admin', 'manager', 'staff']), require('./routes/qr'));
 app.get('/api/clock/status', (req, res) => res.json({active:false,employee:null}));
 app.use('/api/reports', manager, require('./routes/reports'));

@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { deductStockForSale } = require('../lib/stock');
+const { deductStockForSale, deductIngredientsForSale } = require('../lib/stock');
 const router = express.Router();
 
 // Resolve the price_delta (whole rupiah) for one modifier entry attached to a
@@ -81,6 +81,20 @@ router.post('/', (req, res) => {
     }
   }
   if (modProductItems.length) deductStockForSale(txnId, modProductItems);
+  // Ad-hoc ingredient lines attached to a line (Phase 2): custom-item on-the-fly
+  // recipes and quick ingredient add-ons. Scale each by the line's quantity.
+  const extraIngredients = [];
+  for (const item of items) {
+    const qty = Number(item.quantity || 1);
+    for (const ing of (Array.isArray(item.extra_ingredients) ? item.extra_ingredients : [])) {
+      const ingredientId = Number(ing && ing.ingredient_id);
+      const perUnit = Number(ing && ing.qty_base);
+      if (Number.isInteger(ingredientId) && perUnit > 0) {
+        extraIngredients.push({ ingredient_id: ingredientId, qty_base: perUnit * qty });
+      }
+    }
+  }
+  if (extraIngredients.length) deductIngredientsForSale(txnId, extraIngredients);
   // Lookup transaction with items to return in POS format
   const txn = db.prepare('SELECT id, transacted_at, payment_method FROM transactions WHERE id=?').get(txnId);
   const txnItems = db.prepare(`

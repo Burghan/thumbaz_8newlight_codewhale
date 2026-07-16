@@ -65,4 +65,40 @@ function deductStockForSale(transactionId, items) {
   return results;
 }
 
-module.exports = { deductStockForSale };
+// Deduct a list of ad-hoc ingredient lines for a sale — used for on-the-fly
+// custom-item recipes and quick ingredient add-ons (Phase 2). Unlike
+// deductStockForSale these aren't looked up from a product recipe; the caller
+// passes the exact ingredient + base-unit quantity (already scaled by line qty).
+// Logged as the same 'usage' movements tagged to the sale, so Void reverses
+// them and COGS counts them, identical to recipe deductions.
+function deductIngredientsForSale(transactionId, ingredientLines) {
+  const results = { deducted: 0, skipped: 0 };
+  const getIng = db.prepare('SELECT name, base_unit FROM ingredients WHERE id = ?');
+  const deductInv = db.prepare(`
+    UPDATE inventory SET quantity_base = MAX(0, quantity_base - ?),
+      updated_at = datetime('now') WHERE ingredient_id = ?
+  `);
+  const addMovement = db.prepare(`
+    INSERT INTO stock_movements (ingredient_id, type, qty_base, ref_type, ref_id, note)
+    VALUES (?, 'usage', ?, 'sale', ?, ?)
+  `);
+
+  for (const line of (ingredientLines || [])) {
+    const ingredientId = Number(line.ingredient_id);
+    const qty = Number(line.qty_base);
+    if (!Number.isInteger(ingredientId) || !(qty > 0)) { results.skipped++; continue; }
+    const ing = getIng.get(ingredientId);
+    if (!ing) { results.skipped++; continue; }
+    deductInv.run(qty, ingredientId);
+    addMovement.run(
+      ingredientId,
+      -qty,
+      transactionId,
+      `Sale #${transactionId}: -${qty.toFixed(2)} ${ing.base_unit} of ${ing.name} (custom)`
+    );
+    results.deducted++;
+  }
+  return results;
+}
+
+module.exports = { deductStockForSale, deductIngredientsForSale };
