@@ -26,8 +26,9 @@
       { href: '/supplier.html', label: 'Suppliers' },
     ]},
     { type: 'divider' },
-    { type: 'group', label: '👥  Employees', children: [
+    { type: 'group', label: '👥  People', children: [
       { href: '/employees.html', label: 'Users' },
+      { href: '/customers.html', label: 'Customers' },
       { href: '/payroll.html', label: 'Payroll' },
       { href: '/clock.html', label: 'Attendance' },
     ]},
@@ -97,7 +98,7 @@
     if (!auth || !auth.role) return;
 
     if (auth.role === 'staff') {
-    const allowed = new Set(['/pos/ui/1/register', '/kitchen.html', '/clock.html', '/logout.html']);
+    const allowed = new Set(['/pos/ui/1/register', '/kitchen.html', '/customers.html', '/clock.html', '/logout.html']);
       sidebar.querySelectorAll('a[href]').forEach(link => {
         const href = link.getAttribute('href');
         if (!allowed.has(href)) {

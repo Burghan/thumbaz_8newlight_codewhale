@@ -34,6 +34,7 @@ const state = {
   customer: null,
   redeemPoints: 0,
   redeemValue: 0,
+  orderDiscount: 0,
   ordersViewSelectedId: null,
   ordersTypeFilter: ''
 };
@@ -68,6 +69,7 @@ const totalEl = document.getElementById('total');
 const searchInput = document.getElementById('searchInput');
 const clearOrder = document.getElementById('clearOrder');
 const numpad = document.getElementById('numpad');
+const numpadMain = document.querySelector('.numpad-main');
 const numpadTop = document.getElementById('numpadTop');
 const numpadPreActions = document.getElementById('numpadPreActions');
 const numpadPostActions = document.getElementById('numpadPostActions');
@@ -185,7 +187,6 @@ const closeCustomerModal = document.getElementById('closeCustomerModal');
 const customerSearch = document.getElementById('customerSearch');
 const customerList = document.getElementById('customerList');
 const customerCreateName = document.getElementById('customerCreateName');
-const customerCreateMemberId = document.getElementById('customerCreateMemberId');
 const customerCreatePhone = document.getElementById('customerCreatePhone');
 const customerCreateEmail = document.getElementById('customerCreateEmail');
 const createCustomer = document.getElementById('createCustomer');
@@ -810,10 +811,13 @@ function renderOrder() {
   saveCurrentOrderState();
 
   const hasItems = state.order.length > 0;
-  const showNumpad = hasItems && !state.sentToKitchen;
-  numpad?.classList.toggle('hidden', !showNumpad);
+  // The line-edit keypad no longer lives in the order panel — quantity is on the
+  // line stepper, and the keypad now appears at Payment for tendering cash.
+  numpadMain?.classList.add('hidden');
   numpadFooter?.classList.toggle('hidden', !hasItems);
-  numpadPreActions?.classList.toggle('hidden', hasItems);
+  // Pre-transaction chips (Customer / Set Table / Void) are hidden — an empty
+  // cart has nothing to act on. Customer & Void live in the has-items row.
+  numpadPreActions?.classList.add('hidden');
   numpadPostActions?.classList.toggle('hidden', !hasItems);
   // The action card (Split Bill/Invoice/Void Sale) stays permanently hidden —
   // those actions live only in the footer "⋯" extension sheet, not as buttons
@@ -856,14 +860,19 @@ function calculateTotals() {
     const mods = item.modifiers.reduce((acc, mod) => acc + Number(mod.price || 0), 0);
     return sum + ((item.price + mods) * item.qty * item.discount) / 100;
   }, 0);
+  // Whole-order discount % applied at Payment, on top of any per-line discount.
+  const orderDiscountPct = Math.max(0, Math.min(100, Number(state.orderDiscount || 0)));
+  const afterLineDiscount = Math.max(0, subtotal - discount);
+  const orderDiscountAmt = Math.round(afterLineDiscount * orderDiscountPct / 100);
+  const totalDiscount = discount + orderDiscountAmt;
   const taxRate = Number(settings.taxRate || 0);
-  const taxable = Math.max(0, subtotal - discount);
+  const taxable = Math.max(0, subtotal - totalDiscount);
   const tax = taxable * (taxRate / 100);
   const gross = taxable + tax;
   // Loyalty redemption applied to the whole order, capped at the bill.
   const redeemValue = Math.min(Number(state.redeemValue || 0), gross);
   const total = gross - redeemValue;
-  return { subtotal, discount, tax, redeemValue, total };
+  return { subtotal, discount: totalDiscount, orderDiscountPct, orderDiscountAmt, tax, redeemValue, total };
 }
 
 function calculateTotalsForItems(items) {
@@ -939,6 +948,7 @@ function resetOrderState() {
   state.customer = null;
   state.redeemPoints = 0;
   state.redeemValue = 0;
+  state.orderDiscount = 0;
   if (customerInput) customerInput.value = '';
   if (loyaltyInput) loyaltyInput.value = '';
   updatePaymentCustomerLabel();
@@ -1005,12 +1015,50 @@ function updatePaymentCustomerLabel() {
   paymentCustomerName.textContent = name || 'Customer';
 }
 
+// Payment keypad mode: 'tender' types the cash tendered, 'discount' types a
+// whole-order discount % (like the old numpad's % key).
+let payMode = 'tender';
+
 function openPayModal() {
   payModal.classList.add('active');
   if (invoiceCheck) invoiceCheck.checked = false;
+  if (tenderedInput) tenderedInput.value = '';
+  updatePayKeypadVisibility();
+  renderDiscountView();
   updateChangeDisplay();
   updatePaymentCustomerLabel();
   refreshPaymentLoyalty();
+}
+
+function setPayMode(mode) {
+  payMode = mode;
+  document.querySelectorAll('#payKeypad .mode').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+}
+
+// Quick-cash chips + tendered field only make sense for cash. The keypad itself
+// stays visible for every method because the discount % applies regardless; for
+// non-cash we hide the Tender mode and force discount entry.
+function updatePayKeypadVisibility() {
+  const isCash = (paymentType?.value || 'cash') === 'cash';
+  document.getElementById('payQuickCash')?.classList.toggle('hidden', !isCash);
+  document.getElementById('tenderRow')?.classList.toggle('hidden', !isCash);
+  const tenderMode = document.querySelector('#payKeypad .mode[data-mode="tender"]');
+  if (tenderMode) tenderMode.style.visibility = isCash ? '' : 'hidden';
+  setPayMode(isCash ? 'tender' : 'discount');
+}
+
+function renderDiscountView() {
+  const totals = calculateTotals();
+  const pctEl = document.getElementById('payDiscountPct');
+  const amtEl = document.getElementById('payDiscountAmt');
+  if (pctEl) pctEl.textContent = String(Math.round(totals.orderDiscountPct || 0));
+  if (amtEl) amtEl.textContent = totals.orderDiscountAmt ? '- ' + formatCurrency(totals.orderDiscountAmt) : formatCurrency(0);
+}
+
+function setTendered(v) {
+  if (!tenderedInput) return;
+  tenderedInput.value = v ? String(v) : '';
+  updateChangeDisplay();
 }
 
 // Redeem-points control inside the Payment modal. Redemption is an operation on
@@ -1254,7 +1302,6 @@ function openCustomerModal() {
   if (!customerModal) return;
   customerSearch.value = '';
   customerCreateName.value = '';
-  customerCreateMemberId.value = '';
   customerCreatePhone.value = '';
   customerCreateEmail.value = '';
   renderCustomerList();
@@ -1282,7 +1329,20 @@ async function renderCustomerList() {
     return [row.name, row.phone, row.email].some((value) => String(value || '').toLowerCase().includes(query));
   });
   if (!filtered.length) {
-    customerList.innerHTML = `<div class="orders-empty">No customers found.</div>`;
+    const escaped = String(customerSearch.value || '').replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]);
+    customerList.innerHTML = query
+      ? `<div class="orders-empty">No customers found for "<strong>${escaped}</strong>".
+          <button class="pay primary" style="margin-top:10px;display:inline-flex" id="addAsNewCustomerBtn">+ Add as new customer</button></div>`
+      : `<div class="orders-empty">Start typing to search, or fill the Create Customer form below.</div>`;
+    const btn = customerList.querySelector('#addAsNewCustomerBtn');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        customerCreateName.value = customerSearch.value;
+        customerCreateName.focus();
+        customerSearch.value = '';
+        renderCustomerList();
+      });
+    }
     return;
   }
   customerList.innerHTML = '';
@@ -1316,8 +1376,9 @@ function setSelectedCustomer(row) {
   if (loyaltyInput) loyaltyInput.value = row?.member_id || '';
   clearRedemption();
   updatePaymentCustomerLabel();
-  // If the customer was picked from inside the Payment modal, refresh its redeem
-  // panel to that member's balance.
+  // Refresh the inline order redeem controls if the customer was picked from
+  // the order panel, or the payment modal's loyalty panel if inside Pay.
+  updateOrderRedeem();
   if (payModal?.classList.contains('active')) refreshPaymentLoyalty();
 }
 
@@ -1325,6 +1386,51 @@ function clearRedemption() {
   state.redeemPoints = 0;
   state.redeemValue = 0;
   updateTotals();
+  const input = document.getElementById('orderRedeemInput');
+  if (input) input.value = '';
+}
+
+// Show/hide the inline redeem controls in the order panel when a customer with
+// loyalty is selected (pre-transaction).
+function updateOrderRedeem() {
+  const row = document.getElementById('orderRedeem');
+  if (!row) return;
+  const c = state.customer;
+  if (c && c.id && Number(c.points_balance) > 0 && Number(loyaltyConfig.redeem_rate || 0) > 0) {
+    row.style.display = '';
+    document.getElementById('orderRedeemBalance').textContent = `${Number(c.points_balance)} pts`;
+    renderOrderRedeemPreview();
+  } else {
+    row.style.display = 'none';
+  }
+}
+
+function renderOrderRedeemPreview() {
+  const rate = Number(loyaltyConfig.redeem_rate || 0);
+  const preview = document.getElementById('orderRedeemPreview');
+  if (preview) {
+    preview.textContent = state.redeemPoints > 0 ? '- ' + formatCurrency(state.redeemPoints * rate) : '—';
+  }
+}
+
+// Apply order-redeem input and wire up max/clear buttons for the inline panel.
+function applyOrderRedeem() {
+  const input = document.getElementById('orderRedeemInput');
+  if (!input) return;
+  const c = state.customer;
+  const rate = Number(loyaltyConfig.redeem_rate || 0);
+  if (rate <= 0) return;
+  const balance = Number(c?.points_balance || 0);
+  const orderTotalGross = calculateTotals().total + Number(state.redeemValue || 0);
+  const maxByBill = Math.ceil(orderTotalGross / rate);
+  const maxRedeem = Math.max(0, Math.min(balance, maxByBill));
+  let p = Math.max(0, Math.floor(Number(input.value) || 0));
+  if (p > maxRedeem) { p = maxRedeem; input.value = String(p); }
+  state.redeemPoints = p;
+  state.redeemValue = p * rate;
+  updateTotals();
+  updateChangeDisplay();
+  renderOrderRedeemPreview();
 }
 
 // Loyalty redemption panel — open from the Loyalty chip. Needs a member and an
@@ -1666,12 +1772,11 @@ if (createCustomer) {
     try {
       const payload = {
         name,
-        member_id: customerCreateMemberId.value.trim(),
         phone: customerCreatePhone.value.trim(),
         email: customerCreateEmail.value.trim()
       };
       const result = await createCustomerRecord(payload);
-      setSelectedCustomer(result.customer || { name: payload.name, member_id: payload.member_id });
+      setSelectedCustomer(result.customer || { name: payload.name });
       closeCustomerPicker();
     } catch (err) {
       openInfo('Create failed', err.message || 'Failed to create customer.');
@@ -1809,14 +1914,43 @@ if (sendReceipt) {
   });
 }
 
+let customerLookupTimer = null;
+
 if (customerInput) {
+  customerInput.addEventListener('click', () => {
+    openCustomerModal();
+  });
   customerInput.addEventListener('input', () => {
-    // Free-typing a name unlinks the loyalty customer — no member = no
-    // redemption/points.
+    // Free-typing — clear any previous selection first.
     state.customerId = null;
     state.customer = null;
+    if (loyaltyInput) loyaltyInput.value = '';
     clearRedemption();
     updatePaymentCustomerLabel();
+    updateOrderRedeem();
+    // Debounced server lookup: if the typed name matches one customer, auto-fill.
+    clearTimeout(customerLookupTimer);
+    const val = customerInput.value.trim();
+    if (val.length < 2) return; // too short to search
+    customerLookupTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/customers?q=${encodeURIComponent(val)}`, {
+          headers: typeof authHeaders === 'function' ? authHeaders() : {}
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const rows = data.customers || [];
+        // Only auto-fill when exactly one match and it's close to the typed text
+        if (rows.length === 1) {
+          const row = rows[0];
+          const nameMatch = row.name?.toLowerCase() === val.toLowerCase();
+          if (nameMatch || row.phone?.replace(/[^0-9]/g, '') === val.replace(/[^0-9]/g, '')) {
+            setSelectedCustomer(row);
+            // Update the member ID field explicitly (setSelectedCustomer already does this)
+          }
+        }
+      } catch (_) { /* silent */ }
+    }, 400);
   });
 }
 
@@ -2014,12 +2148,76 @@ closePay.addEventListener('click', () => {
 });
 
 if (paymentType) {
-  paymentType.addEventListener('change', updateChangeDisplay);
+  paymentType.addEventListener('change', () => { updatePayKeypadVisibility(); updateChangeDisplay(); });
 }
 
 if (tenderedInput) {
   tenderedInput.addEventListener('input', updateChangeDisplay);
 }
+
+// On-screen keypad (replaces the order-panel numpad). Two modes: Tender types
+// the cash given; % types a whole-order discount that reduces the amount due.
+function applyKeypadDigit(current, key) {
+  let cur = String(current || '').replace(/[^0-9]/g, '');
+  if (cur === '0') cur = '';
+  if (key === 'del') cur = cur.slice(0, -1);
+  else if (key === 'clear') cur = '';
+  else if (key === '00') cur = cur ? cur + '00' : '';
+  else if (key === '000') cur = cur ? cur + '000' : '';
+  else cur = cur + key;
+  return cur.replace(/^0+(?=\d)/, ''); // no leading zeros
+}
+
+document.getElementById('payKeypad')?.addEventListener('click', (event) => {
+  const btn = event.target.closest('button');
+  if (!btn) return;
+  if (btn.dataset.mode) { setPayMode(btn.dataset.mode); return; }
+  const key = btn.dataset.key;
+  if (payMode === 'discount') {
+    const cur = applyKeypadDigit(String(Math.round(Number(state.orderDiscount) || 0)), key);
+    state.orderDiscount = Math.max(0, Math.min(100, Number(cur) || 0));
+    updateTotals();          // refreshes summary + amount due
+    renderDiscountView();
+    updateChangeDisplay();
+    refreshPaymentLoyalty();  // redeem cap depends on the discounted total
+  } else {
+    setTendered(applyKeypadDigit(tenderedInput?.value, key));
+  }
+});
+
+// Quick-cash: Exact sets the amount due; +50k/+100k add common notes.
+document.getElementById('payQuickCash')?.addEventListener('click', (event) => {
+  const btn = event.target.closest('button');
+  if (!btn) return;
+  setPayMode('tender');
+  const kind = btn.dataset.cash;
+  if (kind === 'exact') {
+    setTendered(Math.round(calculateTotals().total));
+  } else {
+    const cur = Math.round(parseAmount(tenderedInput?.value));
+    setTendered(cur + Number(kind));
+  }
+});
+
+// Inline redeem controls in the order panel.
+document.getElementById('orderRedeemInput')?.addEventListener('input', applyOrderRedeem);
+document.getElementById('orderRedeemMax')?.addEventListener('click', () => {
+  const c = state.customer;
+  const rate = Number(loyaltyConfig.redeem_rate || 0);
+  if (rate <= 0) return;
+  const balance = Number(c?.points_balance || 0);
+  const orderTotalGross = calculateTotals().total + Number(state.redeemValue || 0);
+  const maxRedeem = Math.max(0, Math.min(balance, Math.ceil(orderTotalGross / rate)));
+  const input = document.getElementById('orderRedeemInput');
+  if (input) { input.value = String(maxRedeem); applyOrderRedeem(); }
+  updateOrderRedeem();
+});
+document.getElementById('orderRedeemClear')?.addEventListener('click', () => {
+  clearRedemption();
+  const input = document.getElementById('orderRedeemInput');
+  if (input) input.value = '';
+  updateOrderRedeem();
+});
 
 if (paymentCustomerBtn) {
   paymentCustomerBtn.addEventListener('click', () => {
@@ -2077,7 +2275,8 @@ confirmPay.addEventListener('click', async () => {
     amount_tendered: method === 'cash' ? tendered : null,
     note: transactionNote?.value.trim() || '',
     customer_id: state.customerId || null,
-    redeem_points: state.customerId ? Number(state.redeemPoints || 0) : 0
+    redeem_points: state.customerId ? Number(state.redeemPoints || 0) : 0,
+    discount_pct: Math.max(0, Math.min(100, Number(state.orderDiscount || 0)))
   };
 
   let saleId = null;
@@ -2266,6 +2465,7 @@ confirmPay.addEventListener('click', async () => {
   state.customer = null;
   state.redeemPoints = 0;
   state.redeemValue = 0;
+  state.orderDiscount = 0;
   if (customerInput) customerInput.value = '';
   if (loyaltyInput) loyaltyInput.value = '';
   updatePaymentCustomerLabel();

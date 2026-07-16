@@ -39,15 +39,51 @@ router.post('/', (req, res) => {
   const phone = String(req.body?.phone || '').trim() || null;
   const email = String(req.body?.email || '').trim() || null;
   if (!name) return res.status(400).json({ message: 'Name required' });
+  // Auto-generate member_id if not provided: 5-digit number (00001–99999).
+  const finalMemberId = memberId || (() => {
+    const last = db.prepare(
+      "SELECT member_id FROM customers WHERE member_id GLOB '[0-9][0-9][0-9][0-9][0-9]' ORDER BY member_id DESC LIMIT 1"
+    ).get();
+    const nextNum = last ? (Number(last.member_id) || 0) + 1 : 1;
+    return String(nextNum).padStart(5, '0');
+  })();
   if (memberId) {
-    const existing = db.prepare('SELECT id FROM customers WHERE member_id = ?').get(memberId);
+    const existing = db.prepare('SELECT id FROM customers WHERE member_id = ?').get(finalMemberId);
     if (existing) return res.status(409).json({ message: 'Member ID already in use' });
   }
   const info = db.prepare(
     'INSERT INTO customers (name, member_id, phone, email) VALUES (?, ?, ?, ?)'
-  ).run(name, memberId, phone, email);
+  ).run(name, finalMemberId, phone, email);
   const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(info.lastInsertRowid);
   res.json({ customer });
+});
+
+// PUT /api/customers/:id — update customer fields
+router.put('/:id', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ message: 'Invalid id' });
+  const existing = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
+  if (!existing) return res.status(404).json({ message: 'Customer not found' });
+  const name = String(req.body?.name ?? '').trim() || existing.name;
+  const phone = req.body?.phone !== undefined ? String(req.body.phone).trim() || null : existing.phone;
+  const email = req.body?.email !== undefined ? String(req.body.email).trim() || null : existing.email;
+  db.prepare(
+    "UPDATE customers SET name = ?, phone = ?, email = ?, updated_at = datetime('now') WHERE id = ?"
+  ).run(name, phone, email, id);
+  const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
+  res.json({ customer });
+});
+
+// DELETE /api/customers/:id — soft-check before removing
+router.delete('/:id', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ message: 'Invalid id' });
+  const existing = db.prepare('SELECT * FROM customers WHERE id = ?').get(id);
+  if (!existing) return res.status(404).json({ message: 'Customer not found' });
+  const txns = db.prepare('SELECT COUNT(*) AS n FROM transactions WHERE customer_id = ?').get(id);
+  if (txns.n > 0) return res.status(409).json({ message: `Cannot delete — customer has ${txns.n} transaction(s) on record.` });
+  db.prepare('DELETE FROM customers WHERE id = ?').run(id);
+  res.json({ message: 'Customer deleted' });
 });
 
 module.exports = router;

@@ -1933,6 +1933,63 @@ body {
   font-size: 13px;
 }
 
+/* ---- Inline redeem row in the order panel (pre-transaction) ---- */
+.order-redeem {
+  margin: 2px 0 6px;
+  padding: 8px 10px;
+  background: var(--cream-soft, #f4efe4);
+  border: 1px solid var(--border, #e0d8cc);
+  border-radius: 10px;
+}
+
+.order-redeem-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.order-redeem-header .label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  font-weight: 700;
+  color: var(--brand-ink, #2e4864);
+}
+
+.order-redeem-balance {
+  font-size: 12px;
+  color: var(--muted, #8a7d74);
+}
+
+.order-redeem-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.order-redeem-controls input {
+  width: 80px;
+  padding: 5px 8px;
+  border: 1px solid #d7d7d7;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.order-redeem-controls .pay {
+  flex: 0 0 auto;
+  color: var(--ink, #2e4864);
+  font-size: 12px;
+  padding: 5px 10px;
+}
+
+.order-redeem-preview {
+  margin-left: auto;
+  font-weight: 600;
+  font-size: 13px;
+}
+
 .pay-loyalty #payLoyaltyBody {
   display: flex;
   flex-direction: column;
@@ -1967,6 +2024,146 @@ body {
 .pay-loyalty-preview {
   margin-left: auto;
   font-weight: 600;
+}
+
+.pay-quickcash {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pay-quickcash button {
+  padding: 10px;
+  border: 1px solid #d7d7d7;
+  border-radius: 8px;
+  background: #f6f6f6;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--ink, #2e4864);
+}
+
+.pay-quickcash button:active {
+  background: #ececec;
+}
+
+.pay-keypad {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.pay-keypad button {
+  padding: 14px;
+  font-size: 18px;
+  color: var(--ink, #2e4864);
+  border: 1px solid #d7d7d7;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.pay-keypad button:active {
+  background: #f0f0f0;
+}
+
+.pay-keypad button.danger {
+  color: #b3261e;
+}
+
+.pay-keypad button.mode {
+  background: #eef3ff;
+  border-color: #c7d6ff;
+  font-weight: 600;
+}
+
+.pay-keypad button.mode.active {
+  background: #2f6bff;
+  border-color: #2f6bff;
+  color: #fff;
+}
+
+.pay-discount-row .pay-discount-view {
+  font-weight: 600;
+}
+
+/* ---- Wide two-column payment layout (tablet landscape) ---- */
+.modal-card.pay-card {
+  width: min(860px, 96vw);
+  max-height: 94vh;
+  overflow-y: auto;
+}
+
+.pay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.pay-header h3 {
+  margin: 0;
+}
+
+.pay-due {
+  text-align: right;
+}
+
+.pay-due-label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted, #8a7d74);
+}
+
+.pay-due .modal-total {
+  margin: 0;
+}
+
+.pay-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.92fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.pay-left,
+.pay-right {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+/* Big, prominent tender display on the keypad side. */
+.pay-right #tendered {
+  font-size: 26px;
+  font-weight: 700;
+  text-align: right;
+  padding: 12px 14px;
+}
+
+/* Taller, touch-friendly keys that fill the right column on a tablet. */
+.pay-right .pay-keypad button {
+  min-height: 58px;
+  font-size: 20px;
+}
+
+.pay-change-row .modal-total {
+  color: #2f8f4e;
+}
+
+/* Stack to a single column on phones / portrait tablets. */
+@media (max-width: 640px), (orientation: portrait) {
+  .modal-card.pay-card {
+    width: min(420px, 94vw);
+  }
+  .pay-layout {
+    grid-template-columns: 1fr;
+  }
+  .pay-right .pay-keypad button {
+    min-height: 48px;
+    font-size: 18px;
+  }
 }
 
 .modal-divider {

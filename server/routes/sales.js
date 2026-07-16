@@ -49,10 +49,14 @@ router.post('/', (req, res) => {
   const customerId = Number.isInteger(Number(b.customer_id)) && Number(b.customer_id) > 0
     ? Number(b.customer_id) : null;
   const requestedRedeem = Math.max(0, Math.floor(Number(b.redeem_points || 0)));
+  // Whole-order discount, entered as a percent at Payment. Clamped 0..100; the
+  // rupiah amount is derived server-side from the actual line total.
+  const discountPct = Math.max(0, Math.min(100, Math.floor(Number(b.discount_pct || 0))));
 
   let pointsEarned = 0;
   let redeemPoints = 0;
   let redeemValue = 0;
+  let discountValue = 0;
   let customerRow = null;
 
   const tx = db.transaction(() => {
@@ -86,16 +90,25 @@ router.post('/', (req, res) => {
       saleTotal += qty * effective;
     }
 
+    // Apply the whole-order discount to the line total; everything downstream
+    // (redemption cap, loyalty earn) works off the discounted bill.
+    discountValue = Math.round(saleTotal * discountPct / 100);
+    const afterDiscount = Math.max(0, saleTotal - discountValue);
+    if (discountPct > 0) {
+      db.prepare('UPDATE transactions SET discount_pct = ?, discount_amount = ? WHERE id = ?')
+        .run(discountPct, discountValue, txnId);
+    }
+
     const loyalty = getLoyaltyConfig();
     if (customer && loyalty.enabled) {
-      // Redemption first — clamp to what they actually have and to the order
-      // total (can't redeem more than the bill). redeem_value is derived here,
-      // never trusted from the client.
+      // Redemption first — clamp to what they actually have and to the
+      // discounted total (can't redeem more than the bill). redeem_value is
+      // derived here, never trusted from the client.
       if (requestedRedeem > 0 && loyalty.redeem_rate > 0) {
         redeemPoints = Math.min(requestedRedeem, customer.points_balance);
         redeemValue = redeemPoints * loyalty.redeem_rate;
-        if (redeemValue > saleTotal) {
-          redeemValue = saleTotal;
+        if (redeemValue > afterDiscount) {
+          redeemValue = afterDiscount;
           redeemPoints = Math.ceil(redeemValue / loyalty.redeem_rate);
         }
         if (redeemPoints > 0) {
@@ -103,8 +116,8 @@ router.post('/', (req, res) => {
             .run(redeemPoints, customer.id);
         }
       }
-      // Earn on what was actually paid (net of the redemption discount).
-      const netTotal = Math.max(0, saleTotal - redeemValue);
+      // Earn on what was actually paid (net of discount and redemption).
+      const netTotal = Math.max(0, afterDiscount - redeemValue);
       pointsEarned = loyalty.earn_base > 0 ? Math.floor(netTotal / loyalty.earn_base) * loyalty.earn_points : 0;
       if (pointsEarned > 0) {
         db.prepare('UPDATE customers SET points_balance = points_balance + ?, updated_at = datetime(\'now\') WHERE id = ?')
@@ -172,6 +185,8 @@ router.post('/', (req, res) => {
     points_earned: pointsEarned,
     redeem_points: redeemPoints,
     redeem_value: redeemValue,
+    discount_pct: discountPct,
+    discount_amount: discountValue,
     customer: customerRow
   });
 });

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Customers – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    body { font-family: inherit; margin: 0; padding: 0; background: transparent; color: var(--ink); }
+    .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; padding: 16px; }
+    .topbar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .topbar h1 { margin: 0; flex: 1; font-size: 20px; font-weight: 700; }
+    .main-scroll { flex: 1 1 auto; overflow: auto; }
+    .card { background: var(--card); padding: 0; border-radius: 14px; border: 1px solid var(--border); box-shadow: 0 4px 16px rgba(41,26,18,0.1); margin-bottom: 14px; overflow: hidden; }
+    h2 { margin: 0 0 8px; font-size: 16px; color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border-soft, #ede8e0); }
+    th { color: var(--brand-ink); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; background: var(--cream-soft, #f4efe4); font-weight: 700; }
+    td { color: var(--ink); }
+    tbody tr:hover td { background: #f6f3ee; }
+    tbody tr:last-child td { border-bottom: none; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    @media(max-width:760px){ .stats { grid-template-columns: repeat(2,1fr); } }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 18px; box-shadow: var(--shadow-sm); }
+    .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .stat .value { font-family: var(--font-brand); font-size: 26px; font-weight: 700; color: var(--brand-ink); margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .stat:nth-child(1) .value { color: #2f6bff; }
+    .stat:nth-child(2) .value { color: #2f8f4e; }
+    .stat:nth-child(3) .value { color: #b07a1e; }
+    .stat:nth-child(4) .value { color: #7b5bd6; }
+
+    .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .toolbar input { flex: 1; min-width: 180px; padding: 10px 14px; font-size: 13px; border-radius: 10px; border: 1px solid var(--border); background: #fff; color: var(--ink); transition: border-color .15s; }
+    .toolbar input:focus { border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px rgba(93,125,166,.15); }
+    .toolbar input::placeholder { color: var(--muted); }
+    .toolbar button { background: var(--brand); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; padding: 10px 18px; font-size: 13px; white-space: nowrap; transition: opacity .15s; }
+    .toolbar button:hover { opacity: .88; }
+
+    .row-btn { padding: 5px 10px; font-size: 11px; border-radius: 8px; width: auto; margin: 0 2px; border: none; cursor: pointer; font-weight: 600; transition: opacity .15s; }
+    .row-btn:hover { opacity: .78; }
+    .row-btn.edit { background: #eef3ff; color: #2f6bff; }
+    .row-btn.danger { background: #fbecea; color: var(--danger); }
+    td:last-child { white-space: nowrap; }
+
+    .search-highlight { background: #fef3c7; padding: 1px 3px; border-radius: 3px; font-weight: 600; }
+
+    input, select { padding: 10px 12px; font-size: 13px; border-radius: 10px; border: 1px solid var(--border); width: 100%; box-sizing: border-box; background: #fff; color: var(--ink); }
+    input:focus, select:focus { border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px rgba(93,125,166,.12); }
+    label { display: block; margin-top: 8px; font-size: 12px; color: var(--brand-ink); font-weight: 600; }
+
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(20,28,45,.48); z-index: 1200; display: flex; align-items: center; justify-content: center; }
+    .modal-backdrop[hidden] { display: none; }
+    .modal-card { background: var(--card); border-radius: 18px; padding: 24px; width: 90vw; max-width: 400px; box-shadow: 0 16px 48px rgba(0,0,0,.22); }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+    .modal-head .title { font-size: 17px; font-weight: 700; color: var(--brand-ink); }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+    .modal-actions button { padding: 9px 18px; border-radius: 10px; border: none; cursor: pointer; font-weight: 600; color: var(--ink); font-size: 13px; transition: opacity .15s; }
+    .modal-actions button:hover { opacity: .82; }
+    .modal-actions .primary { background: var(--brand); color: #fff; }
+    .modal-actions .ghost { background: var(--cream-soft); }
+    .modal-actions .danger { background: var(--danger); color: #fff; }
+    .modal-card label { color: var(--brand-ink); margin-top: 12px; font-size: 12px; font-weight: 600; }
+    .modal-card input:disabled { background: #eceef2; color: var(--muted); cursor: not-allowed; }
+
+    .empty { padding: 40px; text-align: center; color: var(--muted); font-size: 14px; }
+    .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; background: #eef3ff; color: var(--brand-700); letter-spacing: .02em; }
+    .pill.points { background: var(--positive-bg); color: #2f5a45; }
+  </style>
+</head>
+<body class="theme-cafe">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Back Office</div></div></div>
+  </aside>
+
+  <div class="content">
+    <div class="topbar">
+      <button id="menuToggle">☰</button>
+      <h1>👥 Customers</h1>
+    </div>
+
+    <div class="stats" id="stats">
+      <div class="stat"><div class="label">Total Customers</div><div class="value" id="statTotal">—</div></div>
+      <div class="stat"><div class="label">With Points</div><div class="value" id="statPoints">—</div></div>
+      <div class="stat"><div class="label">Total Points</div><div class="value" id="statTotalPoints">—</div></div>
+      <div class="stat"><div class="label">Member IDs Issued</div><div class="value" id="statMembers">—</div></div>
+    </div>
+
+    <div class="toolbar">
+      <input id="searchInput" type="text" placeholder="Search by name, member ID, phone, email…" />
+      <button id="addCustomerBtn">+ New Customer</button>
+    </div>
+
+    <div class="card" style="flex:1;overflow:auto;padding:0;">
+      <div id="customerTableContainer" style="overflow:auto;max-height:100%;">
+        <table>
+          <thead><tr>
+            <th>Name</th>
+            <th>Member ID</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th class="num">Points</th>
+            <th style="width:90px">Actions</th>
+          </tr></thead>
+          <tbody id="customerBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit / Create Modal -->
+  <div class="modal-backdrop" id="customerModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="title" id="modalTitle">Edit Customer</div>
+        <button class="ghost" id="closeModal" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--ink);">✕</button>
+      </div>
+      <div id="modalBody">
+        <input id="editId" type="hidden" />
+        <label>Name</label>
+        <input id="editName" type="text" placeholder="Customer name" />
+        <label>Member ID</label>
+        <input id="editMemberId" type="text" placeholder="Auto-generated if empty" />
+        <label>Phone</label>
+        <input id="editPhone" type="text" placeholder="Phone" />
+        <label>Email</label>
+        <input id="editEmail" type="text" placeholder="Email" />
+      </div>
+      <div class="modal-actions">
+        <button class="ghost" id="cancelModal">Cancel</button>
+        <button class="primary" id="saveCustomer">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirm Modal -->
+  <div class="modal-backdrop" id="deleteModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div class="title">Delete Customer</div>
+        <button class="ghost" id="closeDelete" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--ink);">✕</button>
+      </div>
+      <p id="deleteText" style="margin:0 0 8px;font-size:14px;">Are you sure?</p>
+      <p id="deleteWarn" style="margin:0 0 12px;font-size:12px;color:var(--danger);display:none;"></p>
+      <input id="deleteId" type="hidden" />
+      <div class="modal-actions">
+        <button class="ghost" id="cancelDelete">Cancel</button>
+        <button class="danger" id="confirmDelete">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/sidebar.js?v=20260716-1"></script>
+  <script src="/auth.js"></script>
+  <script>
+  async function api(path, opts = {}) {
+    const h = typeof authHeaders === 'function' ? authHeaders() : {};
+    const res = await fetch(path, { ...opts, headers: { ...h, ...opts.headers } });
+    if (!res.ok) { const e = await res.json().catch(() => ({ message: res.statusText })); throw new Error(e.message || 'Request failed'); }
+    return res.json();
+  }
+
+  let customers = [];
+
+  function renderStats() {
+    document.getElementById('statTotal').textContent = customers.length;
+    const withPoints = customers.filter(c => Number(c.points_balance) > 0);
+    document.getElementById('statPoints').textContent = withPoints.length;
+    document.getElementById('statTotalPoints').textContent = customers.reduce((s, c) => s + Number(c.points_balance || 0), 0).toLocaleString();
+    document.getElementById('statMembers').textContent = customers.filter(c => c.member_id).length;
+  }
+
+  function highlight(text, query) {
+    if (!query) return text;
+    const q = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return text.replace(new RegExp('(' + q + ')', 'gi'), '<span class="search-highlight">$1</span>');
+  }
+
+  function renderTable(query) {
+    const tbody = document.getElementById('customerBody');
+    const q = (query || '').toLowerCase().trim();
+    const filtered = q ? customers.filter(c =>
+      [c.name, c.member_id, c.phone, c.email].some(v => String(v || '').toLowerCase().includes(q))
+    ) : customers;
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty">${q ? 'No customers match "' + q + '".' : 'No customers yet.'}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = filtered.map(c => {
+      const name = q ? highlight(c.name || '-', q) : (c.name || '-');
+      const mid = q ? highlight(c.member_id || '', q) : (c.member_id || '');
+      const ph = q ? highlight(c.phone || '', q) : (c.phone || '');
+      const em = q ? highlight(c.email || '', q) : (c.email || '');
+      const pts = Number(c.points_balance || 0);
+      return `<tr>
+        <td>${name}</td>
+        <td>${mid ? `<span class="pill">${mid}</span>` : '—'}</td>
+        <td>${ph || '—'}</td>
+        <td>${em || '—'}</td>
+        <td class="num">${pts > 0 ? `<span class="pill points">${pts} pts</span>` : '0'}</td>
+        <td>
+          <button class="row-btn edit" data-id="${c.id}" data-action="edit">✎ Edit</button>
+          <button class="row-btn danger" data-id="${c.id}" data-action="delete">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+    tbody.querySelectorAll('[data-action="edit"]').forEach(b => b.addEventListener('click', () => openEdit(Number(b.dataset.id))));
+    tbody.querySelectorAll('[data-action="delete"]').forEach(b => b.addEventListener('click', () => openDelete(Number(b.dataset.id))));
+  }
+
+  async function loadData() {
+    try {
+      const data = await api('/api/customers');
+      customers = data.customers || [];
+      renderStats();
+      renderTable(document.getElementById('searchInput').value);
+    } catch (err) {
+      document.getElementById('customerBody').innerHTML = `<tr><td colspan="6" class="empty" style="color:var(--danger)">${err.message}</td></tr>`;
+    }
+  }
+
+  // ---- Edit / Create ----
+  function openEdit(id) {
+    const c = customers.find(x => x.id === id);
+    if (c) {
+      document.getElementById('modalTitle').textContent = 'Edit Customer';
+      document.getElementById('editId').value = c.id;
+      document.getElementById('editName').value = c.name || '';
+      document.getElementById('editMemberId').value = c.member_id || '';
+      document.getElementById('editMemberId').disabled = true;
+      document.getElementById('editPhone').value = c.phone || '';
+      document.getElementById('editEmail').value = c.email || '';
+    }
+    document.getElementById('customerModal').removeAttribute('hidden');
+  }
+
+  function openCreate() {
+    document.getElementById('modalTitle').textContent = 'New Customer';
+    document.getElementById('editId').value = '';
+    document.getElementById('editName').value = '';
+    document.getElementById('editMemberId').value = '';
+    document.getElementById('editMemberId').disabled = true;
+    document.getElementById('editPhone').value = '';
+    document.getElementById('editEmail').value = '';
+    document.getElementById('customerModal').removeAttribute('hidden');
+  }
+
+  async function saveCustomer() {
+    const id = document.getElementById('editId').value;
+    const name = document.getElementById('editName').value.trim();
+    if (!name) { alert('Name is required.'); return; }
+    const phone = document.getElementById('editPhone').value.trim();
+    const email = document.getElementById('editEmail').value.trim();
+    try {
+      if (id) {
+        await api(`/api/customers/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, phone, email }) });
+      } else {
+        await api('/api/customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, phone, email }) });
+      }
+      document.getElementById('customerModal').setAttribute('hidden', '');
+      await loadData();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  // ---- Delete ----
+  let deleteTargetId = null;
+
+  function openDelete(id) {
+    deleteTargetId = id;
+    const c = customers.find(x => x.id === id);
+    document.getElementById('deleteText').textContent = `Delete "${c ? c.name : 'customer'}"?`;
+    document.getElementById('deleteWarn').style.display = 'none';
+    document.getElementById('deleteModal').removeAttribute('hidden');
+  }
+
+  async function confirmDeleteFn() {
+    if (!deleteTargetId) return;
+    try {
+      await api(`/api/customers/${deleteTargetId}`, { method: 'DELETE' });
+      document.getElementById('deleteModal').setAttribute('hidden', '');
+      deleteTargetId = null;
+      await loadData();
+    } catch (err) {
+      document.getElementById('deleteWarn').textContent = err.message;
+      document.getElementById('deleteWarn').style.display = '';
+    }
+  }
+
+  // ---- Init ----
+  document.getElementById('searchInput').addEventListener('input', () => renderTable(document.getElementById('searchInput').value));
+  document.getElementById('addCustomerBtn').addEventListener('click', openCreate);
+  document.getElementById('closeModal').addEventListener('click', () => document.getElementById('customerModal').setAttribute('hidden', ''));
+  document.getElementById('cancelModal').addEventListener('click', () => document.getElementById('customerModal').setAttribute('hidden', ''));
+  document.getElementById('saveCustomer').addEventListener('click', saveCustomer);
+  document.getElementById('closeDelete').addEventListener('click', () => document.getElementById('deleteModal').setAttribute('hidden', ''));
+  document.getElementById('cancelDelete').addEventListener('click', () => document.getElementById('deleteModal').setAttribute('hidden', ''));
+  document.getElementById('confirmDelete').addEventListener('click', confirmDeleteFn);
+
+  loadData();
+  </script>
+</body>
+</html>

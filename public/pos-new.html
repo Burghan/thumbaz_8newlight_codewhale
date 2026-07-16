@@ -109,6 +109,19 @@
             </div>
           </div>
 
+          <div class="order-redeem" id="orderRedeem" style="display:none;">
+            <div class="order-redeem-header">
+              <span class="label">Redeem Points</span>
+              <span class="order-redeem-balance" id="orderRedeemBalance">0 pts</span>
+            </div>
+            <div class="order-redeem-controls">
+              <input id="orderRedeemInput" type="number" min="0" step="1" placeholder="Points" />
+              <button class="pay" id="orderRedeemMax" type="button">Max</button>
+              <button class="pay" id="orderRedeemClear" type="button">Clear</button>
+              <span class="order-redeem-preview" id="orderRedeemPreview">—</span>
+            </div>
+          </div>
+
           <div class="order-list" id="orderList"></div>
 
           <div class="order-summary">
@@ -147,7 +160,7 @@
         </div>
 
         <div class="numpad-odoo" id="numpadTop">
-          <div id="numpadPreActions">
+          <div id="numpadPreActions" class="hidden">
             <div class="numpad-actions-row">
               <button class="numpad-chip" data-action="customer">Customer</button>
               <button class="numpad-chip" data-action="set_table">Set Table</button>
@@ -155,8 +168,9 @@
             </div>
           </div>
           <div id="numpadPostActions" class="hidden">
-            <div class="numpad-actions-row two">
+            <div class="numpad-actions-row">
               <button class="numpad-chip" data-action="customer">Customer</button>
+              <button class="numpad-chip" data-action="loyalty">Loyalty</button>
               <button class="numpad-chip" data-action="void">Void</button>
             </div>
           </div>
@@ -266,41 +280,79 @@
   </main>
 
   <div class="modal" id="payModal">
-    <div class="modal-card">
-      <h3>Payment</h3>
-      <div class="modal-total" id="modalTotal">Rp 0</div>
-      <div class="modal-row">
-        <label>Payment Type</label>
-        <select id="paymentType" class="select">
-          <option value="cash">Cash</option>
-          <option value="card">Card</option>
-          <option value="qris">QRIS</option>
-        </select>
+    <div class="modal-card pay-card">
+      <div class="pay-header">
+        <h3>Payment</h3>
+        <div class="pay-due">
+          <span class="pay-due-label">Amount Due</span>
+          <div class="modal-total" id="modalTotal">Rp 0</div>
+        </div>
       </div>
-      <div class="modal-row payment-options">
-        <button class="pay payment-customer" id="paymentCustomerBtn" type="button">
-          <span id="paymentCustomerName">Customer</span>
-        </button>
-        <label class="invoice-toggle">
-          <span>Invoice</span>
-          <input id="invoiceCheck" type="checkbox" />
-        </label>
-      </div>
-      <div class="modal-row pay-loyalty" id="payLoyaltyRow" style="display:none;">
-        <label>Redeem Points</label>
-        <div id="payLoyaltyBody"></div>
-      </div>
-      <div class="modal-row">
-        <label>Amount Tendered</label>
-        <input id="tendered" type="text" inputmode="decimal" placeholder="0" />
-      </div>
-      <div class="modal-row">
-        <label>Change</label>
-        <div class="modal-total" id="changeValue">Rp 0</div>
-      </div>
-      <div class="modal-row">
-        <label>Note (optional)</label>
-        <input id="transactionNote" type="text" placeholder="e.g. Extra napkins, allergy note" />
+      <div class="pay-layout">
+        <div class="pay-left">
+          <div class="modal-row">
+            <label>Payment Type</label>
+            <select id="paymentType" class="select">
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="qris">QRIS</option>
+            </select>
+          </div>
+          <div class="modal-row payment-options">
+            <button class="pay payment-customer" id="paymentCustomerBtn" type="button">
+              <span id="paymentCustomerName">Customer</span>
+            </button>
+            <label class="invoice-toggle">
+              <span>Invoice</span>
+              <input id="invoiceCheck" type="checkbox" />
+            </label>
+          </div>
+          <div class="modal-row pay-loyalty" id="payLoyaltyRow" style="display:none;">
+            <label>Redeem Points</label>
+            <div id="payLoyaltyBody"></div>
+          </div>
+          <div class="modal-row pay-discount-row" id="payDiscountRow">
+            <label>Discount</label>
+            <div class="pay-discount-view"><span id="payDiscountPct">0</span>% · <span id="payDiscountAmt">Rp 0</span></div>
+          </div>
+          <div class="modal-row pay-change-row">
+            <label>Change</label>
+            <div class="modal-total" id="changeValue">Rp 0</div>
+          </div>
+          <div class="modal-row">
+            <label>Note (optional)</label>
+            <input id="transactionNote" type="text" placeholder="e.g. Extra napkins, allergy note" />
+          </div>
+        </div>
+        <div class="pay-right">
+          <div class="modal-row" id="tenderRow">
+            <label>Amount Tendered</label>
+            <input id="tendered" type="text" inputmode="none" placeholder="0" readonly />
+          </div>
+          <div class="pay-quickcash" id="payQuickCash">
+            <button type="button" data-cash="exact">Exact</button>
+            <button type="button" data-cash="50000">+50k</button>
+            <button type="button" data-cash="100000">+100k</button>
+          </div>
+          <div class="pay-keypad" id="payKeypad">
+            <button type="button" data-key="1">1</button>
+            <button type="button" data-key="2">2</button>
+            <button type="button" data-key="3">3</button>
+            <button type="button" class="mode active" data-mode="tender">Tender</button>
+            <button type="button" data-key="4">4</button>
+            <button type="button" data-key="5">5</button>
+            <button type="button" data-key="6">6</button>
+            <button type="button" class="mode" data-mode="discount">%</button>
+            <button type="button" data-key="7">7</button>
+            <button type="button" data-key="8">8</button>
+            <button type="button" data-key="9">9</button>
+            <button type="button" class="danger" data-key="clear">C</button>
+            <button type="button" data-key="000">000</button>
+            <button type="button" data-key="0">0</button>
+            <button type="button" data-key="00">00</button>
+            <button type="button" class="danger" data-key="del">⌫</button>
+          </div>
+        </div>
       </div>
       <div class="modal-actions">
         <button class="pay" id="closePay">Back</button>
@@ -492,11 +544,7 @@
       <div class="modal-divider"></div>
       <div class="modal-row">
         <label>Create Customer</label>
-        <input id="customerCreateName" type="text" placeholder="Name" />
-      </div>
-      <div class="modal-row">
-        <label>Member ID</label>
-        <input id="customerCreateMemberId" type="text" placeholder="Member ID" />
+        <input id="customerCreateName" type="text" placeholder="Name (member ID auto-generated)" />
       </div>
       <div class="modal-row">
         <label>Phone</label>
