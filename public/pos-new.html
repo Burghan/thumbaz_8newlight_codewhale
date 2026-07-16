@@ -51,13 +51,12 @@
 
   <main class="odoo-main">
     <div class="app">
-      <div class="pos-flow" id="posFlow">
-        <!-- Tables/Orders/Direct Sale are hidden (not in use) — with only Register
-             left, a tab strip has nothing to switch between, so it's dropped
-             rather than shown as a single dead-looking button. The buttons stay
-             in the DOM (display:none) so flowTabs.forEach() in pos-new.js keeps
-             working unchanged; bringing any of these back just needs the
-             display:none removed here. -->
+      <!-- The whole flow bar is hidden: the tab strip (Tables/Orders/Direct Sale)
+           isn't in use, and the product search was removed to give the order panel
+           and product grid more height. Elements stay in the DOM (display:none) so
+           flowTabs.forEach() and the #searchInput listener in pos-new.js keep working
+           unchanged; bringing the search back just needs the display:none removed. -->
+      <div class="pos-flow" id="posFlow" style="display:none;">
         <div class="flow-tabs" style="display:none;">
           <button class="flow-tab" data-flow="tables">Tables</button>
           <button class="flow-tab active" data-flow="register">Register</button>

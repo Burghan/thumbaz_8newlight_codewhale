@@ -573,7 +573,7 @@ function renderCategories() {
 function renderProducts() {
   productGrid.innerHTML = '';
   const filtered = products.filter((item) => {
-    const matchesCategory = state.category === 'All' || item.category === state.category;
+    const matchesCategory = !state.category || item.category === state.category;
     const matchesSearch = item.name.toLowerCase().includes(state.search.toLowerCase());
     return matchesCategory && matchesSearch;
   });
@@ -612,7 +612,12 @@ async function initProducts() {
   } catch (err) {
     products = loadProducts().filter((item) => item.active !== false);
   }
-  categories = ['All', ...Array.from(new Set(products.map((item) => item.category))).filter(Boolean)];
+  // No "All" chip — categories are the real product categories only. Default
+  // the active filter to the first category so a real one is selected on load.
+  categories = Array.from(new Set(products.map((item) => item.category))).filter(Boolean);
+  if (state.category === 'All' || !categories.includes(state.category)) {
+    state.category = categories[0] || '';
+  }
   const customProduct = products.find((p) => String(p.name || '').toLowerCase() === 'custom item');
   customProductId = customProduct ? Number(customProduct.id) : null;
   renderCategories();
@@ -710,9 +715,12 @@ function renderOrder() {
       ${item.modifiers.map((mod) => `<div class=\"order-item-note\">• ${mod.name} (${formatCurrency(mod.price)})</div>`).join('')}
       ${item.note ? `<div class="order-item-note">${item.note}</div>` : ''}
       <div class="order-item-actions">
-        <button class="qty-btn" data-action="dec">-</button>
-        <button class="qty-btn" data-action="inc">+</button>
-        <button class="qty-btn" data-action="mod">Mods</button>
+        <div class="qty-stepper">
+          <button class="qty-btn" data-action="dec" aria-label="Decrease quantity">−</button>
+          <span class="qty-count">${item.qty}</span>
+          <button class="qty-btn" data-action="inc" aria-label="Increase quantity">+</button>
+        </div>
+        <button class="qty-btn ghost" data-action="mod">Mods</button>
       </div>
     `;
     row.addEventListener('click', () => {
@@ -2419,12 +2427,17 @@ if (addCustomItemBtn) {
       return;
     }
     const customCount = state.order.filter((row) => row.isCustom).length + 1;
-    const name = `Custom Item ${customCount}`;
+    const nameInput = window.prompt('Custom item name', `Custom Item ${customCount}`);
+    if (nameInput === null) return; // cancelled
+    const name = nameInput.trim() || `Custom Item ${customCount}`;
+    const priceInput = window.prompt(`Price for "${name}" (Rp)`, '0');
+    if (priceInput === null) return; // cancelled
+    const price = Math.max(0, Math.round(Number(String(priceInput).replace(/[^0-9.]/g, '')) || 0));
     const line = {
       lineId: crypto.randomUUID(),
       id: customProductId,
       name,
-      price: 0,
+      price,
       qty: 1,
       note: '',
       discount: 0,
@@ -2433,7 +2446,7 @@ if (addCustomItemBtn) {
     };
     state.order.push(line);
     state.selectedLineId = line.lineId;
-    state.inputMode = 'price';
+    state.inputMode = 'qty';
     state.buffer = '';
     renderOrder();
   });

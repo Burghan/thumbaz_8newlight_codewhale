@@ -824,7 +824,40 @@ body {
 
 .order-item-actions {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 10px;
+}
+
+.qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: #eef2f7;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.qty-stepper .qty-btn {
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  min-width: 40px;
+  padding: 8px 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.qty-stepper .qty-btn:active {
+  background: #dbe4f0;
+}
+
+.qty-count {
+  min-width: 32px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--ink);
 }
 
 .qty-btn {
@@ -832,9 +865,9 @@ body {
   background: #eef2f7;
   color: var(--ink);
   border-radius: 8px;
-  padding: 4px 8px;
+  padding: 6px 12px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .status-pill {
@@ -1895,7 +1928,7 @@ body {
    Payment/Send to Bar footer always stay in view. Applies whenever the
    tablet is rotated into landscape (not just one fixed size).
    ============================================================ */
-@media (min-width: 900px) and (orientation: landscape) {
+@media (min-width: 560px) and (orientation: landscape) {
   html, body {
     height: 100%;
     overflow: hidden;
@@ -1934,19 +1967,43 @@ body {
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
+    /* Without an explicit row track, a single-row grid sizes to its
+       content's natural (auto) height, not the bounded space above — so
+       .order-panel/.catalog-panel were never actually height-constrained,
+       and their overflow:hidden just clipped whatever didn't fit (the
+       numpad/payment footer, being last) instead of letting .order-list
+       shrink to make room. This forces the row to fill the available
+       height so that internal flex/scroll actually has something to work
+       against. */
+    grid-template-rows: minmax(0, 1fr);
+    /* Tighter columns/gap/padding than the desktop default so this still
+       fits on a phone rotated to landscape (as narrow as ~560px), not
+       just a full-size tablet. */
+    grid-template-columns: minmax(220px, 0.9fr) minmax(300px, 1.3fr);
+    gap: 10px;
+    padding: 4px 10px 10px;
   }
 
   .order-panel {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    overflow: hidden;
+    /* Fallback scroll: on a short laptop window the fixed content (header,
+       customer card, 5-row summary, ~290px numpad) can exceed the panel
+       height even with .order-list shrunk to 0. `overflow: hidden` here
+       clipped the bottom of the numpad/footer. `auto` lets the panel scroll
+       instead so the numpad + Payment button are always reachable. */
+    overflow-y: auto;
   }
 
   .order-list {
     flex: 1 1 auto;
-    min-height: 0;
+    /* A floor so the flex order-list can't be squeezed below one item's full
+       height by the fixed content around it (which clipped the qty stepper +
+       note). If the panel gets tight it scrolls (overflow-y:auto above). */
+    min-height: 150px;
     max-height: none;
+    overflow-y: auto;
   }
 
   .numpad-odoo {
@@ -1967,22 +2024,151 @@ body {
     align-content: start;
     padding-right: 4px;
   }
+
+  /* Compact the fixed (non-scrolling) chrome of the order panel so the full
+     numpad + Payment footer fit in view without the panel needing to scroll.
+     Everything here is tightened only in the app-like landscape layout. */
+  .customer-card {
+    margin: 6px 0;
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  .customer-card input,
+  .order-meta .select {
+    padding: 6px 8px;
+  }
+  .order-summary {
+    margin-top: 6px;
+    padding: 6px 10px;
+  }
+  .summary-row {
+    margin-bottom: 1px;
+    font-size: 12px;
+  }
+  .summary-row.total {
+    font-size: 14px;
+    margin-top: 2px;
+  }
+  .numpad-odoo {
+    margin-top: 6px;
+    padding: 6px;
+    gap: 4px;
+  }
+  .numpad-main {
+    gap: 4px;
+  }
+  .numpad {
+    gap: 5px;
+  }
+  .numpad button {
+    padding: 4px;
+    font-size: 13px;
+    box-shadow: 0 2px 4px rgba(18, 33, 63, 0.08);
+  }
+  .numpad-footer {
+    gap: 6px;
+  }
+  .footer-action {
+    padding: 8px;
+    font-size: 14px;
+  }
+  .numpad-chip {
+    padding: 6px 8px;
+  }
+  /* The secondary action chips (Customer / Note / Dine / Course) are reachable
+     elsewhere; drop them in the compact layout to save a whole row of height. */
+  #numpadPreActions,
+  #numpadPostActions {
+    display: none;
+  }
+  .catalog-header {
+    margin-bottom: 4px;
+  }
+  /* Trim the panels' top padding so content starts higher (smaller upper
+     margin in both the order and menu panels). */
+  .order-panel,
+  .catalog-panel {
+    padding: 6px 10px 10px;
+  }
+  .order-header {
+    margin-top: 0;
+  }
+  /* Shrink the big "Order" / "Products" panel headings and their subtitles. */
+  .order-panel h2,
+  .catalog-panel h2 {
+    font-size: 16px;
+  }
+  .order-header .muted,
+  .catalog-header .muted {
+    font-size: 11px;
+  }
+
+  /* Shorter product cards so many more menu items fit per screen. The 90px
+     thumbnail block is the main height hog; shrink it, trim the padding/gap,
+     and drop the decorative accent bar. */
+  .product-card {
+    padding: 8px;
+    gap: 4px;
+  }
+  .product-thumb {
+    height: 32px;
+    font-size: 12px;
+  }
+  .product-card::after {
+    display: none;
+  }
+  .product-grid {
+    gap: 10px;
+  }
+  .product-name {
+    font-size: 12.5px;
+    line-height: 1.25;
+  }
+  .product-price {
+    font-size: 11px;
+  }
+
+  /* Compact order lines: smaller type + tighter padding so more items fit
+     before the list needs to scroll. */
+  .order-item {
+    padding: 7px 10px;
+    gap: 3px;
+  }
+  .order-item-header,
+  .order-item-name {
+    font-size: 13px;
+  }
+  .order-item-note {
+    font-size: 11px;
+  }
+  .qty-stepper .qty-btn {
+    min-width: 32px;
+    padding: 5px 0;
+    font-size: 16px;
+  }
+  .qty-count {
+    font-size: 13px;
+    min-width: 26px;
+  }
+  .qty-btn.ghost {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
 }
 
 /* ============================================================
-   Phone (both orientations, under the tablet breakpoint) — the
-   two-column .layout has real min-widths (320px + 420px + gap), so below
-   900px it's collapsed to a single column: the product grid is the main
-   scrollable view, and the order panel becomes a bottom-sheet collapsed
-   to a slim "N items · Total" bar by default, expanding to the full
-   cart/numpad/payment on tap. This also removes the horizontal page
+   Phone portrait (or a landscape screen too narrow for the side-by-side
+   layout above, <560px) — collapsed to a single column: the product grid
+   is the main scrollable view, and the order panel becomes a bottom-sheet
+   collapsed to a slim "N items · Total" bar by default, expanding to the
+   full cart/numpad/payment on tap. This also removes the horizontal page
    overflow that was pushing the Payment modal off-screen on iPhone.
    ============================================================ */
 .mobile-cart-toggle {
   display: none;
 }
 
-@media (max-width: 899px) {
+@media (max-width: 559px), (orientation: portrait) {
   .layout {
     display: flex;
     flex-direction: column;
