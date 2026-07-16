@@ -32,6 +32,9 @@ router.post('/', (req, res) => {
   const payment = paymentMap[b.payment_type] || 'cash';
 
   const getModPrice = db.prepare('SELECT price_delta FROM modifiers WHERE id = ?');
+  // A modifier may link to a menu product (Option A); selling the modifier then
+  // deducts that product's recipe from inventory.
+  const getModProduct = db.prepare('SELECT product_id FROM modifiers WHERE id = ?');
 
   const tx = db.transaction(() => {
     const txn = db.prepare(
@@ -62,6 +65,22 @@ router.post('/', (req, res) => {
   const txnId = tx();
   // Deduct stock for recipe ingredients
   deductStockForSale(txnId, items.map(item => ({ product_id: item.product_id, quantity: item.quantity || 1 })));
+  // Also deduct the recipe of any product-linked modifier attached to a line
+  // (Option A), scaled by that line's quantity. Logged as the same 'usage'
+  // movements tagged to this sale, so Void reverses them and COGS counts them.
+  const modProductItems = [];
+  for (const item of items) {
+    const qty = Number(item.quantity || 1);
+    for (const m of (Array.isArray(item.modifiers) ? item.modifiers : [])) {
+      if (m && m.id !== undefined && m.id !== null) {
+        const row = getModProduct.get(Number(m.id));
+        if (row && row.product_id) {
+          modProductItems.push({ product_id: row.product_id, quantity: qty });
+        }
+      }
+    }
+  }
+  if (modProductItems.length) deductStockForSale(txnId, modProductItems);
   // Lookup transaction with items to return in POS format
   const txn = db.prepare('SELECT id, transacted_at, payment_method FROM transactions WHERE id=?').get(txnId);
   const txnItems = db.prepare(`

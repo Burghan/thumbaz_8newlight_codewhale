@@ -342,10 +342,15 @@
           <label>Price</label>
           <input id="newModifierPrice" type="number" step="1" placeholder="0" />
         </div>
+        <div>
+          <label>Deducts recipe of</label>
+          <select id="newModifierProduct" class="select"></select>
+        </div>
         <button class="pay primary" id="createModifierBtn" type="button">Add</button>
       </div>
+      <div class="muted" id="newModifierMargin"></div>
       <div class="manage-modifier-list" id="manageModifierList"></div>
-      <div class="muted">Disabled modifiers are hidden from the picker but remain on past receipts.</div>
+      <div class="muted">Link a modifier to a menu product to deduct that product's recipe from inventory when sold. Price is the manual selling surcharge. Disabled modifiers are hidden from the picker but remain on past receipts.</div>
     </div>
   </div>
 

@@ -176,7 +176,35 @@ const closeManageModifiers = document.getElementById('closeManageModifiers');
 const manageModifierList = document.getElementById('manageModifierList');
 const newModifierName = document.getElementById('newModifierName');
 const newModifierPrice = document.getElementById('newModifierPrice');
+const newModifierProduct = document.getElementById('newModifierProduct');
+const newModifierMargin = document.getElementById('newModifierMargin');
 const createModifierBtn = document.getElementById('createModifierBtn');
+
+// Build <option> tags for the "deducts recipe of" product picker from the
+// already-loaded `products`. Empty value = price-only modifier (no deduction).
+function productOptionsHtml(selectedId) {
+  const opts = ['<option value="">None (price only)</option>'];
+  (products || []).slice()
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+    .forEach((p) => {
+      const sel = Number(selectedId) === Number(p.id) ? ' selected' : '';
+      const nm = String(p.name || '').replace(/</g, '&lt;');
+      opts.push(`<option value="${p.id}"${sel}>${nm}</option>`);
+    });
+  return opts.join('');
+}
+
+// A "cost Rp… · margin Rp… (NN%)" hint for a price + linked product, using the
+// product's recipe COGS (std_cost_per_item). Empty when nothing is linked.
+function modifierMarginHint(priceDelta, productId) {
+  const prod = (products || []).find((p) => Number(p.id) === Number(productId));
+  if (!prod) return '';
+  const cost = Math.round(Number(prod.std_cost_per_item || 0));
+  const price = Math.round(Number(priceDelta || 0));
+  const margin = price - cost;
+  const pct = price > 0 ? Math.round((margin / price) * 100) : 0;
+  return `Deducts ${prod.name} · cost ${formatCurrency(cost)} · margin ${formatCurrency(margin)} (${pct}%)`;
+}
 const mobileCartToggle = document.getElementById('mobileCartToggle');
 const mobileCartCount = document.getElementById('mobileCartCount');
 const mobileCartTotal = document.getElementById('mobileCartTotal');
@@ -2154,9 +2182,21 @@ function renderManageModifierList(modifiers) {
         <label>Price</label>
         <input type="number" step="1" data-field="price" value="${Number(mod.price_delta || 0)}" />
       </div>
+      <div>
+        <label>Deducts recipe of</label>
+        <select class="select" data-field="product">${productOptionsHtml(mod.product_id)}</select>
+      </div>
       <button class="pay" data-action="save" data-id="${mod.id}">Save</button>
       <button class="pay" data-action="delete" data-id="${mod.id}">Disable</button>
+      <div class="modifier-margin muted" data-role="margin">${modifierMarginHint(mod.price_delta, mod.product_id)}</div>
     `;
+    // Live-update the cost/margin hint as the price or linked product changes.
+    const marginEl = row.querySelector('[data-role="margin"]');
+    const priceEl = row.querySelector('input[data-field="price"]');
+    const productEl = row.querySelector('select[data-field="product"]');
+    const refresh = () => { marginEl.textContent = modifierMarginHint(priceEl.value, productEl.value); };
+    priceEl.addEventListener('input', refresh);
+    productEl.addEventListener('change', refresh);
     manageModifierList.appendChild(row);
   });
 }
@@ -2164,10 +2204,23 @@ function renderManageModifierList(modifiers) {
 async function openManageModifiers() {
   if (!manageModifiersModal) return;
   manageModifiersModal.classList.add('active');
+  if (newModifierProduct) newModifierProduct.innerHTML = productOptionsHtml('');
+  if (newModifierMargin) newModifierMargin.textContent = '';
   manageModifierList.innerHTML = '<div class="muted">Loading…</div>';
   const modifiers = await refreshModifiers();
   renderManageModifierList(modifiers);
 }
+
+// Keep the "new modifier" margin hint live as its price / product change.
+function refreshNewModifierMargin() {
+  if (!newModifierMargin) return;
+  newModifierMargin.textContent = modifierMarginHint(
+    newModifierPrice ? newModifierPrice.value : 0,
+    newModifierProduct ? newModifierProduct.value : ''
+  );
+}
+newModifierPrice?.addEventListener('input', refreshNewModifierMargin);
+newModifierProduct?.addEventListener('change', refreshNewModifierMargin);
 
 if (manageModifiersBtn) {
   const canManage = auth && ['admin', 'manager'].includes(auth.role);
@@ -2195,14 +2248,17 @@ if (createModifierBtn) {
       return;
     }
     try {
+      const productId = newModifierProduct && newModifierProduct.value ? Number(newModifierProduct.value) : null;
       const res = await fetch('/api/modifiers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
-        body: JSON.stringify({ name, price_delta: price })
+        body: JSON.stringify({ name, price_delta: price, product_id: productId })
       });
       if (!res.ok) throw new Error('Failed to add modifier.');
       newModifierName.value = '';
       newModifierPrice.value = '';
+      if (newModifierProduct) newModifierProduct.value = '';
+      if (newModifierMargin) newModifierMargin.textContent = '';
       renderManageModifierList(await refreshModifiers());
     } catch (err) {
       openInfo('Failed', err.message || 'Failed to add modifier.');
@@ -2223,6 +2279,8 @@ if (manageModifierList) {
     if (action === 'save') {
       const name = nameInput ? nameInput.value.trim() : '';
       const price = priceInput ? Number(priceInput.value || 0) : NaN;
+      const productSelect = row ? row.querySelector('select[data-field="product"]') : null;
+      const productId = productSelect && productSelect.value ? Number(productSelect.value) : null;
       if (!name || !Number.isFinite(price)) {
         openInfo('Missing info', 'Name and price are required.');
         return;
@@ -2231,7 +2289,7 @@ if (manageModifierList) {
         const res = await fetch(`/api/modifiers/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
-          body: JSON.stringify({ name, price_delta: price })
+          body: JSON.stringify({ name, price_delta: price, product_id: productId })
         });
         if (!res.ok) throw new Error('Failed to update modifier.');
         renderManageModifierList(await refreshModifiers());

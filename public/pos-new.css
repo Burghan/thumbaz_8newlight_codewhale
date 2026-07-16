@@ -1429,7 +1429,7 @@ body {
 
 .modifier-custom {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: 1fr 1fr 1.3fr auto;
   gap: 10px;
   align-items: end;
 }
@@ -1443,7 +1443,7 @@ body {
 
 .manage-modifier-row {
   display: grid;
-  grid-template-columns: 1.4fr 1fr auto auto;
+  grid-template-columns: 1.4fr 0.8fr 1.3fr auto auto;
   gap: 10px;
   align-items: end;
   padding: 10px;
@@ -1451,6 +1451,12 @@ body {
   border-radius: 12px;
   background: #f9fafc;
   color: var(--ink);
+}
+
+.modifier-margin {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  margin-top: 2px;
 }
 
 .manage-modifier-row label {
