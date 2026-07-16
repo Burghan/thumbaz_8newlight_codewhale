@@ -1,7 +1,16 @@
 const express = require('express');
 const db = require('../db');
 const { deductStockForSale, deductIngredientsForSale } = require('../lib/stock');
+const { getLoyaltyConfig } = require('./loyalty-config');
 const router = express.Router();
+
+// Loyalty earn/redeem rules now live in the loyalty_config table (managed from
+// the POS "Loyalty Setup" screen) instead of hardcoded constants:
+//   earn_base / earn_points — earn this many points per this many rupiah spent
+//   redeem_rate             — rupiah discount per point redeemed
+//   enabled                 — 0 turns earn + redeem off entirely
+// Read authoritatively here so the stored award can't drift from what the
+// client previewed, or be tampered with client-side.
 
 // Resolve the price_delta (whole rupiah) for one modifier entry attached to a
 // cart line. Entries come in two shapes from pos.html:
@@ -36,11 +45,26 @@ router.post('/', (req, res) => {
   // deducts that product's recipe from inventory.
   const getModProduct = db.prepare('SELECT product_id FROM modifiers WHERE id = ?');
 
+  const customerNote = String(b.note || '').trim() || null;
+  const customerId = Number.isInteger(Number(b.customer_id)) && Number(b.customer_id) > 0
+    ? Number(b.customer_id) : null;
+  const requestedRedeem = Math.max(0, Math.floor(Number(b.redeem_points || 0)));
+
+  let pointsEarned = 0;
+  let redeemPoints = 0;
+  let redeemValue = 0;
+  let customerRow = null;
+
   const tx = db.transaction(() => {
+    // Verify the customer exists before linking a sale to it — an unknown/
+    // stale id (e.g. picked in one tab, deleted in another) just means no
+    // loyalty link rather than a broken sale.
+    const customer = customerId ? db.prepare('SELECT id, points_balance FROM customers WHERE id = ?').get(customerId) : null;
+
     const txn = db.prepare(
-      `INSERT INTO transactions (transacted_at, payment_method, notes)
-       VALUES (date('now'), ?, ?)`
-    ).run(payment, `${b.order_type||'dinein'}${b.discount_amount>0?` discount:${b.discount_amount}`:''}`);
+      `INSERT INTO transactions (transacted_at, payment_method, notes, customer_note, customer_id)
+       VALUES (date('now'), ?, ?, ?, ?)`
+    ).run(payment, `${b.order_type||'dinein'}${b.discount_amount>0?` discount:${b.discount_amount}`:''}`, customerNote, customer ? customer.id : null);
 
     const txnId = txn.lastInsertRowid;
     const insItem = db.prepare(
@@ -48,6 +72,7 @@ router.post('/', (req, res) => {
        VALUES (?,?,?,?,?,0)`
     );
 
+    let saleTotal = 0;
     for (const item of items) {
       const qty = Number(item.quantity || 1);
       const base = Math.round(Number(item.price || 0));
@@ -58,6 +83,39 @@ router.post('/', (req, res) => {
         .reduce((sum, m) => sum + modifierDelta(m, getModPrice), 0);
       const effective = base + modSum;
       insItem.run(txnId, item.product_id, qty, effective, qty * effective);
+      saleTotal += qty * effective;
+    }
+
+    const loyalty = getLoyaltyConfig();
+    if (customer && loyalty.enabled) {
+      // Redemption first — clamp to what they actually have and to the order
+      // total (can't redeem more than the bill). redeem_value is derived here,
+      // never trusted from the client.
+      if (requestedRedeem > 0 && loyalty.redeem_rate > 0) {
+        redeemPoints = Math.min(requestedRedeem, customer.points_balance);
+        redeemValue = redeemPoints * loyalty.redeem_rate;
+        if (redeemValue > saleTotal) {
+          redeemValue = saleTotal;
+          redeemPoints = Math.ceil(redeemValue / loyalty.redeem_rate);
+        }
+        if (redeemPoints > 0) {
+          db.prepare('UPDATE customers SET points_balance = points_balance - ?, updated_at = datetime(\'now\') WHERE id = ?')
+            .run(redeemPoints, customer.id);
+        }
+      }
+      // Earn on what was actually paid (net of the redemption discount).
+      const netTotal = Math.max(0, saleTotal - redeemValue);
+      pointsEarned = loyalty.earn_base > 0 ? Math.floor(netTotal / loyalty.earn_base) * loyalty.earn_points : 0;
+      if (pointsEarned > 0) {
+        db.prepare('UPDATE customers SET points_balance = points_balance + ?, updated_at = datetime(\'now\') WHERE id = ?')
+          .run(pointsEarned, customer.id);
+      }
+      db.prepare('UPDATE transactions SET points_earned = ?, redeem_points = ?, redeem_value = ? WHERE id = ?')
+        .run(pointsEarned, redeemPoints, redeemValue, txnId);
+      customerRow = db.prepare('SELECT id, name, member_id, points_balance FROM customers WHERE id = ?').get(customer.id);
+    } else if (customer) {
+      // Program off: still link the customer to the sale, just no points move.
+      customerRow = db.prepare('SELECT id, name, member_id, points_balance FROM customers WHERE id = ?').get(customer.id);
     }
     return txnId;
   });
@@ -110,51 +168,99 @@ router.post('/', (req, res) => {
       created_at: txn.transacted_at,
       payment_type: txn.payment_method,
       items: txnItems.map(i => ({ product_id: i.product_id, name: i.name, quantity: i.quantity, price: i.unit_price, total: i.line_total }))
-    }
+    },
+    points_earned: pointsEarned,
+    redeem_points: redeemPoints,
+    redeem_value: redeemValue,
+    customer: customerRow
   });
 });
 
-// POST /api/sales/:id/void — reverse a sale: restore the inventory it deducted
-// and remove the transaction so it no longer counts toward revenue.
+// POST /api/sales/:id/void — reverse a paid sale. Body: { reason, restock }.
+//   restock = true  → the item was NOT made (mis-tap / cancel): return the
+//                     ingredients to stock and drop their usage movements, as
+//                     if the sale never happened.
+//   restock = false → the item WAS made (comp / correction): reverse the money
+//                     only; the ingredients stay consumed (inventory + usage
+//                     movements untouched) so stock and COGS stay truthful.
+// Either way the transaction + items are removed (revenue reverses) and the
+// void is recorded in void_log for the shift's audit trail.
 router.post('/:id/void', (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid sale id' });
 
-  const txn = db.prepare('SELECT id FROM transactions WHERE id = ?').get(id);
+  const txn = db.prepare('SELECT id, customer_id, points_earned, redeem_points FROM transactions WHERE id = ?').get(id);
   if (!txn) return res.status(404).json({ error: 'Sale not found' });
 
+  const restock = req.body?.restock === true || req.body?.restock === 'true' || req.body?.restock === 1;
+  const reason = String(req.body?.reason || '').trim();
+
+  // Capture a summary before deletion for the audit log.
+  const lines = db.prepare(`
+    SELECT ti.quantity, ti.line_total, p.name
+    FROM transaction_items ti JOIN products p ON p.id = ti.product_id
+    WHERE ti.transaction_id = ?`).all(id);
+  const total = lines.reduce((sum, l) => sum + Number(l.line_total || 0), 0);
+  const itemsSummary = lines.map((l) => `${l.quantity}× ${l.name}`).join(', ');
+
   const voidTx = db.transaction(() => {
-    // Usage movements record qty_base as negative (what was deducted). Add it
-    // back by subtracting that negative amount from current stock.
-    const movements = db.prepare(
-      `SELECT ingredient_id, qty_base FROM stock_movements
-       WHERE ref_type = 'sale' AND ref_id = ? AND type = 'usage'`
-    ).all(id);
-    const bump = db.prepare(
-      `UPDATE inventory SET quantity_base = quantity_base - ?, updated_at = datetime('now')
-       WHERE ingredient_id = ?`
-    );
-    for (const m of movements) {
-      bump.run(Number(m.qty_base) || 0, m.ingredient_id);
+    if (restock) {
+      // Usage movements record qty_base as negative (what was deducted). Add it
+      // back by subtracting that negative amount from current stock, then drop
+      // the movements so the ledger matches (as if never sold).
+      const movements = db.prepare(
+        `SELECT ingredient_id, qty_base FROM stock_movements
+         WHERE ref_type = 'sale' AND ref_id = ? AND type = 'usage'`
+      ).all(id);
+      const bump = db.prepare(
+        `UPDATE inventory SET quantity_base = quantity_base - ?, updated_at = datetime('now')
+         WHERE ingredient_id = ?`
+      );
+      for (const m of movements) {
+        bump.run(Number(m.qty_base) || 0, m.ingredient_id);
+      }
+      db.prepare('DELETE FROM stock_movements WHERE ref_type = ? AND ref_id = ?').run('sale', id);
     }
-    db.prepare('DELETE FROM stock_movements WHERE ref_type = ? AND ref_id = ?').run('sale', id);
+    // else: leave inventory + usage movements as-is (ingredients were consumed).
+
+    // Reverse this sale's loyalty movements: take back the points it awarded
+    // and hand back any points it redeemed (the redemption is undone too).
+    // Clamp at 0 in case points were spent/adjusted elsewhere in between.
+    if (txn.customer_id && (txn.points_earned > 0 || txn.redeem_points > 0)) {
+      db.prepare(
+        `UPDATE customers
+         SET points_balance = MAX(0, points_balance - ? + ?), updated_at = datetime('now')
+         WHERE id = ?`
+      ).run(txn.points_earned || 0, txn.redeem_points || 0, txn.customer_id);
+    }
+
+    db.prepare(
+      `INSERT INTO void_log (transaction_id, total, items, reason, restocked)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(id, total, itemsSummary, reason, restock ? 1 : 0);
+
     db.prepare('DELETE FROM transaction_items WHERE transaction_id = ?').run(id);
     db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
   });
 
   voidTx();
-  res.json({ success: true, message: 'Sale voided' });
+  res.json({
+    success: true,
+    message: restock ? 'Sale voided — ingredients returned to stock.' : 'Sale voided — inventory kept as used.'
+  });
 });
 
-// GET /api/sales — recent sales (for POS display).
+// GET /api/sales — today's sales (this shift), for the POS void picker.
 router.get('/', (req, res) => {
   const rows = db.prepare(`
     SELECT t.id, t.transacted_at, t.payment_method,
-           SUM(ti.line_total) AS total
+           SUM(ti.line_total) AS total,
+           GROUP_CONCAT(ti.quantity || '× ' || p.name, ', ') AS items
     FROM transactions t
     JOIN transaction_items ti ON ti.transaction_id = t.id
+    JOIN products p ON p.id = ti.product_id
     WHERE t.transacted_at = date('now')
-    GROUP BY t.id ORDER BY t.id DESC LIMIT 20
+    GROUP BY t.id ORDER BY t.id DESC LIMIT 50
   `).all();
   res.json(rows);
 });

@@ -124,6 +124,10 @@
               <span>Discount</span>
               <strong id="discount">Rp 0</strong>
             </div>
+            <div class="summary-row" id="redeemedRow" style="display:none;">
+              <span>Points Redeemed</span>
+              <strong id="redeemedValue">Rp 0</strong>
+            </div>
             <div class="summary-row">
               <span>Loyalty Points</span>
               <strong id="loyaltyPoints">0</strong>
@@ -135,30 +139,25 @@
           </div>
 
         <div class="action-grid hidden" id="actionGrid">
-          <button class="pay primary" id="payNow">Pay</button>
+          <button class="pay primary" id="payNow" style="display:none;">Pay</button>
           <button class="pay" id="splitBtn">Split Bill</button>
           <button class="pay" id="holdBtn" style="display:none;">Hold</button>
           <button class="pay" id="invoiceBtn">Invoice</button>
-          <button class="pay" id="refundBtn">Void Last Sale</button>
-          <button class="pay" id="loyaltyBtn">Loyalty</button>
+          <button class="pay" id="refundBtn">Void Sale</button>
         </div>
 
         <div class="numpad-odoo" id="numpadTop">
           <div id="numpadPreActions">
-            <div class="numpad-actions-row five">
+            <div class="numpad-actions-row">
               <button class="numpad-chip" data-action="customer">Customer</button>
-              <button class="numpad-chip" data-action="note">Note</button>
-              <button class="numpad-chip" data-action="dine">Dine</button>
-              <button class="numpad-chip" data-action="course">Course</button>
-              <button class="numpad-chip ghost dots" data-action="more">...</button>
+              <button class="numpad-chip" data-action="set_table">Set Table</button>
+              <button class="numpad-chip" data-action="void">Void</button>
             </div>
           </div>
           <div id="numpadPostActions" class="hidden">
-            <div class="numpad-actions-row four">
+            <div class="numpad-actions-row two">
               <button class="numpad-chip" data-action="customer">Customer</button>
-              <button class="numpad-chip" data-action="note">Note</button>
-              <button class="numpad-chip" data-action="dine">Dine In</button>
-              <button class="numpad-chip ghost dots" data-action="more">...</button>
+              <button class="numpad-chip" data-action="void">Void</button>
             </div>
           </div>
           <div class="numpad-main">
@@ -184,6 +183,7 @@
           <div class="numpad-footer hidden" id="numpadFooter">
             <button class="footer-action send" data-action="update_kitchen" id="sendOrderBtn">Send to Bar</button>
             <button class="footer-action primary" data-action="payment">Payment</button>
+            <button class="footer-action more" data-action="more_actions" type="button" aria-label="More actions">⋯</button>
           </div>
         </div>
       </section>
@@ -198,6 +198,7 @@
               <button class="ghost" id="priceCheckBtn" type="button">Price Check</button>
               <button class="ghost" id="addCustomItemBtn" type="button">Add Custom Item</button>
               <button class="ghost" id="manageModifiersBtn" type="button">Manage Modifiers</button>
+              <button class="ghost" id="loyaltySetupBtn" type="button">Loyalty Setup</button>
             </div>
           </div>
 
@@ -285,6 +286,10 @@
           <input id="invoiceCheck" type="checkbox" />
         </label>
       </div>
+      <div class="modal-row pay-loyalty" id="payLoyaltyRow" style="display:none;">
+        <label>Redeem Points</label>
+        <div id="payLoyaltyBody"></div>
+      </div>
       <div class="modal-row">
         <label>Amount Tendered</label>
         <input id="tendered" type="text" inputmode="decimal" placeholder="0" />
@@ -292,6 +297,10 @@
       <div class="modal-row">
         <label>Change</label>
         <div class="modal-total" id="changeValue">Rp 0</div>
+      </div>
+      <div class="modal-row">
+        <label>Note (optional)</label>
+        <input id="transactionNote" type="text" placeholder="e.g. Extra napkins, allergy note" />
       </div>
       <div class="modal-actions">
         <button class="pay" id="closePay">Back</button>
@@ -324,6 +333,40 @@
     </div>
   </div>
 
+  <div class="modal" id="loyaltySetupModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h3>Loyalty Setup</h3>
+          <div class="muted">Define how the points program applies to every sale.</div>
+        </div>
+        <button class="ghost" id="closeLoyaltySetup">Close</button>
+      </div>
+      <div class="loyalty-setup-body">
+        <label class="loyalty-setup-toggle">
+          <input type="checkbox" id="loyaltyEnabled" />
+          <span>Loyalty program enabled</span>
+        </label>
+        <div class="loyalty-setup-row">
+          <span>Earn</span>
+          <input type="number" id="loyaltyEarnPoints" min="0" step="1" />
+          <span>point(s) per Rp</span>
+          <input type="number" id="loyaltyEarnBase" min="1" step="500" />
+          <span>spent</span>
+        </div>
+        <div class="loyalty-setup-row">
+          <span>Redeem — 1 point = Rp</span>
+          <input type="number" id="loyaltyRedeemRate" min="0" step="10" />
+          <span>off</span>
+        </div>
+        <div class="loyalty-setup-preview muted" id="loyaltySetupPreview"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="pay primary" id="saveLoyaltySetup" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal" id="manageModifiersModal">
     <div class="modal-card large">
       <div class="modal-head">
@@ -351,6 +394,52 @@
       <div class="muted" id="newModifierMargin"></div>
       <div class="manage-modifier-list" id="manageModifierList"></div>
       <div class="muted">Link a modifier to a menu product to deduct that product's recipe from inventory when sold. Price is the manual selling surcharge. Disabled modifiers are hidden from the picker but remain on past receipts.</div>
+    </div>
+  </div>
+
+  <div class="modal" id="voidModal">
+    <div class="modal-card large">
+      <div class="modal-head">
+        <div>
+          <h3>Void a Sale</h3>
+          <div class="muted">Pick a sale from this shift to void.</div>
+        </div>
+        <button class="ghost" id="closeVoid" type="button">Close</button>
+      </div>
+      <div class="void-list" id="voidList"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="moreActionsModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h3>Order Actions</h3>
+          <div class="muted">More actions for the current order.</div>
+        </div>
+        <button class="ghost" id="closeMoreActions" type="button">Close</button>
+      </div>
+      <div class="more-actions-grid">
+        <button class="pay" data-more="split" type="button">Split Bill</button>
+        <button class="pay" data-more="invoice" type="button">Invoice</button>
+        <button class="pay" data-more="void" type="button">Void Sale</button>
+        <button class="pay" data-more="set_table" type="button">Set Table</button>
+        <button class="pay" data-more="edit_name" type="button">Edit Order Name</button>
+        <button class="pay" data-more="cancel" type="button">Cancel Order</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="loyaltyModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h3>Loyalty</h3>
+          <div class="muted" id="loyaltySubhead">Redeem points on this order.</div>
+        </div>
+        <button class="ghost" id="closeLoyalty" type="button">Close</button>
+      </div>
+      <div id="loyaltyBody"></div>
     </div>
   </div>
 
@@ -484,37 +573,6 @@
     </div>
   </div>
 
-  <div class="modal" id="actionsModal">
-    <div class="modal-card large">
-      <div class="modal-head">
-        <div>
-          <h3>Actions</h3>
-          <div class="muted">Order tools and payments</div>
-        </div>
-        <button class="ghost" id="closeActions">Close</button>
-      </div>
-      <div class="actions-grid" id="actionsGrid">
-        <button class="action-tile primary" data-action="pay">Payment</button>
-        <button class="action-tile" data-action="bill">Bill</button>
-        <button class="action-tile" data-action="guests">Guests</button>
-        <button class="action-tile" data-action="split">Split</button>
-        <button class="action-tile" data-action="set_table">Set Table</button>
-        <button class="action-tile" data-action="set_tab">Set Tab</button>
-        <button class="action-tile" data-action="update_kitchen">Update Kitchen</button>
-        <button class="action-tile" data-action="transfer">Transfer / Merge</button>
-        <button class="action-tile" data-action="course">Transfer Course</button>
-        <button class="action-tile" data-action="edit_name">Edit Order Name</button>
-        <button class="action-tile" data-action="pricelist">Pricelist</button>
-        <button class="action-tile" data-action="refund">Refund</button>
-        <button class="action-tile" data-action="cash_in">Cash In</button>
-        <button class="action-tile" data-action="cash_out">Cash Out</button>
-        <button class="action-tile" data-action="close_session">Close Shift</button>
-        <button class="action-tile" data-action="info">Info</button>
-        <button class="action-tile" data-action="cancel">Cancel Order</button>
-      </div>
-    </div>
-  </div>
-
   <div class="modal" id="cashMoveModal">
     <div class="modal-card">
       <div class="modal-head">
@@ -608,6 +666,8 @@
             <div id="receiptCashier">Served by: --</div>
             <div id="receiptOrderType">Order Type: --</div>
             <div id="receiptCustomer" class="hidden">Customer: --</div>
+            <div id="receiptNote" class="hidden">Note: --</div>
+            <div id="receiptLoyalty" class="hidden">Loyalty: --</div>
           </div>
           <div class="receipt-divider"></div>
           <div class="receipt-items" id="receiptItems"></div>

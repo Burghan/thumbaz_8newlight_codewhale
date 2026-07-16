@@ -1025,8 +1025,85 @@ body {
 
 .numpad-footer {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.footer-action.more {
+  background: #eef2f7;
+  color: var(--ink);
+  font-weight: 700;
+  min-width: 44px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.more-actions-grid {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.more-actions-grid .pay {
+  color: var(--ink);
+}
+
+.void-list {
+  display: grid;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.void-sale-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #f9fafc;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+}
+
+.void-sale-row:hover {
+  border-color: var(--accent);
+}
+
+.void-sale-total {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.void-confirm {
+  display: grid;
+  gap: 10px;
+  text-align: center;
+  padding: 8px;
+}
+
+.void-confirm-title {
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.void-confirm-q {
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.void-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.void-confirm-actions .pay {
+  color: var(--ink);
 }
 
 .footer-action {
@@ -1767,6 +1844,131 @@ body {
   color: var(--muted);
 }
 
+.loyalty-summary {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f3f6fb;
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.loyalty-balance {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent-2, #3e5b7f);
+}
+
+.loyalty-redeem-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.loyalty-redeem-row input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fffaf6;
+  font-size: 16px;
+}
+
+.loyalty-preview {
+  font-weight: 800;
+  min-width: 90px;
+  text-align: right;
+}
+
+.loyalty-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.loyalty-actions .pay {
+  flex: 1 1 auto;
+  color: var(--ink);
+}
+
+.loyalty-actions .pay.primary {
+  color: #fff;
+}
+
+.loyalty-setup-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 8px;
+}
+
+.loyalty-setup-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.loyalty-setup-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.loyalty-setup-row input {
+  width: 90px;
+  padding: 6px 8px;
+  border: 1px solid #d7d7d7;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.loyalty-setup-preview {
+  padding: 8px 10px;
+  background: #f6f6f6;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.pay-loyalty #payLoyaltyBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pay-loyalty-balance {
+  font-size: 13px;
+  color: var(--muted, #666);
+}
+
+.pay-loyalty-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pay-loyalty-controls input {
+  width: 90px;
+  padding: 6px 8px;
+  border: 1px solid #d7d7d7;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.pay-loyalty-controls .pay {
+  flex: 0 0 auto;
+  color: var(--ink);
+}
+
+.pay-loyalty-preview {
+  margin-left: auto;
+  font-weight: 600;
+}
+
 .modal-divider {
   height: 1px;
   background: #e7e7e7;
@@ -2109,9 +2311,16 @@ body {
   .numpad-chip {
     padding: 6px 8px;
   }
-  /* The secondary action chips (Customer / Note / Dine / Course) are reachable
-     elsewhere; drop them in the compact layout to save a whole row of height. */
-  #numpadPreActions,
+  /* numpadPostActions duplicates itself alongside the numpad once items exist
+     (Customer/Note/Dine chips docked above it) — that's the row that was
+     stealing height and reintroducing the numpad-cutoff bug, so it stays
+     dropped here; its actions are reachable via the footer "..." instead.
+     numpadPreActions is different: the JS (renderOrder) already shows it only
+     when the cart is EMPTY, which is exactly when the numpad+footer are
+     hidden — so it costs no extra space and is the only way to reach the
+     "..." → Set Table / Cash In / Close Shift / etc. Actions sheet before an
+     item is added. Leave it under the JS's own hidden-class control instead
+     of force-hiding it here. */
   #numpadPostActions {
     display: none;
   }

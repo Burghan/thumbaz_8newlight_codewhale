@@ -16,6 +16,7 @@ let activeEmployee = null;
 let priceCheckMode = false;
 let customProductId = null;
 const LAST_SALE_KEY = 'pos_new_last_sale_id';
+const LAST_SALE_SUMMARY_KEY = 'pos_new_last_sale';
 
 const state = {
   order: [],
@@ -30,9 +31,26 @@ const state = {
   currentTableId: null,
   currentTableName: null,
   customerId: null,
+  customer: null,
+  redeemPoints: 0,
+  redeemValue: 0,
   ordersViewSelectedId: null,
   ordersTypeFilter: ''
 };
+// Loyalty program rules — fetched from the server (loyalty_config, editable via
+// the Loyalty Setup screen). These are only for previews; the server recomputes
+// authoritatively at checkout. Seeded with the historical defaults so the UI is
+// sane before the fetch resolves.
+let loyaltyConfig = { earn_base: 10000, earn_points: 1, redeem_rate: 100, enabled: 1 };
+async function loadLoyaltyConfig() {
+  try {
+    const res = await fetch('/api/loyalty-config', { credentials: 'same-origin' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.config) loyaltyConfig = data.config;
+    }
+  } catch (_) { /* keep defaults on failure */ }
+}
 const CURRENT_ORDER_KEY = 'pos_current_order';
 
 const categoryRow = document.getElementById('categoryRow');
@@ -44,6 +62,8 @@ const subtotalEl = document.getElementById('subtotal');
 const taxEl = document.getElementById('tax');
 const discountEl = document.getElementById('discount');
 const loyaltyPointsEl = document.getElementById('loyaltyPoints');
+const redeemedRow = document.getElementById('redeemedRow');
+const redeemedValueEl = document.getElementById('redeemedValue');
 const totalEl = document.getElementById('total');
 const searchInput = document.getElementById('searchInput');
 const clearOrder = document.getElementById('clearOrder');
@@ -74,12 +94,12 @@ const modalTotal = document.getElementById('modalTotal');
 const paymentType = document.getElementById('paymentType');
 const tenderedInput = document.getElementById('tendered');
 const changeValue = document.getElementById('changeValue');
+const transactionNote = document.getElementById('transactionNote');
 const paymentCustomerBtn = document.getElementById('paymentCustomerBtn');
 const paymentCustomerName = document.getElementById('paymentCustomerName');
 const invoiceCheck = document.getElementById('invoiceCheck');
 const clock = document.getElementById('clock');
 const orderTypeSelect = document.getElementById('orderType');
-const loyaltyBtn = document.getElementById('loyaltyBtn');
 const flowTabs = document.querySelectorAll('.flow-tab');
 const registerView = document.getElementById('registerView');
 const ordersView = document.getElementById('ordersView');
@@ -111,9 +131,6 @@ const infoMessage = document.getElementById('infoMessage');
 const infoOk = document.getElementById('infoOk');
 const infoClose = document.getElementById('infoClose');
 let promptHandler = null;
-const actionsModal = document.getElementById('actionsModal');
-const closeActions = document.getElementById('closeActions');
-const actionsGrid = document.getElementById('actionsGrid');
 const receiptModal = document.getElementById('receiptModal');
 const receiptTotal = document.getElementById('receiptTotal');
 const receiptTotal2 = document.getElementById('receiptTotal2');
@@ -127,6 +144,8 @@ const receiptTime = document.getElementById('receiptTime');
 const receiptCashier = document.getElementById('receiptCashier');
 const receiptOrderType = document.getElementById('receiptOrderType');
 const receiptCustomer = document.getElementById('receiptCustomer');
+const receiptNote = document.getElementById('receiptNote');
+const receiptLoyalty = document.getElementById('receiptLoyalty');
 const receiptItems = document.getElementById('receiptItems');
 const receiptFooterText = document.getElementById('receiptFooterText');
 const receiptLogoImg = document.getElementById('receiptLogoImg');
@@ -158,6 +177,9 @@ const countedCash = document.getElementById('countedCash');
 const countedCard = document.getElementById('countedCard');
 const countedQris = document.getElementById('countedQris');
 const closeSessionNotes = document.getElementById('closeSessionNotes');
+const loyaltyModal = document.getElementById('loyaltyModal');
+const loyaltyBody = document.getElementById('loyaltyBody');
+const closeLoyalty = document.getElementById('closeLoyalty');
 const customerModal = document.getElementById('customerModal');
 const closeCustomerModal = document.getElementById('closeCustomerModal');
 const customerSearch = document.getElementById('customerSearch');
@@ -753,7 +775,6 @@ function renderOrder() {
         <div>${formatCurrency(lineTotal)}</div>
       </div>
       <div class="order-item-note">${formatCurrency(item.price)} × ${item.qty} ${item.discount ? `• ${item.discount}% off` : ''}</div>
-      ${item.course ? `<div class="order-item-note">Course: ${item.course}</div>` : ''}
       ${item.modifiers.map((mod) => `<div class=\"order-item-note\">• ${mod.name} (${formatCurrency(mod.price)})</div>`).join('')}
       ${(item.extra_ingredients || []).map((ing) => `<div class=\"order-item-note\">▪ ${ing.name || 'ingredient'} ${ing.qty_base}${ing.base_unit || ''}</div>`).join('')}
       ${item.note ? `<div class="order-item-note">${item.note}</div>` : ''}
@@ -794,6 +815,9 @@ function renderOrder() {
   numpadFooter?.classList.toggle('hidden', !hasItems);
   numpadPreActions?.classList.toggle('hidden', hasItems);
   numpadPostActions?.classList.toggle('hidden', !hasItems);
+  // The action card (Split Bill/Invoice/Void Sale) stays permanently hidden —
+  // those actions live only in the footer "⋯" extension sheet, not as buttons
+  // docked around the numpad.
   if (sendOrderBtn) {
     if (state.sentToKitchen) {
       sendOrderBtn.textContent = 'New';
@@ -835,8 +859,11 @@ function calculateTotals() {
   const taxRate = Number(settings.taxRate || 0);
   const taxable = Math.max(0, subtotal - discount);
   const tax = taxable * (taxRate / 100);
-  const total = taxable + tax;
-  return { subtotal, discount, tax, total };
+  const gross = taxable + tax;
+  // Loyalty redemption applied to the whole order, capped at the bill.
+  const redeemValue = Math.min(Number(state.redeemValue || 0), gross);
+  const total = gross - redeemValue;
+  return { subtotal, discount, tax, redeemValue, total };
 }
 
 function calculateTotalsForItems(items) {
@@ -857,16 +884,24 @@ function calculateTotalsForItems(items) {
 
 function updateTotals() {
   const totals = calculateTotals();
-  const { subtotal, discount, tax, total } = totals;
+  const { subtotal, discount, tax, redeemValue, total } = totals;
   subtotalEl.textContent = formatCurrency(subtotal);
   discountEl.textContent = formatCurrency(discount);
   if (taxEl) taxEl.textContent = formatCurrency(tax);
+  if (redeemedRow && redeemedValueEl) {
+    if (redeemValue > 0) {
+      redeemedValueEl.textContent = `- ${formatCurrency(redeemValue)}`;
+      redeemedRow.style.display = '';
+    } else {
+      redeemedRow.style.display = 'none';
+    }
+  }
   totalEl.textContent = formatCurrency(total);
   modalTotal.textContent = formatCurrency(total);
   if (loyaltyPointsEl) {
-    const base = Number(settings.loyaltyBase || 10000);
-    const rate = Number(settings.loyaltyRate || 1);
-    const points = base > 0 ? Math.floor(total / base) * rate : 0;
+    const base = Number(loyaltyConfig.earn_base || 0);
+    const rate = Number(loyaltyConfig.earn_points || 0);
+    const points = (loyaltyConfig.enabled && base > 0) ? Math.floor(total / base) * rate : 0;
     loyaltyPointsEl.textContent = String(points);
   }
   if (mobileCartCount && mobileCartTotal) {
@@ -898,6 +933,15 @@ function resetOrderState() {
   state.currentOrderId = null;
   state.sentToKitchen = false;
   state.lastAddedCategory = null;
+  // Without this, the next order silently inherits the previous customer's
+  // loyalty link — their points would be awarded to whoever ordered next.
+  state.customerId = null;
+  state.customer = null;
+  state.redeemPoints = 0;
+  state.redeemValue = 0;
+  if (customerInput) customerInput.value = '';
+  if (loyaltyInput) loyaltyInput.value = '';
+  updatePaymentCustomerLabel();
   setOrderMeta();
   renderOrder();
 }
@@ -966,6 +1010,71 @@ function openPayModal() {
   if (invoiceCheck) invoiceCheck.checked = false;
   updateChangeDisplay();
   updatePaymentCustomerLabel();
+  refreshPaymentLoyalty();
+}
+
+// Redeem-points control inside the Payment modal. Redemption is an operation on
+// the finished order, so this is where it lives (the numpad "Loyalty" chip only
+// showed on an empty cart). Needs a member and the program enabled; the server
+// re-validates and settles the discount authoritatively at checkout.
+function renderPaymentLoyalty(customer) {
+  const row = document.getElementById('payLoyaltyRow');
+  const body = document.getElementById('payLoyaltyBody');
+  if (!row || !body) return;
+  const rate = Number(loyaltyConfig.redeem_rate || 0);
+  // Program off (or points worth nothing) → no redeem UI at all.
+  if (!loyaltyConfig.enabled || rate <= 0) { row.style.display = 'none'; return; }
+  row.style.display = '';
+  if (!state.customerId) {
+    body.innerHTML = '<div class="muted">Pick a customer above to redeem their points.</div>';
+    return;
+  }
+  const c = customer || state.customer || {};
+  const balance = Number(c.points_balance || 0);
+  // Gross = current net + whatever is already redeemed, so the cap stays stable
+  // while typing (can't redeem more than the customer has or than the bill).
+  const orderTotalGross = calculateTotals().total + Number(state.redeemValue || 0);
+  const maxByBill = Math.ceil(orderTotalGross / rate);
+  const maxRedeem = Math.max(0, Math.min(balance, maxByBill));
+  const applied = Number(state.redeemPoints || 0);
+  body.innerHTML = `
+    <div class="pay-loyalty-balance">${balance} pts available · 1 pt = ${formatCurrency(rate)}</div>
+    <div class="pay-loyalty-controls">
+      <input id="payRedeemInput" type="number" min="0" step="1" max="${maxRedeem}" value="${applied || ''}" placeholder="Points" />
+      <button class="pay" id="payRedeemMax" type="button">Max (${maxRedeem})</button>
+      ${applied ? '<button class="pay" id="payRedeemClear" type="button">Clear</button>' : ''}
+      <span class="pay-loyalty-preview">${applied ? '- ' + formatCurrency(applied * rate) : '—'}</span>
+    </div>
+    ${maxRedeem === 0 ? '<div class="muted">No points to redeem on this order.</div>' : ''}
+  `;
+  const input = body.querySelector('#payRedeemInput');
+  const preview = body.querySelector('.pay-loyalty-preview');
+  const apply = () => {
+    let p = Math.max(0, Math.floor(Number(input.value) || 0));
+    if (p > maxRedeem) { p = maxRedeem; input.value = String(p); }
+    state.redeemPoints = p;
+    state.redeemValue = p * rate;
+    updateTotals();
+    updateChangeDisplay();
+    if (preview) preview.textContent = p > 0 ? '- ' + formatCurrency(p * rate) : '—';
+    return p;
+  };
+  input?.addEventListener('input', apply);
+  body.querySelector('#payRedeemMax')?.addEventListener('click', () => { input.value = String(maxRedeem); apply(); renderPaymentLoyalty(c); });
+  body.querySelector('#payRedeemClear')?.addEventListener('click', () => { clearRedemption(); updateChangeDisplay(); renderPaymentLoyalty(c); });
+}
+
+// Render immediately from cache, then refresh the balance from the server so the
+// panel is accurate even after earlier sales this shift.
+async function refreshPaymentLoyalty() {
+  renderPaymentLoyalty(state.customer);
+  if (!state.customerId) return;
+  try {
+    const res = await fetch(`/api/customers/${encodeURIComponent(state.customerId)}`, {
+      headers: typeof authHeaders === 'function' ? authHeaders() : {}
+    });
+    if (res.ok) { const c = (await res.json()).customer; state.customer = c; renderPaymentLoyalty(c); }
+  } catch (e) { /* keep cached */ }
 }
 
 searchInput.addEventListener('input', (event) => {
@@ -973,23 +1082,6 @@ searchInput.addEventListener('input', (event) => {
   renderProducts();
 });
 
-function openNote() {
-  const row = state.order.find((item) => item.lineId === state.selectedLineId);
-  if (!row) {
-    openInfo('No item selected', 'Select an item first.');
-    return;
-  }
-  openPrompt({
-    title: 'Customer Note',
-    label: 'Note',
-    value: row.note || '',
-    placeholder: 'Add a note',
-    onSave: (value) => {
-      row.note = value.trim();
-      renderOrder();
-    }
-  });
-}
 
 if (cashMoveBtn) {
   cashMoveBtn.addEventListener('click', () => cashMoveModal?.classList.add('active'));
@@ -1206,15 +1298,109 @@ async function renderCustomerList() {
       <div>${Number(row.points_balance || 0)} pts</div>
     `;
     el.addEventListener('click', () => {
-      customerInput.value = row.name || '';
-      if (loyaltyInput) loyaltyInput.value = row.member_id || '';
-      state.customerId = row.id || null;
+      setSelectedCustomer(row);
       closeCustomerPicker();
-      updatePaymentCustomerLabel();
     });
     customerList.appendChild(el);
   });
 }
+
+// Single place that records the chosen customer — keeps state.customerId,
+// state.customer (for the loyalty balance), the inputs and the pay label in
+// sync. Any redemption in progress is cleared, since it belonged to whoever
+// was selected before.
+function setSelectedCustomer(row) {
+  state.customerId = row?.id || null;
+  state.customer = row || null;
+  if (customerInput) customerInput.value = row?.name || '';
+  if (loyaltyInput) loyaltyInput.value = row?.member_id || '';
+  clearRedemption();
+  updatePaymentCustomerLabel();
+  // If the customer was picked from inside the Payment modal, refresh its redeem
+  // panel to that member's balance.
+  if (payModal?.classList.contains('active')) refreshPaymentLoyalty();
+}
+
+function clearRedemption() {
+  state.redeemPoints = 0;
+  state.redeemValue = 0;
+  updateTotals();
+}
+
+// Loyalty redemption panel — open from the Loyalty chip. Needs a member and an
+// order to discount; redemption is validated/settled server-side at checkout.
+async function openLoyaltyModal() {
+  if (!loyaltyModal) return;
+  if (!state.customerId) {
+    // No member selected — bounce to the Customer picker (which shows balances
+    // and doubles as member-ID search) so they can pick one first.
+    openInfo('No customer', 'Pick a customer first — Loyalty redeems that member\'s points.');
+    openCustomerModal();
+    return;
+  }
+  loyaltyBody.innerHTML = '<div class="muted">Loading…</div>';
+  loyaltyModal.classList.add('active');
+  // Re-fetch the latest balance so the panel is accurate even after earlier sales.
+  let customer = state.customer;
+  try {
+    const res = await fetch(`/api/customers/${encodeURIComponent(state.customerId)}`, {
+      headers: typeof authHeaders === 'function' ? authHeaders() : {}
+    });
+    if (res.ok) { customer = (await res.json()).customer; state.customer = customer; }
+  } catch (e) { /* fall back to cached */ }
+  renderLoyaltyBody(customer);
+}
+
+function renderLoyaltyBody(customer) {
+  const balance = Number(customer?.points_balance || 0);
+  const orderTotalGross = calculateTotals().total + Number(state.redeemValue || 0); // total before this redemption
+  const REDEEM_RATE = Number(loyaltyConfig.redeem_rate || 0);
+  // Can't redeem more than the customer has, nor more than the bill is worth.
+  const maxByBill = REDEEM_RATE > 0 ? Math.ceil(orderTotalGross / REDEEM_RATE) : 0;
+  const maxRedeem = Math.max(0, Math.min(balance, maxByBill));
+  const applied = Number(state.redeemPoints || 0);
+  loyaltyBody.innerHTML = `
+    <div class="loyalty-summary">
+      <div><strong>${customer?.name || 'Customer'}</strong>${customer?.member_id ? ` · ${customer.member_id}` : ''}</div>
+      <div class="loyalty-balance">${balance} pts available</div>
+      <div class="muted">1 pt = ${formatCurrency(REDEEM_RATE)} · order ${formatCurrency(orderTotalGross)}</div>
+    </div>
+    <div class="loyalty-redeem-row">
+      <input id="loyaltyPointsInput" type="number" min="0" step="1" max="${maxRedeem}" value="${applied || ''}" placeholder="Points to redeem" />
+      <span id="loyaltyRedeemPreview" class="loyalty-preview">${applied ? '- ' + formatCurrency(applied * REDEEM_RATE) : '—'}</span>
+    </div>
+    <div class="loyalty-actions">
+      <button class="pay" id="loyaltyMaxBtn" type="button">Use max (${maxRedeem})</button>
+      ${applied ? '<button class="pay" id="loyaltyClearBtn" type="button">Clear</button>' : ''}
+      <button class="pay primary" id="loyaltyApplyBtn" type="button">Apply</button>
+    </div>
+    ${maxRedeem === 0 ? '<div class="muted">Nothing to redeem — no points or empty order.</div>' : ''}
+  `;
+  const input = loyaltyBody.querySelector('#loyaltyPointsInput');
+  const preview = loyaltyBody.querySelector('#loyaltyRedeemPreview');
+  const clampPts = () => {
+    let p = Math.max(0, Math.floor(Number(input.value) || 0));
+    if (p > maxRedeem) { p = maxRedeem; input.value = String(p); }
+    preview.textContent = p > 0 ? `- ${formatCurrency(p * REDEEM_RATE)}` : '—';
+    return p;
+  };
+  input.addEventListener('input', clampPts);
+  loyaltyBody.querySelector('#loyaltyMaxBtn')?.addEventListener('click', () => { input.value = String(maxRedeem); clampPts(); });
+  loyaltyBody.querySelector('#loyaltyClearBtn')?.addEventListener('click', () => {
+    clearRedemption();
+    closeLoyaltyModal();
+    openInfo('Redemption cleared', 'Loyalty discount removed from this order.');
+  });
+  loyaltyBody.querySelector('#loyaltyApplyBtn')?.addEventListener('click', () => {
+    const p = clampPts();
+    state.redeemPoints = p;
+    state.redeemValue = p * REDEEM_RATE;
+    updateTotals();
+    closeLoyaltyModal();
+  });
+}
+
+function closeLoyaltyModal() { loyaltyModal?.classList.remove('active'); }
 
 async function ensureSessionOpening() {
   try {
@@ -1461,6 +1647,11 @@ customerModal?.addEventListener('click', (event) => {
   if (event.target === customerModal) closeCustomerPicker();
 });
 
+if (closeLoyalty) closeLoyalty.addEventListener('click', closeLoyaltyModal);
+loyaltyModal?.addEventListener('click', (event) => {
+  if (event.target === loyaltyModal) closeLoyaltyModal();
+});
+
 if (customerSearch) {
   customerSearch.addEventListener('input', () => renderCustomerList());
 }
@@ -1480,9 +1671,7 @@ if (createCustomer) {
         email: customerCreateEmail.value.trim()
       };
       const result = await createCustomerRecord(payload);
-      customerInput.value = result.customer?.name || payload.name;
-      if (loyaltyInput) loyaltyInput.value = result.customer?.member_id || payload.member_id || '';
-      state.customerId = result.customer?.id || null;
+      setSelectedCustomer(result.customer || { name: payload.name, member_id: payload.member_id });
       closeCustomerPicker();
     } catch (err) {
       openInfo('Create failed', err.message || 'Failed to create customer.');
@@ -1492,9 +1681,7 @@ if (createCustomer) {
 
 if (clearCustomer) {
   clearCustomer.addEventListener('click', () => {
-    customerInput.value = '';
-    if (loyaltyInput) loyaltyInput.value = '';
-    state.customerId = null;
+    setSelectedCustomer(null);
     closeCustomerPicker();
   });
 }
@@ -1624,7 +1811,12 @@ if (sendReceipt) {
 
 if (customerInput) {
   customerInput.addEventListener('input', () => {
+    // Free-typing a name unlinks the loyalty customer — no member = no
+    // redemption/points.
     state.customerId = null;
+    state.customer = null;
+    clearRedemption();
+    updatePaymentCustomerLabel();
   });
 }
 
@@ -1642,120 +1834,36 @@ if (loyaltyInput) {
         openInfo('Not found', 'Member ID not found.');
         return;
       }
-      customerInput.value = row.name || '';
-      state.customerId = row.id || null;
+      setSelectedCustomer(row);
     } catch (err) {
       openInfo('Lookup failed', err.message || 'Failed to lookup member.');
     }
   });
 }
 
-if (closeActions) {
-  closeActions.addEventListener('click', () => actionsModal.classList.remove('active'));
+// Cancel the current order — if it was already sent to the bar, tell the
+// kitchen to drop it, then clear the register. (Reachable from the footer
+// "⋯" Order Actions sheet.)
+function cancelCurrentOrder() {
+  if (state.sentToKitchen && state.currentOrderId) {
+    sendOrderToKitchen(state.orderLabel || 'Direct Sale', state.order, 'cancel', state.currentOrderId);
+  }
+  resetOrderState();
+  openInfo('Cancelled', 'Order has been cancelled.');
 }
 
-actionsModal?.addEventListener('click', (event) => {
-  if (event.target === actionsModal) actionsModal.classList.remove('active');
-});
-
-actionsGrid?.addEventListener('click', (event) => {
-  const button = event.target.closest('button[data-action]');
-  if (!button) return;
-  const action = button.dataset.action;
-  if (action === 'pay') {
-    actionsModal.classList.remove('active');
-    payModal.classList.add('active');
-    return;
-  }
-  if (action === 'split') {
-    actionsModal.classList.remove('active');
-    if (splitBtn) splitBtn.click();
-    return;
-  }
-  if (action === 'set_tab') {
-    actionsModal.classList.remove('active');
-    handleSetTab();
-    return;
-  }
-  if (action === 'set_table') {
-    actionsModal.classList.remove('active');
-    handleSetTable();
-    return;
-  }
-  if (action === 'update_kitchen') {
-    actionsModal.classList.remove('active');
-    if (!state.order.length) {
-      openInfo('No items', 'No items to send.');
-      return;
+function editOrderName() {
+  openPrompt({
+    title: 'Edit Order Name',
+    label: 'Order name',
+    value: state.orderLabel || '',
+    placeholder: 'e.g. Order 1024',
+    onSave: (value) => {
+      state.orderLabel = value.trim();
+      setOrderMeta();
     }
-    const label = state.orderLabel || 'Direct Sale';
-    const orderId = state.currentOrderId || crypto.randomUUID();
-    sendOrderToKitchen(label, state.order, state.sentToKitchen ? 'update' : 'new', orderId);
-    state.currentOrderId = orderId;
-    state.sentToKitchen = true;
-    openInfo('Sent', 'Kitchen updated.');
-    return;
-  }
-  if (action === 'refund') {
-    actionsModal.classList.remove('active');
-    requestRefund();
-    return;
-  }
-  if (action === 'cash_in') {
-    actionsModal.classList.remove('active');
-    openCashMove('in');
-    return;
-  }
-  if (action === 'cash_out') {
-    actionsModal.classList.remove('active');
-    openCashMove('out');
-    return;
-  }
-  if (action === 'close_session') {
-    actionsModal.classList.remove('active');
-    openCloseSessionModal();
-    return;
-  }
-  if (action === 'cancel') {
-    actionsModal.classList.remove('active');
-    if (state.sentToKitchen && state.currentOrderId) {
-      sendOrderToKitchen(state.orderLabel || 'Direct Sale', state.order, 'cancel', state.currentOrderId);
-    }
-    openInfo('Cancelled', 'Order has been cancelled.');
-    state.order = [];
-    state.selectedLineId = null;
-    state.buffer = '';
-    state.orderLabel = '';
-    state.currentOrderId = null;
-    state.sentToKitchen = false;
-    state.currentTableId = null;
-    state.currentTableName = null;
-    setOrderMeta();
-    renderOrder();
-    return;
-  }
-  if (action === 'edit_name') {
-    actionsModal.classList.remove('active');
-    openPrompt({
-      title: 'Edit Order Name',
-      label: 'Order name',
-      value: state.orderLabel || '',
-      placeholder: 'e.g. Order 1024',
-      onSave: (value) => {
-        state.orderLabel = value.trim();
-        setOrderMeta();
-      }
-    });
-    return;
-  }
-  if (action === 'info') {
-    actionsModal.classList.remove('active');
-    openInfo('Order Info', `Items: ${state.order.length}`);
-    return;
-  }
-  actionsModal.classList.remove('active');
-  openInfo('Not ready', 'This action is coming soon.');
-});
+  });
+}
 
 clearOrder.addEventListener('click', () => {
   resetOrderState();
@@ -1793,10 +1901,6 @@ numpad.addEventListener('click', (event) => {
     state.buffer = '';
     return;
   }
-  if (action === 'note') {
-    openNote();
-    return;
-  }
   if (action === 'sign') {
     if (!state.buffer) {
       state.buffer = '-';
@@ -1818,12 +1922,16 @@ numpadTop?.addEventListener('click', (event) => {
     openCustomerModal();
     return;
   }
-  if (action === 'note') {
-    openNote();
+  if (action === 'void') {
+    openVoidModal();
     return;
   }
-  if (action === 'dine') {
-    setOrderType('dine_in');
+  if (action === 'loyalty') {
+    openLoyaltyModal();
+    return;
+  }
+  if (action === 'set_table') {
+    handleSetTable();
     return;
   }
   if (action === 'refund') {
@@ -1848,28 +1956,6 @@ numpadTop?.addEventListener('click', (event) => {
   }
   if (action === 'quotation') {
     openInfo('Not ready', 'Quotation/Order is not available yet.');
-    return;
-  }
-  if (action === 'course') {
-    const row = state.order.find((item) => item.lineId === state.selectedLineId);
-    if (!row) {
-      openInfo('No item selected', 'Select an item first.');
-      return;
-    }
-    openPrompt({
-      title: 'Course',
-      label: 'Course name',
-      value: row.course || '',
-      placeholder: 'e.g. Starter',
-      onSave: (value) => {
-        row.course = value.trim();
-        renderOrder();
-      }
-    });
-    return;
-  }
-  if (action === 'more') {
-    actionsModal?.classList.add('active');
     return;
   }
 });
@@ -1898,6 +1984,10 @@ numpadFooter?.addEventListener('click', (event) => {
   }
   if (action === 'payment') {
     openPayModal();
+    return;
+  }
+  if (action === 'more_actions') {
+    moreActionsModal?.classList.add('active');
     return;
   }
   if (action === 'set_table') {
@@ -1984,10 +2074,16 @@ confirmPay.addEventListener('click', async () => {
     }),
     payment_type: method,
     order_type: getOrderTypeValue(),
-    amount_tendered: method === 'cash' ? tendered : null
+    amount_tendered: method === 'cash' ? tendered : null,
+    note: transactionNote?.value.trim() || '',
+    customer_id: state.customerId || null,
+    redeem_points: state.customerId ? Number(state.redeemPoints || 0) : 0
   };
 
   let saleId = null;
+  let earnedPoints = 0;
+  let redeemedPoints = 0;
+  let customerAfter = null;
   try {
     const response = await fetch('/api/sales', {
       method: 'POST',
@@ -2000,7 +2096,23 @@ confirmPay.addEventListener('click', async () => {
       throw new Error(data.error || 'Failed to save order.');
     }
     saleId = data.sale_id;
-    if (saleId) localStorage.setItem(LAST_SALE_KEY, String(saleId));
+    earnedPoints = Number(data.points_earned || 0);
+    redeemedPoints = Number(data.redeem_points || 0);
+    customerAfter = data.customer || null;
+    if (saleId) {
+      localStorage.setItem(LAST_SALE_KEY, String(saleId));
+      // Stash a summary so "Void Last Sale" can show WHICH sale it will void
+      // (id, items, total, time) instead of voiding blindly.
+      const s = data.sale || {};
+      const total = (s.items || []).reduce((sum, i) => sum + Number(i.total || 0), 0);
+      const summary = {
+        id: saleId,
+        total,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        items: (s.items || []).map((i) => `${i.quantity}× ${i.name}`)
+      };
+      localStorage.setItem(LAST_SALE_SUMMARY_KEY, JSON.stringify(summary));
+    }
   } catch (err) {
     openInfo('Payment failed', err.message || 'Failed to save order.');
     return;
@@ -2062,6 +2174,27 @@ confirmPay.addEventListener('click', async () => {
       receiptCustomer.classList.add('hidden');
     }
   }
+  if (receiptNote) {
+    const noteText = transactionNote?.value.trim();
+    if (noteText) {
+      receiptNote.textContent = `Note: ${noteText}`;
+      receiptNote.classList.remove('hidden');
+    } else {
+      receiptNote.classList.add('hidden');
+    }
+  }
+  if (receiptLoyalty) {
+    if (customerAfter) {
+      const parts = [];
+      if (redeemedPoints > 0) parts.push(`-${redeemedPoints} redeemed`);
+      if (earnedPoints > 0) parts.push(`+${earnedPoints} earned`);
+      const movement = parts.length ? `${parts.join(', ')} · ` : '';
+      receiptLoyalty.textContent = `Loyalty: ${movement}balance ${customerAfter.points_balance} pts`;
+      receiptLoyalty.classList.remove('hidden');
+    } else {
+      receiptLoyalty.classList.add('hidden');
+    }
+  }
   if (receiptTime) receiptTime.textContent = time;
   if (receiptCashier) receiptCashier.textContent = `Served by: ${auth?.name || 'Cashier'}`;
   if (receiptFooterText) receiptFooterText.textContent = settings.receiptFooter || 'Thank you!';
@@ -2095,6 +2228,7 @@ confirmPay.addEventListener('click', async () => {
   payModal.classList.remove('active');
   receiptModal?.classList.add('active');
   if (tenderedInput) tenderedInput.value = '';
+  if (transactionNote) transactionNote.value = '';
   if (state.currentTableId) {
     try {
       const tables = typeof loadTables === 'function' ? loadTables() : [];
@@ -2125,6 +2259,16 @@ confirmPay.addEventListener('click', async () => {
   state.sentToKitchen = false;
   state.currentTableId = null;
   state.currentTableName = null;
+  // Clear the customer link now that the sale (and its receipt) is done — the
+  // receipt above already rendered with this customer, so it's safe to reset
+  // before the NEXT order starts fresh instead of inheriting this one.
+  state.customerId = null;
+  state.customer = null;
+  state.redeemPoints = 0;
+  state.redeemValue = 0;
+  if (customerInput) customerInput.value = '';
+  if (loyaltyInput) loyaltyInput.value = '';
+  updatePaymentCustomerLabel();
   setOrderMeta();
   renderOrder();
 });
@@ -2256,6 +2400,92 @@ if (closeManageModifiers) {
 
 manageModifiersModal?.addEventListener('click', (event) => {
   if (event.target === manageModifiersModal) manageModifiersModal.classList.remove('active');
+});
+
+// ---- Loyalty Setup (manager-only): edit how points are earned/redeemed ----
+const loyaltySetupBtn = document.getElementById('loyaltySetupBtn');
+const loyaltySetupModal = document.getElementById('loyaltySetupModal');
+const closeLoyaltySetup = document.getElementById('closeLoyaltySetup');
+const loyaltyEnabledInput = document.getElementById('loyaltyEnabled');
+const loyaltyEarnPointsInput = document.getElementById('loyaltyEarnPoints');
+const loyaltyEarnBaseInput = document.getElementById('loyaltyEarnBase');
+const loyaltyRedeemRateInput = document.getElementById('loyaltyRedeemRate');
+const loyaltySetupPreview = document.getElementById('loyaltySetupPreview');
+const saveLoyaltySetup = document.getElementById('saveLoyaltySetup');
+
+function renderLoyaltySetupPreview() {
+  if (!loyaltySetupPreview) return;
+  const base = Math.max(0, Number(loyaltyEarnBaseInput.value) || 0);
+  const pts = Math.max(0, Number(loyaltyEarnPointsInput.value) || 0);
+  const rate = Math.max(0, Number(loyaltyRedeemRateInput.value) || 0);
+  if (!loyaltyEnabledInput.checked) {
+    loyaltySetupPreview.textContent = 'Program off — no points earned or redeemed.';
+    return;
+  }
+  const earnMsg = base > 0 ? `Spend ${formatCurrency(base)} → earn ${pts} pt${pts === 1 ? '' : 's'}.` : 'Set a spend amount to earn points.';
+  const redeemMsg = rate > 0 ? ` Each point is worth ${formatCurrency(rate)} off.` : ' Redemption disabled (1 pt = Rp0).';
+  loyaltySetupPreview.textContent = earnMsg + redeemMsg;
+}
+
+function openLoyaltySetup() {
+  if (!loyaltySetupModal) return;
+  loyaltyEnabledInput.checked = !!loyaltyConfig.enabled;
+  loyaltyEarnPointsInput.value = String(loyaltyConfig.earn_points ?? 1);
+  loyaltyEarnBaseInput.value = String(loyaltyConfig.earn_base ?? 10000);
+  loyaltyRedeemRateInput.value = String(loyaltyConfig.redeem_rate ?? 100);
+  renderLoyaltySetupPreview();
+  loyaltySetupModal.classList.add('active');
+}
+
+[loyaltyEnabledInput, loyaltyEarnPointsInput, loyaltyEarnBaseInput, loyaltyRedeemRateInput]
+  .forEach((el) => el?.addEventListener('input', renderLoyaltySetupPreview));
+
+if (loyaltySetupBtn) {
+  const canManage = auth && ['admin', 'manager'].includes(auth.role);
+  if (!canManage) {
+    loyaltySetupBtn.style.display = 'none';
+  } else {
+    loyaltySetupBtn.addEventListener('click', openLoyaltySetup);
+  }
+}
+
+closeLoyaltySetup?.addEventListener('click', () => loyaltySetupModal.classList.remove('active'));
+loyaltySetupModal?.addEventListener('click', (event) => {
+  if (event.target === loyaltySetupModal) loyaltySetupModal.classList.remove('active');
+});
+
+saveLoyaltySetup?.addEventListener('click', async () => {
+  const earnBase = Math.floor(Number(loyaltyEarnBaseInput.value));
+  const earnPoints = Math.floor(Number(loyaltyEarnPointsInput.value));
+  const redeemRate = Math.floor(Number(loyaltyRedeemRateInput.value));
+  if (!Number.isFinite(earnBase) || earnBase < 1) {
+    openInfo('Invalid setup', 'The spend amount to earn points must be at least Rp1.');
+    return;
+  }
+  if (!Number.isFinite(earnPoints) || earnPoints < 0 || !Number.isFinite(redeemRate) || redeemRate < 0) {
+    openInfo('Invalid setup', 'Points and redemption value cannot be negative.');
+    return;
+  }
+  try {
+    const res = await fetch('/api/loyalty-config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
+      body: JSON.stringify({
+        enabled: loyaltyEnabledInput.checked,
+        earn_base: earnBase,
+        earn_points: earnPoints,
+        redeem_rate: redeemRate
+      })
+    });
+    if (!res.ok) throw new Error('save failed');
+    const data = await res.json();
+    if (data && data.config) loyaltyConfig = data.config;
+    loyaltySetupModal.classList.remove('active');
+    updateTotals();
+    openInfo('Loyalty updated', 'The loyalty program rules have been saved.');
+  } catch (_) {
+    openInfo('Save failed', 'Could not save the loyalty setup. Please try again.');
+  }
 });
 
 if (createModifierBtn) {
@@ -2402,11 +2632,124 @@ splitModal?.addEventListener('click', (event) => {
   if (event.target === splitModal) splitModal.classList.remove('active');
 });
 
-if (loyaltyBtn) {
-  loyaltyBtn.addEventListener('click', () => {
-    openInfo('Coming soon', 'Loyalty accounts aren\'t wired up in this concept yet.');
+// Void a Sale — pick any sale from this shift, choose whether to return the
+// ingredients (Yes = not made yet, No = already produced), then manager PIN +
+// reason. Replaces the old "void the last one, always restock" behavior.
+const voidModal = document.getElementById('voidModal');
+const voidList = document.getElementById('voidList');
+const closeVoid = document.getElementById('closeVoid');
+
+async function openVoidModal() {
+  if (!voidModal) return;
+  voidModal.classList.add('active');
+  voidList.innerHTML = '<div class="muted">Loading…</div>';
+  let sales = [];
+  try {
+    const res = await fetch('/api/sales', { headers: typeof authHeaders === 'function' ? authHeaders() : {} });
+    sales = res.ok ? await res.json() : [];
+  } catch (e) { sales = []; }
+  renderVoidList(sales);
+}
+
+function renderVoidList(sales) {
+  if (!sales.length) {
+    voidList.innerHTML = '<div class="muted">No sales this shift.</div>';
+    return;
+  }
+  voidList.innerHTML = '';
+  sales.forEach((s) => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'void-sale-row';
+    row.innerHTML = `
+      <div class="void-sale-main"><strong>#${s.id}</strong> <span class="muted">${s.items || ''}</span></div>
+      <div class="void-sale-total">${formatCurrency(s.total)}</div>`;
+    row.addEventListener('click', () => showVoidConfirm(s));
+    voidList.appendChild(row);
   });
 }
+
+function showVoidConfirm(sale) {
+  voidList.innerHTML = `
+    <div class="void-confirm">
+      <div class="void-confirm-title">Void Sale #${sale.id}</div>
+      <div class="muted">${sale.items || ''} · Total ${formatCurrency(sale.total)}</div>
+      <div class="void-confirm-q">Return ingredients to stock?</div>
+      <div class="void-confirm-actions">
+        <button class="pay" data-restock="yes" type="button">Yes — not made</button>
+        <button class="pay" data-restock="no" type="button">No — already made</button>
+      </div>
+      <button class="ghost void-back" type="button">← Back to list</button>
+    </div>`;
+  voidList.querySelector('.void-back').addEventListener('click', openVoidModal);
+  voidList.querySelectorAll('[data-restock]').forEach((b) => {
+    b.addEventListener('click', () => {
+      voidModal.classList.remove('active');
+      submitVoid(sale, b.dataset.restock === 'yes');
+    });
+  });
+}
+
+function submitVoid(sale, restock) {
+  openPrompt({
+    title: `Void Sale #${sale.id}`,
+    label: 'Manager PIN',
+    placeholder: 'PIN',
+    hint: `${sale.items || ''} · Total ${formatCurrency(sale.total)}. ${restock ? 'Ingredients WILL return to stock (not made).' : 'Inventory stays consumed (already made).'} Enter manager PIN.`,
+    onSave: (pin) => {
+      if (!pin) { openInfo('PIN required', 'Enter the manager PIN to void.'); return; }
+      openPrompt({
+        title: 'Void Reason',
+        label: 'Reason',
+        placeholder: 'e.g. Wrong item, customer changed mind',
+        hint: 'Add a short reason for this void.',
+        onSave: async (reason) => {
+          try {
+            const res = await fetch(`/api/sales/${encodeURIComponent(sale.id)}/void`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
+              body: JSON.stringify({ manager_pin: pin, reason: reason || '', restock })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Void failed.');
+            if (String(localStorage.getItem(LAST_SALE_KEY)) === String(sale.id)) {
+              localStorage.removeItem(LAST_SALE_KEY);
+              localStorage.removeItem(LAST_SALE_SUMMARY_KEY);
+            }
+            openInfo('Voided', data.message || 'Sale voided.');
+          } catch (err) {
+            openInfo('Void failed', err.message || 'Void failed.');
+          }
+        }
+      });
+    }
+  });
+}
+
+if (closeVoid) closeVoid.addEventListener('click', () => voidModal.classList.remove('active'));
+voidModal?.addEventListener('click', (event) => { if (event.target === voidModal) voidModal.classList.remove('active'); });
+
+// "⋯ More" action sheet — opened from the numpad footer. Routes to the existing
+// (mostly hidden) action-grid buttons so their logic isn't duplicated. Hold is
+// intentionally omitted (the Orders tab it parks into is hidden).
+const moreActionsModal = document.getElementById('moreActionsModal');
+const closeMoreActions = document.getElementById('closeMoreActions');
+function closeMoreActionsModal() { moreActionsModal?.classList.remove('active'); }
+if (closeMoreActions) closeMoreActions.addEventListener('click', closeMoreActionsModal);
+moreActionsModal?.addEventListener('click', (event) => {
+  if (event.target === moreActionsModal) { closeMoreActionsModal(); return; }
+  const btn = event.target.closest('button[data-more]');
+  if (!btn) return;
+  closeMoreActionsModal();
+  switch (btn.dataset.more) {
+    case 'void': openVoidModal(); break;
+    case 'split': if (splitBtn) splitBtn.click(); break;
+    case 'invoice': openInfo('Coming soon', 'Invoices aren\'t wired up in this concept yet.'); break;
+    case 'set_table': handleSetTable(); break;
+    case 'edit_name': editOrderName(); break;
+    case 'cancel': cancelCurrentOrder(); break;
+  }
+});
 
 // Hold — parks the current order (via the same upsertHeldOrder/localStorage
 // mechanism "Send to Bar" already used) and clears the register so the
@@ -2444,12 +2787,19 @@ function voidLastSale() {
     openInfo('Nothing to void', 'Complete a sale first.');
     return;
   }
+  // Show which sale is about to be voided (id, items, total, time) so the
+  // cashier isn't voiding blindly.
+  let summary = null;
+  try { summary = JSON.parse(localStorage.getItem(LAST_SALE_SUMMARY_KEY) || 'null'); } catch (e) { /* ignore */ }
+  const detail = summary && summary.items
+    ? `${summary.items.join(', ')} · Total ${formatCurrency(summary.total)}${summary.time ? ' · ' + summary.time : ''}`
+    : `Sale #${lastSaleId}`;
   openPrompt({
-    title: 'Void Last Sale',
+    title: `Void Sale #${lastSaleId}`,
     label: 'Manager PIN',
     value: '',
     placeholder: 'PIN',
-    hint: 'Required to void a sale.',
+    hint: `Voiding: ${detail}. Enter manager PIN to confirm.`,
     onSave: (pin) => {
       if (!pin) {
         openInfo('PIN required', 'Enter the manager PIN to void.');
@@ -2471,6 +2821,7 @@ function voidLastSale() {
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || 'Void failed.');
             localStorage.removeItem(LAST_SALE_KEY);
+            localStorage.removeItem(LAST_SALE_SUMMARY_KEY);
             openInfo('Voided', data.message || 'Sale voided.');
           } catch (err) {
             openInfo('Void failed', err.message || 'Void failed.');
@@ -2482,7 +2833,7 @@ function voidLastSale() {
 }
 
 if (refundBtn) {
-  refundBtn.addEventListener('click', voidLastSale);
+  refundBtn.addEventListener('click', openVoidModal);
 }
 
 // Price Check — tap a product to see its price without adding it to the
@@ -2701,6 +3052,7 @@ function loadTransferOrder() {
 showRegisterView();
 setOrderMeta();
 initProducts();
+loadLoyaltyConfig().then(() => updateTotals());
 loadActiveEmployee();
 loadTransferOrder();
 renderOrder();
