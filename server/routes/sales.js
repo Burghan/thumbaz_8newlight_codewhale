@@ -67,7 +67,7 @@ router.post('/', (req, res) => {
 
     const txn = db.prepare(
       `INSERT INTO transactions (transacted_at, payment_method, notes, customer_note, customer_id)
-       VALUES (date('now'), ?, ?, ?, ?)`
+       VALUES (datetime('now'), ?, ?, ?, ?)`
     ).run(payment, `${b.order_type||'dinein'}${b.discount_amount>0?` discount:${b.discount_amount}`:''}`, customerNote, customer ? customer.id : null);
 
     const txnId = txn.lastInsertRowid;
@@ -274,7 +274,7 @@ router.get('/', (req, res) => {
     FROM transactions t
     JOIN transaction_items ti ON ti.transaction_id = t.id
     JOIN products p ON p.id = ti.product_id
-    WHERE t.transacted_at = date('now')
+     WHERE date(t.transacted_at) = date('now')
     GROUP BY t.id ORDER BY t.id DESC LIMIT 50
   `).all();
   res.json(rows);

@@ -7,8 +7,8 @@ const router = express.Router();
 // defaults if the row is somehow missing. Exported so sales.js computes earn/
 // redeem from the same source the setup screen edits.
 function getLoyaltyConfig() {
-  const row = db.prepare('SELECT earn_base, earn_points, redeem_rate, enabled FROM loyalty_config WHERE id = 1').get();
-  return row || { earn_base: 10000, earn_points: 1, redeem_rate: 100, enabled: 1 };
+  const row = db.prepare('SELECT earn_base, earn_points, redeem_rate, enabled, updated_at FROM loyalty_config WHERE id = 1').get();
+  return row || { earn_base: 10000, earn_points: 1, redeem_rate: 100, enabled: 1, updated_at: null };
 }
 
 // GET /api/loyalty-config — staff-readable so the POS can preview points/redeem.

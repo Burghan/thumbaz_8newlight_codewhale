@@ -13,7 +13,6 @@ let products = [];
 let categories = ['All'];
 let posSessionId = null;
 let activeEmployee = null;
-let priceCheckMode = false;
 let customProductId = null;
 const LAST_SALE_KEY = 'pos_new_last_sale_id';
 const LAST_SALE_SUMMARY_KEY = 'pos_new_last_sale';
@@ -191,7 +190,6 @@ const customerCreatePhone = document.getElementById('customerCreatePhone');
 const customerCreateEmail = document.getElementById('customerCreateEmail');
 const createCustomer = document.getElementById('createCustomer');
 const clearCustomer = document.getElementById('clearCustomer');
-const priceCheckBtn = document.getElementById('priceCheckBtn');
 const addCustomItemBtn = document.getElementById('addCustomItemBtn');
 const manageModifiersBtn = document.getElementById('manageModifiersBtn');
 const manageModifiersModal = document.getElementById('manageModifiersModal');
@@ -706,11 +704,6 @@ function loadActiveEmployee() {
 }
 
 function addToOrder(item) {
-  if (priceCheckMode) {
-    priceCheckMode = false;
-    openInfo(item.name, formatCurrency(item.price));
-    return;
-  }
   const existing = state.order.find((row) => row.id === item.id);
   if (existing) {
     existing.qty += 1;
@@ -1917,7 +1910,29 @@ if (sendReceipt) {
 let customerLookupTimer = null;
 
 if (customerInput) {
-  customerInput.addEventListener('click', () => {
+  customerInput.addEventListener('click', async () => {
+    const val = customerInput.value.trim();
+    // Always search DB first — if the field has text and we find an exact match,
+    // auto-select silently. Only open the modal when we couldn't find one.
+    try {
+      const q = val ? `?q=${encodeURIComponent(val)}` : '';
+      const res = await fetch(`/api/customers${q}`, {
+        headers: typeof authHeaders === 'function' ? authHeaders() : {}
+      });
+      if (!res.ok) { openCustomerModal(); return; }
+      const data = await res.json();
+      const rows = data.customers || [];
+      if (val && rows.length === 1) {
+        const row = rows[0];
+        const nameMatch = row.name?.toLowerCase() === val.toLowerCase();
+        const phoneMatch = row.phone?.replace(/[^0-9]/g, '') === val.replace(/[^0-9]/g, '');
+        if (nameMatch || phoneMatch) {
+          setSelectedCustomer(row);
+          return; // exact match — found, don't open modal
+        }
+      }
+      // No exact match found — open the picker so the user can choose or create.
+    } catch (_) { /* fall through to modal */ }
     openCustomerModal();
   });
   customerInput.addEventListener('input', () => {
@@ -2611,15 +2626,53 @@ const loyaltyEarnPointsInput = document.getElementById('loyaltyEarnPoints');
 const loyaltyEarnBaseInput = document.getElementById('loyaltyEarnBase');
 const loyaltyRedeemRateInput = document.getElementById('loyaltyRedeemRate');
 const loyaltySetupPreview = document.getElementById('loyaltySetupPreview');
+const loyaltySetupBadge = document.getElementById('loyaltySetupBadge');
+const loyaltySetupUpdated = document.getElementById('loyaltySetupUpdated');
+const loyaltyEarnCard = document.getElementById('loyaltyEarnCard');
+const loyaltyRedeemCard = document.getElementById('loyaltyRedeemCard');
+const loyaltyEarnExample = document.getElementById('loyaltyEarnExample');
+const loyaltyRedeemExample = document.getElementById('loyaltyRedeemExample');
+const resetLoyaltySetup = document.getElementById('resetLoyaltySetup');
 const saveLoyaltySetup = document.getElementById('saveLoyaltySetup');
+
+// Historical defaults — what the program shipped with before it became
+// configurable. Used to seed a fresh install and by "Reset to Defaults".
+const LOYALTY_SETUP_DEFAULTS = { enabled: true, earn_points: 1, earn_base: 10000, redeem_rate: 100 };
+
+function formatLoyaltyUpdatedAt(value) {
+  if (!value) return 'Never edited — using defaults.';
+  const d = new Date(String(value).replace(' ', 'T') + 'Z');
+  if (Number.isNaN(d.getTime())) return '';
+  return `Last updated ${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+}
 
 function renderLoyaltySetupPreview() {
   if (!loyaltySetupPreview) return;
   const base = Math.max(0, Number(loyaltyEarnBaseInput.value) || 0);
   const pts = Math.max(0, Number(loyaltyEarnPointsInput.value) || 0);
   const rate = Math.max(0, Number(loyaltyRedeemRateInput.value) || 0);
-  if (!loyaltyEnabledInput.checked) {
-    loyaltySetupPreview.textContent = 'Program off — no points earned or redeemed.';
+  const on = loyaltyEnabledInput.checked;
+
+  if (loyaltySetupBadge) {
+    loyaltySetupBadge.textContent = on ? 'Active' : 'Inactive';
+    loyaltySetupBadge.classList.toggle('off', !on);
+  }
+  loyaltyEarnCard?.classList.toggle('is-off', !on);
+  loyaltyRedeemCard?.classList.toggle('is-off', !on);
+
+  if (loyaltyEarnExample) {
+    loyaltyEarnExample.textContent = base > 0
+      ? `Rp 10,000 order → ${Math.floor(10000 / base) * pts} pt${Math.floor(10000 / base) * pts === 1 ? '' : 's'} earned`
+      : 'Set a spend amount to earn points';
+  }
+  if (loyaltyRedeemExample) {
+    loyaltyRedeemExample.textContent = rate > 0
+      ? `10 points → ${formatCurrency(rate * 10)} off`
+      : 'Redemption disabled (Rp0 off)';
+  }
+
+  if (!on) {
+    loyaltySetupPreview.textContent = 'Program off — no points earned or redeemed on new sales.';
     return;
   }
   const earnMsg = base > 0 ? `Spend ${formatCurrency(base)} → earn ${pts} pt${pts === 1 ? '' : 's'}.` : 'Set a spend amount to earn points.';
@@ -2627,18 +2680,28 @@ function renderLoyaltySetupPreview() {
   loyaltySetupPreview.textContent = earnMsg + redeemMsg;
 }
 
+function populateLoyaltySetupFields(config) {
+  loyaltyEnabledInput.checked = !!config.enabled;
+  loyaltyEarnPointsInput.value = String(config.earn_points ?? 1);
+  loyaltyEarnBaseInput.value = String(config.earn_base ?? 10000);
+  loyaltyRedeemRateInput.value = String(config.redeem_rate ?? 100);
+  if (loyaltySetupUpdated) loyaltySetupUpdated.textContent = formatLoyaltyUpdatedAt(config.updated_at);
+  renderLoyaltySetupPreview();
+}
+
 function openLoyaltySetup() {
   if (!loyaltySetupModal) return;
-  loyaltyEnabledInput.checked = !!loyaltyConfig.enabled;
-  loyaltyEarnPointsInput.value = String(loyaltyConfig.earn_points ?? 1);
-  loyaltyEarnBaseInput.value = String(loyaltyConfig.earn_base ?? 10000);
-  loyaltyRedeemRateInput.value = String(loyaltyConfig.redeem_rate ?? 100);
-  renderLoyaltySetupPreview();
+  populateLoyaltySetupFields(loyaltyConfig);
   loyaltySetupModal.classList.add('active');
 }
 
 [loyaltyEnabledInput, loyaltyEarnPointsInput, loyaltyEarnBaseInput, loyaltyRedeemRateInput]
   .forEach((el) => el?.addEventListener('input', renderLoyaltySetupPreview));
+
+resetLoyaltySetup?.addEventListener('click', () => {
+  // Only resets the form — nothing is persisted until Save is pressed.
+  populateLoyaltySetupFields({ ...LOYALTY_SETUP_DEFAULTS, updated_at: loyaltyConfig.updated_at });
+});
 
 if (loyaltySetupBtn) {
   const canManage = auth && ['admin', 'manager'].includes(auth.role);
@@ -2679,7 +2742,10 @@ saveLoyaltySetup?.addEventListener('click', async () => {
     });
     if (!res.ok) throw new Error('save failed');
     const data = await res.json();
-    if (data && data.config) loyaltyConfig = data.config;
+    if (data && data.config) {
+      loyaltyConfig = data.config;
+      if (loyaltySetupUpdated) loyaltySetupUpdated.textContent = formatLoyaltyUpdatedAt(loyaltyConfig.updated_at);
+    }
     loyaltySetupModal.classList.remove('active');
     updateTotals();
     openInfo('Loyalty updated', 'The loyalty program rules have been saved.');
@@ -3036,15 +3102,6 @@ if (refundBtn) {
   refundBtn.addEventListener('click', openVoidModal);
 }
 
-// Price Check — tap a product to see its price without adding it to the
-// order, ported from pos.html's shortcutPrice.
-if (priceCheckBtn) {
-  priceCheckBtn.addEventListener('click', () => {
-    priceCheckMode = true;
-    openInfo('Price check', 'Tap a product to see its price.');
-  });
-}
-
 // Add Custom Item — a one-off line not tied to a real menu product. The modal
 // captures name + price and an optional on-the-fly recipe (ingredient + qty
 // lines) that deduct inventory at checkout via the sale's extra_ingredients.
@@ -3252,7 +3309,15 @@ function loadTransferOrder() {
 showRegisterView();
 setOrderMeta();
 initProducts();
-loadLoyaltyConfig().then(() => updateTotals());
+loadLoyaltyConfig().then(() => {
+  updateTotals();
+  // Deep link from the sidebar's "Customers & Loyalty" > Loyalty Setup entry.
+  if (location.hash === '#loyalty-setup') {
+    history.replaceState(null, '', location.pathname + location.search);
+    const canManage = auth && ['admin', 'manager'].includes(auth.role);
+    if (canManage) openLoyaltySetup();
+  }
+});
 loadActiveEmployee();
 loadTransferOrder();
 renderOrder();

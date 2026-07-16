@@ -28,9 +28,12 @@
     { type: 'divider' },
     { type: 'group', label: '👥  People', children: [
       { href: '/employees.html', label: 'Users' },
-      { href: '/customers.html', label: 'Customers' },
       { href: '/payroll.html', label: 'Payroll' },
       { href: '/clock.html', label: 'Attendance' },
+    ]},
+    { type: 'group', label: '💳  Customers & Loyalty', children: [
+      { href: '/customers.html', label: 'Customers' },
+      { href: '/pos/ui/1/register#loyalty-setup', label: 'Loyalty Setup' },
     ]},
     { type: 'divider' },
     { type: 'link', href: '/import-center.html', label: '📥  Import Center' },

@@ -209,7 +209,6 @@
               <div class="muted">Tap to add • Use numpad to edit</div>
             </div>
             <div class="catalog-header-actions">
-              <button class="ghost" id="priceCheckBtn" type="button">Price Check</button>
               <button class="ghost" id="addCustomItemBtn" type="button">Add Custom Item</button>
               <button class="ghost" id="manageModifiersBtn" type="button">Manage Modifiers</button>
               <button class="ghost" id="loyaltySetupBtn" type="button">Loyalty Setup</button>
@@ -386,7 +385,7 @@
   </div>
 
   <div class="modal" id="loyaltySetupModal">
-    <div class="modal-card">
+    <div class="modal-card loyalty-setup-card-modal">
       <div class="modal-head">
         <div>
           <h3>Loyalty Setup</h3>
@@ -395,25 +394,61 @@
         <button class="ghost" id="closeLoyaltySetup">Close</button>
       </div>
       <div class="loyalty-setup-body">
-        <label class="loyalty-setup-toggle">
-          <input type="checkbox" id="loyaltyEnabled" />
-          <span>Loyalty program enabled</span>
-        </label>
-        <div class="loyalty-setup-row">
-          <span>Earn</span>
-          <input type="number" id="loyaltyEarnPoints" min="0" step="1" />
-          <span>point(s) per Rp</span>
-          <input type="number" id="loyaltyEarnBase" min="1" step="500" />
-          <span>spent</span>
+        <div class="loyalty-setup-status">
+          <label class="switch">
+            <input type="checkbox" id="loyaltyEnabled" />
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </label>
+          <div class="loyalty-setup-status-text">
+            <span class="loyalty-setup-badge" id="loyaltySetupBadge">Active</span>
+            <span class="loyalty-setup-updated" id="loyaltySetupUpdated"></span>
+          </div>
         </div>
-        <div class="loyalty-setup-row">
-          <span>Redeem — 1 point = Rp</span>
-          <input type="number" id="loyaltyRedeemRate" min="0" step="10" />
-          <span>off</span>
+
+        <div class="loyalty-setup-cards">
+          <div class="loyalty-setup-card" id="loyaltyEarnCard">
+            <div class="loyalty-setup-card-head">
+              <span class="loyalty-setup-icon">⭐</span>
+              <span>Earning</span>
+            </div>
+            <div class="loyalty-setup-field-row">
+              <div class="loyalty-setup-field">
+                <label for="loyaltyEarnPoints">Points earned</label>
+                <input type="number" id="loyaltyEarnPoints" min="0" step="1" />
+              </div>
+              <span class="loyalty-setup-per">per</span>
+              <div class="loyalty-setup-field">
+                <label for="loyaltyEarnBase">Rupiah spent</label>
+                <input type="number" id="loyaltyEarnBase" min="1" step="500" />
+              </div>
+            </div>
+            <div class="loyalty-setup-example" id="loyaltyEarnExample"></div>
+          </div>
+
+          <div class="loyalty-setup-card" id="loyaltyRedeemCard">
+            <div class="loyalty-setup-card-head">
+              <span class="loyalty-setup-icon">🎁</span>
+              <span>Redemption</span>
+            </div>
+            <div class="loyalty-setup-field-row">
+              <div class="loyalty-setup-field">
+                <label for="loyaltyRedeemRate">Rupiah off</label>
+                <input type="number" id="loyaltyRedeemRate" min="0" step="10" />
+              </div>
+              <span class="loyalty-setup-per">per</span>
+              <div class="loyalty-setup-field loyalty-setup-field-static">
+                <label>&nbsp;</label>
+                <div class="loyalty-setup-static-value">1 point</div>
+              </div>
+            </div>
+            <div class="loyalty-setup-example" id="loyaltyRedeemExample"></div>
+          </div>
         </div>
-        <div class="loyalty-setup-preview muted" id="loyaltySetupPreview"></div>
+
+        <div class="loyalty-setup-preview" id="loyaltySetupPreview"></div>
       </div>
-      <div class="modal-foot">
+      <div class="modal-foot loyalty-setup-foot">
+        <button class="ghost" id="resetLoyaltySetup" type="button">Reset to Defaults</button>
         <button class="pay primary" id="saveLoyaltySetup" type="button">Save</button>
       </div>
     </div>
