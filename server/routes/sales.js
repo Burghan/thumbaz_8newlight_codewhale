@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { deductStockForSale, deductIngredientsForSale } = require('../lib/stock');
 const { getLoyaltyConfig } = require('./loyalty-config');
+const { voidSale } = require('../lib/voidSale');
 const router = express.Router();
 
 // Loyalty earn/redeem rules now live in the loyalty_config table (managed from
@@ -204,61 +205,12 @@ router.post('/:id/void', (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid sale id' });
 
-  const txn = db.prepare('SELECT id, customer_id, points_earned, redeem_points FROM transactions WHERE id = ?').get(id);
-  if (!txn) return res.status(404).json({ error: 'Sale not found' });
-
   const restock = req.body?.restock === true || req.body?.restock === 'true' || req.body?.restock === 1;
   const reason = String(req.body?.reason || '').trim();
 
-  // Capture a summary before deletion for the audit log.
-  const lines = db.prepare(`
-    SELECT ti.quantity, ti.line_total, p.name
-    FROM transaction_items ti JOIN products p ON p.id = ti.product_id
-    WHERE ti.transaction_id = ?`).all(id);
-  const total = lines.reduce((sum, l) => sum + Number(l.line_total || 0), 0);
-  const itemsSummary = lines.map((l) => `${l.quantity}× ${l.name}`).join(', ');
+  const result = voidSale(id, { restock, reason });
+  if (!result.ok) return res.status(404).json({ error: result.error });
 
-  const voidTx = db.transaction(() => {
-    if (restock) {
-      // Usage movements record qty_base as negative (what was deducted). Add it
-      // back by subtracting that negative amount from current stock, then drop
-      // the movements so the ledger matches (as if never sold).
-      const movements = db.prepare(
-        `SELECT ingredient_id, qty_base FROM stock_movements
-         WHERE ref_type = 'sale' AND ref_id = ? AND type = 'usage'`
-      ).all(id);
-      const bump = db.prepare(
-        `UPDATE inventory SET quantity_base = quantity_base - ?, updated_at = datetime('now')
-         WHERE ingredient_id = ?`
-      );
-      for (const m of movements) {
-        bump.run(Number(m.qty_base) || 0, m.ingredient_id);
-      }
-      db.prepare('DELETE FROM stock_movements WHERE ref_type = ? AND ref_id = ?').run('sale', id);
-    }
-    // else: leave inventory + usage movements as-is (ingredients were consumed).
-
-    // Reverse this sale's loyalty movements: take back the points it awarded
-    // and hand back any points it redeemed (the redemption is undone too).
-    // Clamp at 0 in case points were spent/adjusted elsewhere in between.
-    if (txn.customer_id && (txn.points_earned > 0 || txn.redeem_points > 0)) {
-      db.prepare(
-        `UPDATE customers
-         SET points_balance = MAX(0, points_balance - ? + ?), updated_at = datetime('now')
-         WHERE id = ?`
-      ).run(txn.points_earned || 0, txn.redeem_points || 0, txn.customer_id);
-    }
-
-    db.prepare(
-      `INSERT INTO void_log (transaction_id, total, items, reason, restocked)
-       VALUES (?, ?, ?, ?, ?)`
-    ).run(id, total, itemsSummary, reason, restock ? 1 : 0);
-
-    db.prepare('DELETE FROM transaction_items WHERE transaction_id = ?').run(id);
-    db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
-  });
-
-  voidTx();
   res.json({
     success: true,
     message: restock ? 'Sale voided — ingredients returned to stock.' : 'Sale voided — inventory kept as used.'

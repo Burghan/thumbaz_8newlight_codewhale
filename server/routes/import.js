@@ -6,6 +6,7 @@ const db = require('../db');
 const { cellValue, normName, loadWorkbookFromBuffer } = require('../lib/xlsx');
 const { buildProductMatcher } = require('../lib/productMatch');
 const { deductStockForSale } = require('../lib/stock');
+const { voidSale } = require('../lib/voidSale');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -180,6 +181,11 @@ router.post('/sales', upload.single('file'), async (req, res) => {
 // item and groups into receipts via "No. Struk"; cancelled lines are skipped.
 // Deducts inventory automatically (was a manual/forgettable step before) and
 // reports the post-import stock impact so nothing needs a separate check.
+// Also reconciles: this is the only way transactions enter the system (no
+// parallel live POS), so within the date range this file covers, any receipt
+// we'd previously imported that's no longer valid here (edited/voided in the
+// source after an earlier import) gets voided automatically — the freshest
+// export always wins.
 router.post('/riwayat', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   let sheetRows;
@@ -232,6 +238,29 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
     return { product, created: true };
   }
 
+  // Reconciliation prep: the source POS can be edited *after* an earlier
+  // export was already imported (a receipt added late, voided, or corrected).
+  // A plain additive import has no way to notice that — so first work out
+  // every receipt this file still considers valid (has at least one
+  // non-cancelled line) and the date range it covers. After importing what's
+  // new, anything we've previously recorded with a reference in that same
+  // window but missing from this set gets voided below — the fresh export
+  // wins.
+  const validReceiptsInFile = new Set();
+  let fileMinDate = null, fileMaxDate = null;
+  for (const row of sheetRows.slice(1)) {
+    const no = String(row[cNo] || '').trim();
+    if (!no) continue;
+    const dateStr = normDate(row[cDate]);
+    if (dateStr) {
+      if (!fileMinDate || dateStr < fileMinDate) fileMinDate = dateStr;
+      if (!fileMaxDate || dateStr > fileMaxDate) fileMaxDate = dateStr;
+    }
+    const status = String(row[cStatus] || '').trim().toLowerCase();
+    if (status.includes('batal')) continue;
+    validReceiptsInFile.add(no);
+  }
+
   // Group by receipt number, skipping cancelled lines and receipts already imported.
   const already = new Set(db.prepare("SELECT reference FROM transactions WHERE reference IS NOT NULL").all().map(r => r.reference));
   const txns = new Map();
@@ -273,6 +302,26 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
     }
   })();
 
+  // Reconciliation: void any of our transactions dated within this file's
+  // coverage that carry a reference no longer considered valid here — i.e.
+  // the source was edited after we imported an earlier snapshot of it.
+  // restock:true since these are now treated as never having happened.
+  const reconciledVoids = [];
+  if (fileMinDate && fileMaxDate) {
+    const inRange = db.prepare(
+      `SELECT id, reference FROM transactions
+       WHERE reference IS NOT NULL AND substr(transacted_at, 1, 10) BETWEEN ? AND ?`
+    ).all(fileMinDate, fileMaxDate);
+    for (const t of inRange) {
+      if (validReceiptsInFile.has(t.reference)) continue;
+      const result = voidSale(t.id, {
+        restock: true,
+        reason: 'Riwayat re-import reconciliation: receipt no longer present in source export'
+      });
+      if (result.ok) reconciledVoids.push(t.reference);
+    }
+  }
+
   // Post-import inventory impact — replaces the manual "check inventory after
   // import" step: any ingredient now at 0 needs a restock recorded.
   const outOfStock = db.prepare(`
@@ -281,11 +330,13 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
 
   res.json({
     message: `Imported: ${nt} transactions, ${ni} line-items, revenue Rp${revenue.toLocaleString('id-ID')}. Inventory deducted automatically.`
-      + (createdProducts.size ? ` ${createdProducts.size} new product(s) added to the menu — set their category/recipe when convenient.` : ''),
+      + (createdProducts.size ? ` ${createdProducts.size} new product(s) added to the menu — set their category/recipe when convenient.` : '')
+      + (reconciledVoids.length ? ` ${reconciledVoids.length} previously-imported order(s) voided — no longer present in this export.` : ''),
     transactions: nt, lineItems: ni, revenue,
     cancelledLinesSkipped: cancelledLines,
     duplicateReceiptsSkipped: skippedDuplicateReceipts.size,
     createdProducts: [...createdProducts],
+    reconciledVoids,
     outOfStock: outOfStock.map(r => `${r.name} (${r.base_unit})`)
   });
 });
