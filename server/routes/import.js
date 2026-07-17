@@ -297,6 +297,40 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   let nt = 0, ni = 0, revenue = 0;
 
+  // "X, Extra Shot" in the export is a base product plus the Extra Shot add-on,
+  // not one combo product (see the modifiers model in the functional spec). Split
+  // it into two line items — the base at its normal price and Extra Shot Espresso
+  // for the remainder — so both recipes deduct from stock and the shot is
+  // attributed properly. Revenue is unchanged (the parts sum to the line total).
+  const priceOf = db.prepare('SELECT price FROM product_prices WHERE product_id=? AND effective_to IS NULL ORDER BY id DESC LIMIT 1');
+  const extraShotProduct = matchProduct('Extra Shot Espresso')
+    || db.prepare("SELECT id, name, is_resale FROM products WHERE name='Extra Shot Espresso' AND active=1").get();
+  const EXTRA_SHOT_RE = /^(.*?),\s*extra\s+shots?\s*$/i;
+
+  // One source row -> one or more { product, unitPrice, lineTotal, note } parts.
+  function buildLineParts(nameRaw, qty, price, lineTotal) {
+    const m = qty > 0 && extraShotProduct ? String(nameRaw).match(EXTRA_SHOT_RE) : null;
+    if (m) {
+      const base = matchProduct(m[1].trim()); // e.g. "NewLight Latte" -> Hot (alias)
+      if (base) {
+        const baseUnit = (priceOf.get(base.id) || {}).price || price;
+        const baseLineTotal = Math.min(lineTotal, baseUnit * qty);
+        const shotLineTotal = lineTotal - baseLineTotal;
+        const parts = [{ product: base, unitPrice: baseUnit, lineTotal: baseLineTotal, note: null }];
+        if (shotLineTotal > 0) parts.push({
+          product: extraShotProduct,
+          unitPrice: Math.round(shotLineTotal / qty),
+          lineTotal: shotLineTotal,
+          note: `Extra Shot split from "${String(nameRaw).trim()}"`
+        });
+        return parts;
+      }
+    }
+    const { product, created } = resolveOrCreateProduct(nameRaw, price);
+    if (created) createdProducts.add(product.name);
+    return [{ product, unitPrice: price, lineTotal, note: null }];
+  }
+
   for (const row of sheetRows.slice(1)) {
     const no = String(row[cNo] || '').trim();
     if (!no) continue;
@@ -313,8 +347,11 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
     // also already 0 for a fully cancelled line, so no separate branch needed
     // for revenue). price/qty stay for unit_price and the audit columns below.
     const lineTotal = Math.round(Number(row[cTotal] || 0));
-    const { product, created } = resolveOrCreateProduct(nameRaw, price);
-    if (created) createdProducts.add(product.name);
+    const status = cStatus >= 0 ? String(row[cStatus] || '').trim() || null : null;
+    const opsi = cOpsi >= 0 ? String(row[cOpsi] || '').trim() || null : null;
+    const priceType = cPriceType >= 0 ? String(row[cPriceType] || '').trim() || null : null;
+    const discProd = cDiscProd >= 0 ? Math.round(Number(row[cDiscProd] || 0)) : 0;
+    const discProdType = cDiscProdType >= 0 ? String(row[cDiscProdType] || '').trim() || null : null;
     const dateStr = normDate(row[cDate]);
     const jam = String(row[cJam] || '00:00:00').trim();
     const pay = String(row[cPay] || '').toUpperCase().includes('QRIS') ? 'qris' : 'cash';
@@ -332,13 +369,19 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
       noRef: cNoRef >= 0 ? String(row[cNoRef] || '').trim() || null : null,
       lines: []
     });
-    receipts.get(no).lines.push({
-      pid: product.id, qty, origQty, cancelQty, lineTotal, price, hpp: hppFor(product.id),
-      status: cStatus >= 0 ? String(row[cStatus] || '').trim() || null : null,
-      opsi: cOpsi >= 0 ? String(row[cOpsi] || '').trim() || null : null,
-      priceType: cPriceType >= 0 ? String(row[cPriceType] || '').trim() || null : null,
-      discProd: cDiscProd >= 0 ? Math.round(Number(row[cDiscProd] || 0)) : 0,
-      discProdType: cDiscProdType >= 0 ? String(row[cDiscProdType] || '').trim() || null : null
+    const parts = buildLineParts(nameRaw, qty, price, lineTotal);
+    parts.forEach((part, i) => {
+      // Source-level audit fields belong on the base part only; the split-out
+      // Extra Shot part carries its own note in modifier_notes.
+      receipts.get(no).lines.push({
+        pid: part.product.id, qty, origQty, cancelQty,
+        lineTotal: part.lineTotal, price: part.unitPrice, hpp: hppFor(part.product.id),
+        status,
+        opsi: part.note || (i === 0 ? opsi : null),
+        priceType: i === 0 ? priceType : null,
+        discProd: i === 0 ? discProd : 0,
+        discProdType: i === 0 ? discProdType : null
+      });
     });
   }
 

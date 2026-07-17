@@ -33,10 +33,17 @@ const ALIASES = {
   'americano regular': 'Americano Hot',
   'americano ice': 'Americano Ice',
   'americano ice regular': 'Americano Ice', // "Regular" here = regular size, not the Hot variant
-  'aires': 'Air + Es',
-  'air es': 'Air + Es',
+  // The iced-water complement is rung up four different ways in the export
+  // ("air es", "aires", "air", "es") — all the one active "Air Es" product.
+  // (Earlier these pointed at "Air + Es", which is inactive, so they resolved
+  // to nothing and the importer auto-created junk "air"/"es" Custom products.)
+  'aires': 'Air Es',
+  'air es': 'Air Es',
+  'air': 'Air Es',
+  'es': 'Air Es',
   'air mineral botol': 'Mineral Water Botol', // renamed product, old export still uses the old name
   'newlight latte regular': 'NewLight Latte Hot', // same "Regular" = Hot convention as Americano
+  'newlight latte': 'NewLight Latte Hot', // bare name is ambiguous (Hot/Ice); default Hot, same convention
 };
 
 function buildProductMatcher(db, { activeOnly = true } = {}) {
