@@ -54,6 +54,11 @@
   table.tx td.items-preview { max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   table.tx tbody tr { cursor:pointer; }
   table.tx td.num, table.tx th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .pill.negative { background:var(--danger-bg); color:var(--danger); }
+  table.tx.hide-order_type th[data-col="order_type"], table.tx.hide-order_type td[data-col="order_type"] { display:none; }
+  table.tx.hide-status th[data-col="status"], table.tx.hide-status td[data-col="status"] { display:none; }
+  table.tx.hide-discount th[data-col="discount"], table.tx.hide-discount td[data-col="discount"] { display:none; }
+  table.tx.hide-tax th[data-col="tax"], table.tx.hide-tax td[data-col="tax"] { display:none; }
 
   .pager { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 16px; border-top:1px solid var(--border); font-size:13px; color:var(--muted); flex-wrap:wrap; }
   .pager button { padding:8px 14px; border-radius:8px; border:1px solid var(--border); background:var(--card); cursor:pointer; font-size:13px; min-height:38px; }
@@ -142,13 +147,16 @@
   <div class="status" id="status">⏳ Loading…</div>
   <div class="panel" id="panel" style="display:none">
     <div class="tbl-wrap">
-      <table class="tx">
+      <table class="tx" id="txTable">
         <thead><tr>
           <th data-sort="date">Date/Time <span class="arrow">▾</span></th>
           <th data-sort="id">Order #</th>
           <th>Items</th>
-          <th>Pay</th>
+          <th data-col="order_type">Order Type</th>
+          <th data-col="status">Status</th>
           <th class="num" data-sort="items">Qty</th>
+          <th class="num" data-col="discount">Discount</th>
+          <th class="num" data-col="tax">Tax</th>
           <th class="num" data-sort="total">Total <span class="arrow">▾</span></th>
         </tr></thead>
         <tbody id="rows"></tbody>
@@ -415,11 +423,24 @@
           <td>${esc(o.date)}</td>
           <td>#${o.id}</td>
           <td class="items-preview" title="${esc(o.items_preview||'')}">${esc(o.items_preview||'—')}</td>
-          <td><span class="pill">${esc(o.payment_method||'—')}</span></td>
+          <td data-col="order_type">${esc(o.order_type||'—')}</td>
+          <td data-col="status">${o.status ? `<span class="pill${/dibatalkan/i.test(o.status) ? ' negative' : ''}">${esc(o.status)}</span>` : '—'}</td>
           <td class="num">${o.item_count}</td>
+          <td class="num" data-col="discount">${o.discount ? Rp(o.discount) : '—'}</td>
+          <td class="num" data-col="tax">${o.tax ? Rp(o.tax) : '—'}</td>
           <td class="num">${Rp(o.total)}</td>
-        </tr>`).join('') : '<tr><td colspan="6" class="foot" style="text-align:center;padding:30px">No transactions match these filters</td></tr>';
+        </tr>`).join('') : '<tr><td colspan="9" class="foot" style="text-align:center;padding:30px">No transactions match these filters</td></tr>';
       rows.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => drillOrder(tr.dataset.id)));
+
+      // Order Type / Status / Discount / Tax only earn a column when this
+      // result set actually has data for it — most rows are plain cash sales
+      // with none of these, and an all-dash column just adds noise.
+      const txTable = document.getElementById('txTable');
+      const anyOf = (test) => d.orders.some(test);
+      txTable.classList.toggle('hide-order_type', !anyOf(o => o.order_type));
+      txTable.classList.toggle('hide-status', !anyOf(o => o.status));
+      txTable.classList.toggle('hide-discount', !anyOf(o => o.discount > 0));
+      txTable.classList.toggle('hide-tax', !anyOf(o => o.tax > 0));
 
       const totalPages = Math.max(1, Math.ceil(d.total / d.pageSize));
       document.getElementById('pageInfo').textContent = `Page ${d.page} of ${totalPages} · ${d.total.toLocaleString('id-ID')} order(s)`;

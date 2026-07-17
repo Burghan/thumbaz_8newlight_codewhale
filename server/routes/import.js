@@ -181,15 +181,20 @@ router.post('/sales', upload.single('file'), async (req, res) => {
 // item and groups into receipts via "No. Struk". Deducts inventory
 // automatically (was a manual/forgettable step before) and reports the
 // post-import stock impact so nothing needs a separate check.
-// A wholly cancelled receipt ("Dibatalkan", or a "Batal Sebagian" that
-// cancelled every line) isn't just skipped — it's recorded at its original
-// quantities and immediately voided, so void_log shows it was rung up and
-// cancelled rather than it never having existed in our data.
-// Also reconciles: this is the only way transactions enter the system (no
+// Every row's column is captured (cashier, customer, order type, per-line and
+// per-receipt discounts, service fee, tax, points redeemed, payment code,
+// source reference) — see migration 026. A cancelled receipt ("Dibatalkan" or
+// "Batal Sebagian") is imported as a normal live transaction, not voided: its
+// lines keep quantity/line_total net of the cancelled amount (0 for a fully
+// cancelled line) plus status + original_quantity/cancelled_quantity for
+// anyone who needs the raw picture. void_log stays reserved for actual manual
+// voids and the reconciliation step below.
+// Reconciliation: this is the only way transactions enter the system (no
 // parallel live POS), so within the date range this file covers, any receipt
-// we'd previously imported that's no longer valid here (edited/voided in the
-// source after an earlier import) gets voided automatically — the freshest
-// export always wins.
+// we'd previously imported whose reference no longer appears in this export at
+// all (edited/removed in the source after an earlier import) gets voided —
+// the freshest export always wins. A receipt that's merely cancelled here is
+// still present, so it's untouched by this step.
 router.post('/riwayat', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   let sheetRows;
@@ -205,10 +210,17 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
   const header = sheetRows[0].map(h => normName(h));
   const col = (name) => header.findIndex(h => h === normName(name));
   const cNo = col('No. Struk'), cDate = col('Tanggal'), cJam = col('Jam'),
-        cProd = col('Produk'), cQty = col('Jumlah Produk'), cCancel = col('Jumlah Dibatalkan'),
-        cPrice = col('Harga Per Produk'), cPay = col('Metode Pembayaran');
-  if (cNo < 0 || cDate < 0 || cProd < 0) {
-    return res.status(400).json({ error: 'Missing expected columns (No. Struk / Tanggal / Produk) — is this a Riwayat Transaksi export?' });
+        cCashier = col('Nama Kasir'), cCustomer = col('Nama Pelangan'),
+        cProd = col('Produk'), cOpsi = col('Opsi Tambahan'),
+        cQty = col('Jumlah Produk'), cCancel = col('Jumlah Dibatalkan'),
+        cPrice = col('Harga Per Produk'), cPriceType = col('Tipe Harga'),
+        cDiscProd = col('Diskon Produk'), cDiscProdType = col('Tipe Diskon Produk'),
+        cDiscTxn = col('Diskon Transaksi'), cDiscTxnType = col('Tipe Diskon Transaksi'),
+        cRedeem = col('Redeem Poin'), cServiceFee = col('Biaya Layanan'), cTax = col('Pajak'),
+        cTotal = col('Total'), cStatus = col('Status'), cKodePay = col('Kode Pembayaran'),
+        cPay = col('Metode Pembayaran'), cOrderType = col('Tipe Order'), cNoRef = col('No. Referensi');
+  if (cNo < 0 || cDate < 0 || cProd < 0 || cTotal < 0) {
+    return res.status(400).json({ error: 'Missing expected columns (No. Struk / Tanggal / Produk / Total) — is this a Riwayat Transaksi export?' });
   }
 
   const matchProduct = buildProductMatcher(db);
@@ -245,19 +257,14 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
   // Reconciliation prep: the source POS can be edited *after* an earlier
   // export was already imported (a receipt added late, voided, or corrected).
   // A plain additive import has no way to notice that — so first work out
-  // every receipt this file still considers valid (has at least one
-  // non-cancelled line) and the date range it covers. After importing what's
-  // new, anything we've previously recorded with a reference in that same
-  // window but missing from this set gets voided below — the fresh export
-  // wins.
-  // A line counts as valid by its actual remaining quantity (Jumlah Produk
-  // minus Jumlah Dibatalkan), not by the Status label — "Batal Sebagian"
-  // (partial cancel) is applied at the receipt level to every one of its
-  // rows, even ones that weren't actually cancelled, so trusting the label
-  // alone would drop real revenue on the still-valid lines of that receipt.
+  // every receipt this file still mentions at all (cancelled or not — a
+  // cancelled receipt is still a real row here, just flagged) and the date
+  // range it covers. After importing what's new, anything we've previously
+  // recorded with a reference in that same window but missing from this set
+  // entirely gets voided below — the fresh export wins.
   const netQty = (row) => Number(row[cQty] || 1) - Number(row[cCancel] || 0);
 
-  const validReceiptsInFile = new Set();
+  const receiptsInFile = new Set();
   let fileMinDate = null, fileMaxDate = null;
   for (const row of sheetRows.slice(1)) {
     const no = String(row[cNo] || '').trim();
@@ -267,24 +274,28 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
       if (!fileMinDate || dateStr < fileMinDate) fileMinDate = dateStr;
       if (!fileMaxDate || dateStr > fileMaxDate) fileMaxDate = dateStr;
     }
-    if (!(netQty(row) > 0)) continue;
-    validReceiptsInFile.add(no);
+    receiptsInFile.add(no);
   }
 
   // Group by receipt number, skipping receipts already imported or already
-  // recorded as a void from a prior import of this same file (a fully
-  // cancelled receipt is created-then-voided below, which deletes its
-  // transaction row — without also checking void_log, re-importing the same
-  // file would recreate and re-void it every time).
+  // recorded as a manual/reconciliation void (re-importing the same file
+  // shouldn't resurrect something a human explicitly voided).
   const already = new Set(db.prepare("SELECT reference FROM transactions WHERE reference IS NOT NULL").all().map(r => r.reference));
   const alreadyVoided = new Set(db.prepare("SELECT DISTINCT reference FROM void_log WHERE reference IS NOT NULL").all().map(r => r.reference));
   const receipts = new Map();
   let cancelledLines = 0, skippedDuplicateReceipts = new Set(), createdProducts = new Set();
 
-  const insT = db.prepare("INSERT INTO transactions (transacted_at,payment_method,reference) VALUES (?,?,?)");
-  const insI = db.prepare("INSERT INTO transaction_items (transaction_id,product_id,quantity,unit_price,line_total,hpp_at_sale) VALUES (?,?,?,?,?,?)");
+  const insT = db.prepare(`INSERT INTO transactions
+    (transacted_at, payment_method, reference, cashier_name, customer_name, order_type,
+     source_discount_amount, source_discount_type, source_redeem_poin, service_fee, tax,
+     payment_code, source_reference)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  const insI = db.prepare(`INSERT INTO transaction_items
+    (transaction_id, product_id, quantity, unit_price, line_total, hpp_at_sale,
+     status, modifier_notes, price_type, product_discount_amount, product_discount_type,
+     original_quantity, cancelled_quantity)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   let nt = 0, ni = 0, revenue = 0;
-  const autoVoided = [];
 
   for (const row of sheetRows.slice(1)) {
     const no = String(row[cNo] || '').trim();
@@ -293,56 +304,67 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
     const nameRaw = row[cProd];
     if (!nameRaw) continue;
     const origQty = Number(row[cQty] || 1);
+    const cancelQty = Number(row[cCancel] || 0);
     const qty = netQty(row);
     const price = Math.round(Number(row[cPrice] || 0));
+    // Harga Per Produk × Jumlah Produk is the pre-discount subtotal — Diskon
+    // Produk/Diskon Transaksi on this row reduce what was actually charged, and
+    // the Total column is the only figure that already nets those out (it's
+    // also already 0 for a fully cancelled line, so no separate branch needed
+    // for revenue). price/qty stay for unit_price and the audit columns below.
+    const lineTotal = Math.round(Number(row[cTotal] || 0));
     const { product, created } = resolveOrCreateProduct(nameRaw, price);
     if (created) createdProducts.add(product.name);
     const dateStr = normDate(row[cDate]);
     const jam = String(row[cJam] || '00:00:00').trim();
     const pay = String(row[cPay] || '').toUpperCase().includes('QRIS') ? 'qris' : 'cash';
-    if (!receipts.has(no)) receipts.set(no, { at: `${dateStr} ${jam}`, pay, ref: no, lines: [] });
-    receipts.get(no).lines.push({ pid: product.id, qty, origQty, price, hpp: hppFor(product.id) });
+    if (!receipts.has(no)) receipts.set(no, {
+      at: `${dateStr} ${jam}`, pay, ref: no,
+      cashier: cCashier >= 0 ? String(row[cCashier] || '').trim() || null : null,
+      customer: cCustomer >= 0 ? String(row[cCustomer] || '').trim() || null : null,
+      orderType: cOrderType >= 0 ? String(row[cOrderType] || '').trim() || null : null,
+      discTxn: cDiscTxn >= 0 ? Math.round(Number(row[cDiscTxn] || 0)) : 0,
+      discTxnType: cDiscTxnType >= 0 ? String(row[cDiscTxnType] || '').trim() || null : null,
+      redeemPoin: cRedeem >= 0 ? Math.round(Number(row[cRedeem] || 0)) : 0,
+      serviceFee: cServiceFee >= 0 ? Math.round(Number(row[cServiceFee] || 0)) : 0,
+      tax: cTax >= 0 ? Math.round(Number(row[cTax] || 0)) : 0,
+      kodePay: cKodePay >= 0 ? String(row[cKodePay] || '').trim() || null : null,
+      noRef: cNoRef >= 0 ? String(row[cNoRef] || '').trim() || null : null,
+      lines: []
+    });
+    receipts.get(no).lines.push({
+      pid: product.id, qty, origQty, cancelQty, lineTotal, price, hpp: hppFor(product.id),
+      status: cStatus >= 0 ? String(row[cStatus] || '').trim() || null : null,
+      opsi: cOpsi >= 0 ? String(row[cOpsi] || '').trim() || null : null,
+      priceType: cPriceType >= 0 ? String(row[cPriceType] || '').trim() || null : null,
+      discProd: cDiscProd >= 0 ? Math.round(Number(row[cDiscProd] || 0)) : 0,
+      discProdType: cDiscProdType >= 0 ? String(row[cDiscProdType] || '').trim() || null : null
+    });
   }
 
   db.transaction(() => {
     for (const [, r] of receipts) {
-      const hasValidLine = r.lines.some((l) => l.qty > 0);
-      const tr = insT.run(r.at, r.pay, r.ref);
-
-      if (hasValidLine) {
-        nt++;
-        for (const l of r.lines) {
-          if (!(l.qty > 0)) { cancelledLines++; continue; }
-          insI.run(tr.lastInsertRowid, l.pid, l.qty, l.price, l.qty * l.price, l.hpp);
-          deductStockForSale(tr.lastInsertRowid, [{ product_id: l.pid, quantity: l.qty }]);
-          ni++; revenue += l.qty * l.price;
-        }
-      } else {
-        // Every line on this receipt was cancelled ("Dibatalkan", or a
-        // "Batal Sebagian" that happened to cancel everything) — record it
-        // at its original (pre-cancellation) quantities so there's a real
-        // transaction to void, then immediately void it. The result is a
-        // void_log entry showing it was rung up and cancelled, rather than
-        // the receipt simply never having existed in our data.
-        for (const l of r.lines) {
-          const q = l.origQty > 0 ? l.origQty : 1;
-          insI.run(tr.lastInsertRowid, l.pid, q, l.price, q * l.price, l.hpp);
-          deductStockForSale(tr.lastInsertRowid, [{ product_id: l.pid, quantity: q }]);
-          cancelledLines++;
-        }
-        const result = voidSale(tr.lastInsertRowid, {
-          restock: true,
-          reason: 'Cancelled in source POS (Dibatalkan)',
-          reference: r.ref
-        });
-        if (result.ok) autoVoided.push(r.ref);
+      nt++;
+      const tr = insT.run(
+        r.at, r.pay, r.ref, r.cashier, r.customer, r.orderType,
+        r.discTxn, r.discTxnType, r.redeemPoin, r.serviceFee, r.tax, r.kodePay, r.noRef
+      );
+      for (const l of r.lines) {
+        insI.run(
+          tr.lastInsertRowid, l.pid, l.qty, l.price, l.lineTotal, l.hpp,
+          l.status, l.opsi, l.priceType, l.discProd, l.discProdType, l.origQty, l.cancelQty
+        );
+        if (l.qty > 0) deductStockForSale(tr.lastInsertRowid, [{ product_id: l.pid, quantity: l.qty }]);
+        else cancelledLines++;
+        ni++; revenue += l.lineTotal;
       }
     }
   })();
 
   // Reconciliation: void any of our transactions dated within this file's
-  // coverage that carry a reference no longer considered valid here — i.e.
-  // the source was edited after we imported an earlier snapshot of it.
+  // coverage whose reference doesn't appear in this export AT ALL — i.e. the
+  // source removed/edited it after we imported an earlier snapshot. A receipt
+  // that's simply cancelled here is still present, so it's left alone.
   // restock:true since these are now treated as never having happened.
   const reconciledVoids = [];
   if (fileMinDate && fileMaxDate) {
@@ -351,7 +373,7 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
        WHERE reference IS NOT NULL AND substr(transacted_at, 1, 10) BETWEEN ? AND ?`
     ).all(fileMinDate, fileMaxDate);
     for (const t of inRange) {
-      if (validReceiptsInFile.has(t.reference)) continue;
+      if (receiptsInFile.has(t.reference)) continue;
       const result = voidSale(t.id, {
         restock: true,
         reason: 'Riwayat re-import reconciliation: receipt no longer present in source export',
@@ -370,13 +392,12 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
   res.json({
     message: `Imported: ${nt} transactions, ${ni} line-items, revenue Rp${revenue.toLocaleString('id-ID')}. Inventory deducted automatically.`
       + (createdProducts.size ? ` ${createdProducts.size} new product(s) added to the menu — set their category/recipe when convenient.` : '')
-      + (autoVoided.length ? ` ${autoVoided.length} fully cancelled receipt(s) recorded and voided.` : '')
+      + (cancelledLines ? ` ${cancelledLines} cancelled line(s) recorded at Rp0 (flagged by status), not voided.` : '')
       + (reconciledVoids.length ? ` ${reconciledVoids.length} previously-imported order(s) voided — no longer present in this export.` : ''),
     transactions: nt, lineItems: ni, revenue,
-    cancelledLinesSkipped: cancelledLines,
+    cancelledLinesRecorded: cancelledLines,
     duplicateReceiptsSkipped: skippedDuplicateReceipts.size,
     createdProducts: [...createdProducts],
-    autoVoided,
     reconciledVoids,
     outOfStock: outOfStock.map(r => `${r.name} (${r.base_unit})`)
   });

@@ -63,8 +63,11 @@ router.get('/', (req, res) => {
 
   const orders = db.prepare(`
     SELECT t.id, t.transacted_at AS date, t.payment_method, t.reference,
+           t.order_type, t.tax,
            COALESCE(SUM(ti.line_total),0) AS total,
            COALESCE(SUM(ti.quantity),0) AS item_count,
+           COALESCE(SUM(ti.product_discount_amount),0) + COALESCE(t.source_discount_amount,0) AS discount,
+           MAX(CASE WHEN ti.status IS NOT NULL AND ti.status <> 'Transaksi' THEN ti.status END) AS status,
            GROUP_CONCAT(p.name || ' ×' || ti.quantity, ', ') AS items_preview
     FROM transactions t
     LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
