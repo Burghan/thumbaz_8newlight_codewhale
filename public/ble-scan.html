@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bluetooth Printer Discovery</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; color: #222; }
+  h1 { font-size: 20px; }
+  p.hint { color: #666; font-size: 14px; }
+  button { font-size: 16px; padding: 12px 20px; border-radius: 10px; border: 1px solid #5c7da6; background: #5c7da6; color: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; }
+  pre { background: #f4f4f4; border: 1px solid #ddd; border-radius: 8px; padding: 12px; white-space: pre-wrap; word-break: break-all; font-size: 13px; line-height: 1.5; }
+  .ok { color: #1f6a35; }
+  .err { color: #c43c30; }
+</style>
+</head>
+<body>
+  <h1>Bluetooth Printer Discovery</h1>
+  <p class="hint">
+    Turn the printer on and keep it near the device. Tap Scan, pick the printer from the
+    browser's chooser, and this page will list every Bluetooth service/characteristic it
+    exposes — that tells us exactly how to talk to it for real printing. Nothing here is
+    saved or sent anywhere; it only prints to the log below.
+  </p>
+  <button id="scanBtn">Scan for Bluetooth printer</button>
+  <pre id="log">Waiting…</pre>
+
+<script>
+const log = document.getElementById('log');
+const scanBtn = document.getElementById('scanBtn');
+
+function write(line, cls) {
+  const span = document.createElement('div');
+  if (cls) span.className = cls;
+  span.textContent = line;
+  log.appendChild(span);
+}
+
+// Broad net of service UUIDs seen across generic/OEM ESC-POS BLE printer boards,
+// plus standard GATT services. Web Bluetooth only lets you read services listed
+// here (or picked via a service-based filter), so this list is deliberately wide.
+const CANDIDATE_SERVICES = [
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455', // ISSC/Microchip "transparent UART" — very common clone
+  '0000ffe0-0000-1000-8000-00805f9b34fb', // HM-10 style UART clone, widely reused
+  '000018f0-0000-1000-8000-00805f9b34fb', // seen on several cheap OEM ESC/POS BLE printer boards
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // Nordic-style UART variant, occasionally reused
+  '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART Service (NUS) — common BLE-serial base
+  'generic_access',
+  'generic_attribute',
+  'device_information',
+  'battery_service',
+];
+
+scanBtn.addEventListener('click', async () => {
+  log.innerHTML = '';
+  if (!navigator.bluetooth) {
+    write('navigator.bluetooth is undefined — this browser/context does not support Web Bluetooth (need Chrome/Edge on Android or desktop, served over HTTPS).', 'err');
+    return;
+  }
+  scanBtn.disabled = true;
+  try {
+    write('Opening device chooser…');
+    const device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: CANDIDATE_SERVICES,
+    });
+    write(`Picked: "${device.name || '(unnamed)'}" id=${device.id}`, 'ok');
+
+    write('Connecting to GATT server…');
+    const server = await device.gatt.connect();
+    write('Connected.', 'ok');
+
+    write('Discovering primary services (only ones in the candidate list above are visible to this page)…');
+    const services = await server.getPrimaryServices();
+    if (!services.length) {
+      write('No services from the candidate list were found. This printer may use a different UUID than the ones tried here — send me the exact model/board name and I\'ll widen the search, or it may be Classic Bluetooth (SPP) only, which Web Bluetooth cannot reach at all.', 'err');
+    }
+    for (const service of services) {
+      write(`\nService: ${service.uuid}`, 'ok');
+      const chars = await service.getCharacteristics();
+      for (const c of chars) {
+        const props = Object.entries(c.properties).filter(([, v]) => v).map(([k]) => k).join(', ');
+        write(`  Characteristic: ${c.uuid}  [${props}]`);
+      }
+    }
+    write('\nDone. Screenshot this and send it back — the writable characteristic (property "write" or "writeWithoutResponse") is what we\'ll send ESC/POS bytes to.', 'ok');
+    server.disconnect();
+  } catch (err) {
+    write(`Error: ${err.message}`, 'err');
+    if (String(err.message).includes('cancelled') || String(err.message).includes('No devices')) {
+      write('If the printer never appeared in the chooser at all, that strongly suggests it is Classic Bluetooth (SPP) only, not BLE — Web Bluetooth cannot see Classic-only devices.', 'err');
+    }
+  } finally {
+    scanBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

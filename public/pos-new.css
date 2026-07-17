@@ -2847,3 +2847,44 @@ body {
     transform: rotate(180deg);
   }
 }
+
+/* ---- Print: receipt only, styled for a narrow (~80mm) receipt printer ---- */
+@media print {
+  @page { margin: 6mm; }
+
+  body > *:not(#receiptModal) { display: none !important; }
+
+  #receiptModal {
+    position: static;
+    display: block;
+    background: none;
+    padding: 0;
+  }
+
+  #receiptModal .modal-card.receipt {
+    display: block;
+    width: auto;
+  }
+
+  #receiptModal .receipt-left { display: none; }
+
+  #receiptModal .receipt-right {
+    background: none;
+    border-radius: 0;
+    padding: 0;
+    max-height: none;
+    overflow: visible;
+  }
+
+  #receiptModal .receipt-paper {
+    width: 80mm;
+    margin: 0 auto;
+    padding: 0;
+    border: none;
+    min-height: 0;
+    color: #000;
+  }
+
+  #receiptModal .receipt-logo img { max-height: 40px; }
+  #receiptModal .receipt-qr img { width: 100px; height: 100px; }
+}
