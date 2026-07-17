@@ -9,7 +9,7 @@ const router = express.Router();
 // List mode (used by the Transactions page): presence of `page` switches to
 // filterable/sortable/paginated summary rows — { orders, total, kpi }.
 router.get('/', (req, res) => {
-  const { date, from, to, payment_method, product_id, q, sort, dir, page } = req.query;
+  const { date, from, to, order_type, product_id, q, sort, dir, page } = req.query;
 
   if (!page) {
     let where = '';
@@ -44,7 +44,7 @@ router.get('/', (req, res) => {
   const params = [];
   if (from) { clauses.push('date(t.transacted_at) >= ?'); params.push(from); }
   if (to) { clauses.push('date(t.transacted_at) <= ?'); params.push(to); }
-  if (payment_method) { clauses.push('t.payment_method = ?'); params.push(payment_method); }
+  if (order_type) { clauses.push('t.order_type = ?'); params.push(order_type); }
   if (q) { clauses.push('(t.reference LIKE ? OR CAST(t.id AS TEXT) = ?)'); params.push(`%${q}%`, String(q).replace(/^#/, '')); }
   if (product_id) { clauses.push('EXISTS (SELECT 1 FROM transaction_items x WHERE x.transaction_id = t.id AND x.product_id = ?)'); params.push(Number(product_id)); }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
@@ -78,11 +78,18 @@ router.get('/', (req, res) => {
     LIMIT ? OFFSET ?
   `).all(...params, pageSize, (pageNum - 1) * pageSize);
 
+  // Distinct order types for the filter dropdown (full list, independent of the
+  // current filters so options never vanish when one is selected).
+  const orderTypes = db.prepare(
+    "SELECT DISTINCT order_type FROM transactions WHERE order_type IS NOT NULL AND TRIM(order_type) <> '' ORDER BY order_type"
+  ).all().map(r => r.order_type);
+
   res.json({
     orders,
     total: kpi.orders,
     page: pageNum,
     pageSize,
+    orderTypes,
     kpi: { revenue: kpi.revenue, orders: kpi.orders, items: kpi.items, avg: kpi.orders ? Math.round(kpi.revenue / kpi.orders) : 0 }
   });
 });

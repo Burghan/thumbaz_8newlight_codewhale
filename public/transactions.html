@@ -133,8 +133,8 @@
   <div class="filters">
     <div class="fld"><label>From</label><input type="date" id="fFrom"/></div>
     <div class="fld"><label>To</label><input type="date" id="fTo"/></div>
-    <div class="fld"><label>Payment</label>
-      <select id="fPayment"><option value="">All</option><option value="cash">Cash</option><option value="qris">QRIS</option><option value="transfer">Transfer</option></select>
+    <div class="fld"><label>Order type</label>
+      <select id="fOrderType"><option value="">All</option></select>
     </div>
     <div class="fld"><label>Product</label>
       <input list="productList" id="fProduct" placeholder="All products"/>
@@ -328,9 +328,9 @@
   }
 
   // ---- filters / sort / pagination state ----
-  const state = { from:'', to:'', payment_method:'', product_id:'', q:'', sort:'date', dir:'desc', page:1, pageSize:50 };
+  const state = { from:'', to:'', order_type:'', product_id:'', q:'', sort:'date', dir:'desc', page:1, pageSize:50 };
   const fFrom = document.getElementById('fFrom'), fTo = document.getElementById('fTo'),
-        fPayment = document.getElementById('fPayment'), fProduct = document.getElementById('fProduct'),
+        fOrderType = document.getElementById('fOrderType'), fProduct = document.getElementById('fProduct'),
         qEl = document.getElementById('q');
 
   // Default range: current month, unless the page was opened with filters in
@@ -341,7 +341,7 @@
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
     state.from = fFrom.value = urlParams.get('from') || first.toISOString().slice(0,10);
     state.to = fTo.value = urlParams.get('to') || now.toISOString().slice(0,10);
-    if (urlParams.get('payment_method')) state.payment_method = fPayment.value = urlParams.get('payment_method');
+    if (urlParams.get('order_type')) state.order_type = urlParams.get('order_type');
     if (urlParams.get('q')) state.q = qEl.value = urlParams.get('q');
     if (urlParams.get('product_id')) state.product_id = urlParams.get('product_id');
   })();
@@ -367,12 +367,12 @@
 
   fFrom.addEventListener('change', () => { state.from = fFrom.value; scheduleLoad(); });
   fTo.addEventListener('change', () => { state.to = fTo.value; scheduleLoad(); });
-  fPayment.addEventListener('change', () => { state.payment_method = fPayment.value; scheduleLoad(); });
+  fOrderType.addEventListener('change', () => { state.order_type = fOrderType.value; scheduleLoad(); });
   fProduct.addEventListener('input', () => { state.product_id = productsByName.get(fProduct.value) || ''; scheduleLoad(); });
   qEl.addEventListener('input', () => { state.q = qEl.value.trim(); scheduleLoad(); });
   document.getElementById('clearBtn').addEventListener('click', () => {
-    fFrom.value = ''; fTo.value = ''; fPayment.value = ''; fProduct.value = ''; qEl.value = '';
-    state.from = state.to = state.payment_method = state.product_id = state.q = '';
+    fFrom.value = ''; fTo.value = ''; fOrderType.value = ''; fProduct.value = ''; qEl.value = '';
+    state.from = state.to = state.order_type = state.product_id = state.q = '';
     state.page = 1; load();
   });
 
@@ -402,7 +402,7 @@
     const params = new URLSearchParams();
     if (state.from) params.set('from', state.from);
     if (state.to) params.set('to', state.to);
-    if (state.payment_method) params.set('payment_method', state.payment_method);
+    if (state.order_type) params.set('order_type', state.order_type);
     if (state.product_id) params.set('product_id', state.product_id);
     if (state.q) params.set('q', state.q);
     params.set('sort', state.sort); params.set('dir', state.dir);
@@ -416,6 +416,12 @@
       document.getElementById('kOrders').textContent = d.kpi.orders.toLocaleString('id-ID');
       document.getElementById('kItems').textContent = d.kpi.items.toLocaleString('id-ID');
       document.getElementById('kAvg').textContent = Rp(d.kpi.avg);
+
+      // Populate the Order Type dropdown once from the data-driven list.
+      if (Array.isArray(d.orderTypes) && fOrderType.options.length <= 1) {
+        d.orderTypes.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; fOrderType.appendChild(o); });
+        if (state.order_type) fOrderType.value = state.order_type;
+      }
 
       const rows = document.getElementById('rows');
       rows.innerHTML = d.orders.length ? d.orders.map(o => `
@@ -455,11 +461,16 @@
   document.getElementById('exportBtn').addEventListener('click', () => {
     const rows = [...document.querySelectorAll('table.tx tbody tr[data-id]')];
     if (!rows.length) return;
-    const header = ['Date/Time','Order #','Items','Payment','Qty','Total'];
-    const lines = [header.join(',')];
+    // Export exactly the columns currently shown (some are hidden dynamically
+    // when the view has no data for them), so header and cells stay aligned.
+    const ths = [...document.querySelectorAll('table.tx thead th')];
+    const cols = ths.map((th, i) => ({ i, label: th.textContent.replace(/[▾▴]/g, '').trim() }))
+                    .filter(c => getComputedStyle(ths[c.i]).display !== 'none');
+    const csvCell = (s) => `"${String(s).replace(/"/g, '""')}"`;
+    const lines = [cols.map(c => csvCell(c.label)).join(',')];
     document.querySelectorAll('#rows tr[data-id]').forEach(tr => {
-      const cells = [...tr.children].map(td => td.textContent.replace(/"/g,'""'));
-      lines.push(cells.map(c => `"${c}"`).join(','));
+      const cells = [...tr.children];
+      lines.push(cols.map(c => csvCell(cells[c.i] ? cells[c.i].textContent : '')).join(','));
     });
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
