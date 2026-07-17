@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { deductStockForSale, deductIngredientsForSale } = require('../lib/stock');
 const { getLoyaltyConfig } = require('./loyalty-config');
-const { voidSale } = require('../lib/voidSale');
+const { voidSale, voidPartialItem } = require('../lib/voidSale');
 const router = express.Router();
 
 // Loyalty earn/redeem rules now live in the loyalty_config table (managed from
@@ -214,6 +214,30 @@ router.post('/:id/void', (req, res) => {
   res.json({
     success: true,
     message: restock ? 'Sale voided — ingredients returned to stock.' : 'Sale voided — inventory kept as used.'
+  });
+});
+
+// POST /api/sales/:id/void-item — correct one line item's quantity downward
+// (e.g. rung up 2, should've been 1) without voiding the whole order.
+// Body: { item_id, new_qty, reason, restock }.
+router.post('/:id/void-item', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid sale id' });
+
+  const itemId = Number(req.body?.item_id);
+  const newQty = Number(req.body?.new_qty);
+  if (!Number.isInteger(itemId)) return res.status(400).json({ error: 'Invalid item_id' });
+
+  const restock = req.body?.restock === true || req.body?.restock === 'true' || req.body?.restock === 1;
+  const reason = String(req.body?.reason || '').trim();
+
+  const result = voidPartialItem(id, { itemId, newQty, reason, restock });
+  if (!result.ok) return res.status(400).json({ error: result.error });
+
+  res.json({
+    success: true,
+    message: `Quantity corrected — ${result.removedQty} unit(s) removed (Rp${result.removedTotal.toLocaleString('id-ID')}).`
+      + (restock ? ' Ingredients returned to stock.' : ' Inventory kept as used.')
   });
 });
 

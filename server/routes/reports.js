@@ -273,7 +273,7 @@ router.get('/expense-breakdown', (req, res) => {
 router.get('/order/:id', (req, res) => {
   const id = Number(req.params.id);
   const rows = db.prepare(`SELECT t.id, t.transacted_at AS date, t.payment_method, t.reference, t.notes,
-      ti.product_id, p.name AS product_name, ti.quantity, ti.unit_price, ti.line_total
+      ti.id AS item_id, ti.product_id, p.name AS product_name, ti.quantity, ti.unit_price, ti.line_total
     FROM transactions t
     LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
     LEFT JOIN products p ON p.id = ti.product_id
@@ -283,7 +283,7 @@ router.get('/order/:id', (req, res) => {
               reference: rows[0].reference, notes: rows[0].notes, items: [], total: 0 };
   rows.forEach(r => {
     if (r.product_id != null) {
-      o.items.push({ product_id: r.product_id, product_name: r.product_name, quantity: r.quantity, unit_price: r.unit_price, line_total: r.line_total });
+      o.items.push({ item_id: r.item_id, product_id: r.product_id, product_name: r.product_name, quantity: r.quantity, unit_price: r.unit_price, line_total: r.line_total });
       o.total += r.line_total;
     }
   });

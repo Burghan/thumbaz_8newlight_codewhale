@@ -86,6 +86,8 @@
   .void-choice-btn:hover { border-color:var(--brand); background:var(--cream-soft); }
   .void-choice-sub { display:block; font-weight:400; font-size:11px; color:var(--muted); margin-top:2px; }
   .void-back { background:none; border:1px solid var(--border); border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer; color:var(--muted); }
+  .fix-qty-btn { background:none; border:1px solid var(--border); border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer; color:var(--muted); margin-left:6px; }
+  .fix-qty-btn:hover { border-color:var(--brand); color:var(--brand-ink); }
 </style>
 <link rel="manifest" href="/manifest.json" />
 <meta name="theme-color" content="#5c7da6" />
@@ -206,14 +208,19 @@
       drillSub.textContent = `${o.date} · ${(o.payment_method||'—')} · ${o.items.length} items`;
       drillBody.innerHTML = `
         <h3>Items</h3>
-        <table><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th></tr></thead><tbody>${
-          o.items.map(it=>`<tr><td><a href="/menu.html?q=${encodeURIComponent(it.product_name||'')}">${esc(it.product_name||'?')}</a></td><td class="num">${it.quantity}×</td><td class="num">${Rp(it.unit_price)}</td><td class="num">${Rp(it.line_total)}</td></tr>`).join('')
+        <table><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th><th></th></tr></thead><tbody>${
+          o.items.map(it=>`<tr><td><a href="/menu.html?q=${encodeURIComponent(it.product_name||'')}">${esc(it.product_name||'?')}</a></td><td class="num">${it.quantity}×</td><td class="num">${Rp(it.unit_price)}</td><td class="num">${Rp(it.line_total)}</td><td><button class="fix-qty-btn" data-item-id="${it.item_id}" data-qty="${it.quantity}" data-name="${esc(it.product_name||'?')}">✎ Fix qty</button></td></tr>`).join('')
         }</tbody></table>
         <div class="cost-tot"><span>Order total</span><span>${Rp(o.total)}</span></div>
         ${o.notes?`<h3>Notes</h3><div class="foot">${esc(o.notes)}</div>`:''}
         <div class="foot" style="margin-top:14px">Reference: ${esc(o.reference||'—')}</div>
         <button class="void-trigger" id="voidTrigger">🗑️ Void this transaction</button>`;
       document.getElementById('voidTrigger').addEventListener('click', () => renderVoidChoice(id, o));
+      drillBody.querySelectorAll('.fix-qty-btn').forEach(btn => {
+        btn.addEventListener('click', () => promptFixQty(id, {
+          itemId: Number(btn.dataset.itemId), qty: Number(btn.dataset.qty), name: btn.dataset.name
+        }));
+      });
     } catch(e) { drillBody.innerHTML = '<div class="err">❌ ' + esc(e.message) + '</div>'; }
   }
 
@@ -257,6 +264,58 @@
     } catch (e) {
       drillBody.innerHTML = `<div class="err">❌ ${esc(e.message)}</div><button class="void-back" id="voidRetryBack">← Back</button>`;
       document.getElementById('voidRetryBack').addEventListener('click', () => drillOrder(id));
+    }
+  }
+
+  // ---- Fix a line item's quantity (mis-tap correction) without voiding the
+  // whole order — e.g. rung up 2, should've been 1. Same restock/reason
+  // pattern as a full void, scoped to just one line.
+  function promptFixQty(id, item) {
+    const input = prompt(`Correct quantity for "${item.name}" (currently ${item.qty}):`, String(Math.max(item.qty - 1, 0)));
+    if (input === null) return;
+    const newQty = Number(input.trim());
+    if (!Number.isInteger(newQty) || newQty < 0) { alert('Enter a whole number, 0 or more.'); return promptFixQty(id, item); }
+    if (newQty >= item.qty) { alert(`Corrected quantity must be less than ${item.qty}.`); return promptFixQty(id, item); }
+    renderFixQtyChoice(id, item, newQty);
+  }
+
+  function renderFixQtyChoice(id, item, newQty) {
+    const removed = item.qty - newQty;
+    drillTitle.textContent = 'Fix Quantity'; drillSub.textContent = `${item.name}: ${item.qty} → ${newQty}`;
+    drillBody.innerHTML = `
+      <div class="void-warn">This removes ${removed} unit(s) of "${esc(item.name)}" from the order (revenue reverses for that portion). Choose whether the ingredients should be returned to stock.</div>
+      <div class="void-choice-row">
+        <button class="void-choice-btn" id="fixYes">Yes — return ingredients<span class="void-choice-sub">The extra unit(s) were never actually made (mis-tap).</span></button>
+        <button class="void-choice-btn" id="fixNo">No — keep inventory as used<span class="void-choice-sub">The extra unit(s) were made; only the sale record reverses.</span></button>
+      </div>
+      <button class="void-back" id="fixCancel">← Back to order</button>`;
+    document.getElementById('fixCancel').addEventListener('click', () => drillOrder(id));
+    document.getElementById('fixYes').addEventListener('click', () => promptFixReason(id, item, newQty, true));
+    document.getElementById('fixNo').addEventListener('click', () => promptFixReason(id, item, newQty, false));
+  }
+
+  function promptFixReason(id, item, newQty, restock) {
+    const reason = prompt(`Reason for correcting "${item.name}" (${item.qty} → ${newQty}):`, '');
+    if (reason === null) { renderFixQtyChoice(id, item, newQty); return; }
+    submitFixQty(id, item, newQty, restock, reason.trim());
+  }
+
+  async function submitFixQty(id, item, newQty, restock, reason) {
+    drillBody.innerHTML = '<div class="foot">Correcting…</div>';
+    try {
+      const res = await fetch(`/api/sales/${id}/void-item`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ item_id: item.itemId, new_qty: newQty, reason, restock })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Correction failed');
+      load();
+      drillOrder(id);
+      alert(data.message || 'Quantity corrected.');
+    } catch (e) {
+      drillBody.innerHTML = `<div class="err">❌ ${esc(e.message)}</div><button class="void-back" id="fixRetryBack">← Back</button>`;
+      document.getElementById('fixRetryBack').addEventListener('click', () => drillOrder(id));
     }
   }
 
