@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Order Types – 8 NewLight</title>
+<link rel="stylesheet" href="/sidebar.css"/><link rel="stylesheet" href="/theme.css"/>
+<style>
+  body { margin:0; color:var(--ink); }
+  .wrap { padding:16px; max-width:920px; margin:0 auto; }
+  @media(min-width:900px){ .wrap{ padding:24px; } }
+  .head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+  .head h1 { margin:0; font-size:24px; }
+  .head .spacer { flex:1; }
+  .head .who { font-size:13px; color:var(--muted); }
+  .head .icon-btn { background:var(--card); color:var(--brand-ink); border:1px solid var(--border); min-height:40px; padding:8px 14px; border-radius:10px; cursor:pointer; }
+  .sub { color:var(--muted); font-size:14px; margin:2px 0 18px; }
+  .status { padding:30px; text-align:center; color:var(--muted); }
+  .err { color:var(--danger); font-weight:600; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow-sm); padding:0; overflow:hidden; }
+  table.ot { width:100%; border-collapse:collapse; }
+  table.ot th, table.ot td { padding:12px 14px; text-align:left; border-bottom:1px solid var(--border); font-size:14px; }
+  table.ot th { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700; }
+  table.ot tr:last-child td { border-bottom:none; }
+  table.ot input { width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; background:var(--card); color:var(--ink); }
+  table.ot input.rp { max-width:140px; text-align:right; font-variant-numeric:tabular-nums; }
+  .row-inactive { opacity:.55; }
+  .actions { display:flex; gap:6px; justify-content:flex-end; }
+  button.btn { border:none; border-radius:8px; padding:8px 12px; font-size:13px; font-weight:600; cursor:pointer; }
+  button.save { background:var(--brand); color:#fff; }
+  button.del { background:none; border:1px solid var(--border); color:var(--muted); }
+  button.del:hover { border-color:var(--danger); color:var(--danger); }
+  button.restore { background:none; border:1px solid var(--border); color:var(--brand-ink); }
+  .addbar { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-top:18px; padding:16px; background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow-sm); }
+  .addbar .fld { display:flex; flex-direction:column; gap:4px; }
+  .addbar label { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700; }
+  .addbar input { padding:9px 11px; border:1px solid var(--border); border-radius:9px; font-size:14px; background:var(--card); color:var(--ink); }
+  .addbar input.rp { max-width:150px; text-align:right; }
+  .addbar button { background:var(--brand); color:#fff; border:none; border-radius:10px; padding:10px 16px; font-weight:600; cursor:pointer; min-height:40px; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:10px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; }
+  .toast.show { opacity:.95; }
+  .hint { font-size:12px; color:var(--muted); margin:10px 2px 0; }
+</style>
+<meta name="theme-color" content="#5c7da6" />
+</head>
+<body class="theme-cafe">
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
+    <div class="brand-text">
+      <div class="brand-title">8 NewLight Coffee Bar</div>
+      <div class="brand-subtitle">Back Office</div>
+    </div>
+  </div>
+</aside>
+
+<div class="wrap">
+  <div class="head">
+    <button class="icon-btn" id="menuToggle" aria-label="Menu">☰</button>
+    <h1>🧾 Order Types</h1>
+    <div class="spacer"></div>
+    <span class="who" id="who"></span>
+  </div>
+  <p class="sub">Manage how orders are taken. Delivery platforms (Grab Food, Go Food) charge a fixed amount per item — that charge is applied at the POS as a discount on the order total.</p>
+
+  <div class="status" id="status">⏳ Loading…</div>
+  <div id="panel" style="display:none">
+    <div class="card">
+      <table class="ot">
+        <thead><tr>
+          <th style="width:40%">Name</th>
+          <th style="width:30%">Charge / item</th>
+          <th style="width:30%"></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <div class="addbar">
+      <div class="fld" style="flex:1; min-width:180px"><label>New order type</label><input id="newName" type="text" placeholder="e.g. ShopeeFood"/></div>
+      <div class="fld"><label>Charge / item (Rp)</label><input id="newCharge" class="rp" type="number" min="0" step="500" value="0"/></div>
+      <button id="addBtn">+ Add</button>
+    </div>
+    <p class="hint">Delete disables a type (hidden from the POS) but keeps it on past orders. Disabled types can be restored.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/auth.js"></script>
+<script src="/pwa.js"></script>
+<script src="/sidebar.js"></script>
+<script>
+  const A = requireRole(['admin','manager']);
+  const statusEl = document.getElementById('status');
+  const panelEl = document.getElementById('panel');
+  if (!A || !A.id) { statusEl.innerHTML = '<span class="err">❌ Not logged in</span>'; throw Error('no auth'); }
+  document.getElementById('who').textContent = `${A.name} · ${A.role}`;
+
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const Rp = v => 'Rp ' + Math.round(v || 0).toLocaleString('id-ID');
+  let toastTimer;
+  function toast(msg) {
+    const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  async function api(method, path, body) {
+    const res = await fetch(path, {
+      method,
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      credentials: 'same-origin',
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `${method} ${path} → ${res.status}`);
+    return data;
+  }
+
+  function rowHtml(t) {
+    const disabled = !t.active;
+    return `<tr data-id="${t.id}" class="${disabled ? 'row-inactive' : ''}">
+      <td><input class="f-name" type="text" value="${esc(t.name)}"/></td>
+      <td><input class="f-charge rp" type="number" min="0" step="500" value="${t.per_item_discount}"/></td>
+      <td><div class="actions">
+        <button class="btn save">Save</button>
+        ${disabled
+          ? '<button class="btn restore">Restore</button>'
+          : '<button class="btn del">Delete</button>'}
+      </div></td>
+    </tr>`;
+  }
+
+  async function load() {
+    try {
+      const d = await api('GET', '/api/order-types?all=1');
+      statusEl.style.display = 'none'; panelEl.style.display = '';
+      document.getElementById('rows').innerHTML = d.orderTypes.map(rowHtml).join('');
+    } catch (e) {
+      statusEl.innerHTML = '<span class="err">❌ ' + esc(e.message) + '</span>';
+    }
+  }
+
+  document.getElementById('rows').addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('button'); if (!btn) return;
+    const tr = btn.closest('tr'); const id = tr.dataset.id;
+    const name = tr.querySelector('.f-name').value.trim();
+    const charge = Number(tr.querySelector('.f-charge').value);
+    try {
+      if (btn.classList.contains('save')) {
+        await api('PUT', `/api/order-types/${id}`, { name, per_item_discount: charge, active: !tr.classList.contains('row-inactive') });
+        toast('Saved');
+      } else if (btn.classList.contains('del')) {
+        if (!confirm(`Disable "${name}"? It will be hidden from the POS but kept on past orders.`)) return;
+        await api('DELETE', `/api/order-types/${id}`);
+        toast('Disabled');
+      } else if (btn.classList.contains('restore')) {
+        await api('PUT', `/api/order-types/${id}`, { name, per_item_discount: charge, active: true });
+        toast('Restored');
+      }
+      load();
+    } catch (e) { alert(e.message); }
+  });
+
+  document.getElementById('addBtn').addEventListener('click', async () => {
+    const name = document.getElementById('newName').value.trim();
+    const charge = Number(document.getElementById('newCharge').value);
+    if (!name) { alert('Enter a name'); return; }
+    try {
+      await api('POST', '/api/order-types', { name, per_item_discount: charge });
+      document.getElementById('newName').value = '';
+      document.getElementById('newCharge').value = '0';
+      toast('Added');
+      load();
+    } catch (e) { alert(e.message); }
+  });
+
+  load();
+</script>
+</body>
+</html>

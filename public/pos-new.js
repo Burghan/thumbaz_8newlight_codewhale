@@ -51,6 +51,44 @@ async function loadLoyaltyConfig() {
     }
   } catch (_) { /* keep defaults on failure */ }
 }
+// Order types — data-driven (order_types table, editable on the Order Types
+// page). Delivery platforms (Grab Food / Go Food) carry a per-item charge the
+// POS applies as a discount on the order total, matching how the source POS
+// records Grab/Go orders. Seeded so the picker works before the fetch resolves.
+let orderTypesConfig = [
+  { name: 'Dine In', per_item_discount: 0 },
+  { name: 'Takeaway', per_item_discount: 0 },
+  { name: 'Delivery', per_item_discount: 0 }
+];
+// Map legacy stored keys (old snake-case values) onto the current display names.
+const LEGACY_ORDER_TYPE = { dine_in: 'Dine In', takeaway: 'Takeaway', delivery: 'Delivery' };
+function normalizeOrderType(v) {
+  const s = String(v || '').trim();
+  return LEGACY_ORDER_TYPE[s] || s || 'Dine In';
+}
+// Per-item charge (Rp) for the currently selected order type, 0 if none.
+function deliveryPerItem() {
+  const name = normalizeOrderType(getOrderTypeValue());
+  const cfg = orderTypesConfig.find((t) => t.name === name);
+  return cfg ? Number(cfg.per_item_discount || 0) : 0;
+}
+async function loadOrderTypes() {
+  try {
+    const res = await fetch('/api/order-types', { credentials: 'same-origin', headers: typeof authHeaders === 'function' ? authHeaders() : {} });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data || !Array.isArray(data.orderTypes) || !data.orderTypes.length) return;
+    orderTypesConfig = data.orderTypes.map((t) => ({ name: t.name, per_item_discount: Number(t.per_item_discount || 0) }));
+    if (orderTypeSelect) {
+      const current = normalizeOrderType(orderTypeSelect.value);
+      orderTypeSelect.innerHTML = orderTypesConfig
+        .map((t) => `<option value="${t.name}">${t.name}</option>`).join('');
+      orderTypeSelect.value = orderTypesConfig.some((t) => t.name === current) ? current : orderTypesConfig[0].name;
+    }
+    if (typeof updateTotals === 'function') updateTotals();
+  } catch (_) { /* keep seeded defaults on failure */ }
+}
+
 const CURRENT_ORDER_KEY = 'pos_current_order';
 
 const categoryRow = document.getElementById('categoryRow');
@@ -351,7 +389,7 @@ function loadOrderIntoRegister(order) {
   state.currentTableId = order.table_id || null;
   state.currentTableName = order.table_name || null;
   if (orderTypeSelect) {
-    orderTypeSelect.value = order.orderType || order.order_type || settings.orderType || 'dine_in';
+    orderTypeSelect.value = normalizeOrderType(order.orderType || order.order_type || settings.orderType);
     orderTypeSelect.dispatchEvent(new Event('change'));
   }
   setOrderMeta();
@@ -386,7 +424,7 @@ async function renderOrdersView() {
     .filter((order) => {
       const status = order.status || 'ongoing';
       if (filter && status !== filter) return false;
-      if (typeFilter && order.orderType !== typeFilter) return false;
+      if (typeFilter && normalizeOrderType(order.orderType) !== typeFilter) return false;
       if (!query) return true;
       return [order.label, order.customerName, order.receiptNumber, status]
         .some((value) => String(value || '').toLowerCase().includes(query));
@@ -570,19 +608,18 @@ function parseAmount(value) {
 }
 
 function getOrderTypeValue() {
-  return orderTypeSelect?.value || settings.orderType || 'dine_in';
+  return normalizeOrderType(orderTypeSelect?.value || settings.orderType);
 }
 
 function formatOrderType(value) {
-  const text = String(value || '').trim();
-  if (text === 'takeaway') return 'Takeaway';
-  if (text === 'delivery') return 'Delivery';
-  return 'Dine In';
+  // Names are already display-ready; just fold any legacy snake-case keys.
+  return normalizeOrderType(value);
 }
 
 function setOrderType(value) {
+  const name = normalizeOrderType(value);
   if (orderTypeSelect) {
-    orderTypeSelect.value = value;
+    orderTypeSelect.value = orderTypesConfig.some((t) => t.name === name) ? name : (orderTypesConfig[0]?.name || name);
   }
   if (!numpadTop) return;
   const map = {
@@ -857,7 +894,16 @@ function calculateTotals() {
   const orderDiscountPct = Math.max(0, Math.min(100, Number(state.orderDiscount || 0)));
   const afterLineDiscount = Math.max(0, subtotal - discount);
   const orderDiscountAmt = Math.round(afterLineDiscount * orderDiscountPct / 100);
-  const totalDiscount = discount + orderDiscountAmt;
+  // Delivery-platform charge (Grab Food / Go Food): a flat rupiah amount per
+  // item that the platform takes, applied here as a discount so the recorded
+  // total is the shop's net take — same shape the Grab source data uses.
+  // Capped per line at that line's post-%-discount base value (never negative).
+  const perItem = deliveryPerItem();
+  const deliveryDiscount = perItem > 0 ? Math.round(state.order.reduce((sum, item) => {
+    const frac = Math.max(0, Math.min(1, Number(item.discount || 0) / 100));
+    return sum + Math.min(item.price * (1 - frac), perItem) * item.qty;
+  }, 0)) : 0;
+  const totalDiscount = discount + orderDiscountAmt + deliveryDiscount;
   const taxRate = Number(settings.taxRate || 0);
   const taxable = Math.max(0, subtotal - totalDiscount);
   const tax = taxable * (taxRate / 100);
@@ -865,7 +911,7 @@ function calculateTotals() {
   // Loyalty redemption applied to the whole order, capped at the bill.
   const redeemValue = Math.min(Number(state.redeemValue || 0), gross);
   const total = gross - redeemValue;
-  return { subtotal, discount: totalDiscount, orderDiscountPct, orderDiscountAmt, tax, redeemValue, total };
+  return { subtotal, discount: totalDiscount, orderDiscountPct, orderDiscountAmt, deliveryDiscount, perItem, tax, redeemValue, total };
 }
 
 function calculateTotalsForItems(items) {
@@ -886,9 +932,22 @@ function calculateTotalsForItems(items) {
 
 function updateTotals() {
   const totals = calculateTotals();
-  const { subtotal, discount, tax, redeemValue, total } = totals;
+  const { subtotal, discount, deliveryDiscount, tax, redeemValue, total } = totals;
   subtotalEl.textContent = formatCurrency(subtotal);
-  discountEl.textContent = formatCurrency(discount);
+  // Discount line shows manual/line discounts; the delivery-platform charge gets
+  // its own labelled row so it's clear where it comes from (both are in `total`).
+  discountEl.textContent = formatCurrency(Math.max(0, discount - (deliveryDiscount || 0)));
+  const deliveryRow = document.getElementById('deliveryChargeRow');
+  if (deliveryRow) {
+    if (deliveryDiscount > 0) {
+      const lbl = document.getElementById('deliveryChargeLabel');
+      if (lbl) lbl.textContent = `${normalizeOrderType(getOrderTypeValue())} charge`;
+      document.getElementById('deliveryCharge').textContent = `- ${formatCurrency(deliveryDiscount)}`;
+      deliveryRow.style.display = '';
+    } else {
+      deliveryRow.style.display = 'none';
+    }
+  }
   if (taxEl) taxEl.textContent = formatCurrency(tax);
   if (redeemedRow && redeemedValueEl) {
     if (redeemValue > 0) {
@@ -1162,7 +1221,7 @@ function handleSetTable() {
     onSave: (value) => {
       const trimmed = value.trim();
       state.orderLabel = trimmed ? `Table ${trimmed}` : '';
-      if (orderTypeSelect) orderTypeSelect.value = 'dine_in';
+      if (orderTypeSelect) orderTypeSelect.value = orderTypesConfig[0]?.name || 'Dine In';
       setOrderMeta();
     }
   });
@@ -2263,10 +2322,15 @@ confirmPay.addEventListener('click', async () => {
   // (currently display-only) discount_amount — so fold each line's % discount
   // into the price/modifier deltas sent, keeping the recorded sale equal to
   // what's shown in the Total here rather than silently losing the discount.
+  // Delivery-platform per-item charge (Grab Food / Go Food) is folded into the
+  // per-unit price sent, same as the per-line % discount, so the recorded sale
+  // equals the net Total shown here (thumbaz's /api/sales has no per-item
+  // charge concept of its own).
+  const perItemCharge = deliveryPerItem();
   const payload = {
     items: state.order.map((item) => {
       const discountFrac = Math.max(0, Math.min(1, Number(item.discount || 0) / 100));
-      const price = Math.round(item.price * (1 - discountFrac));
+      const price = Math.max(0, Math.round(item.price * (1 - discountFrac)) - perItemCharge);
       const modifiers = (item.modifiers || []).map((mod) => ({
         id: mod.modifier_id || undefined,
         custom_name: mod.modifier_id ? undefined : mod.name,
@@ -3246,12 +3310,14 @@ if (mobileCartToggle && orderPanelEl) {
 setClock();
 setInterval(setClock, 1000 * 30);
 if (orderTypeSelect) {
-  orderTypeSelect.value = settings.orderType || 'dine_in';
+  orderTypeSelect.value = normalizeOrderType(settings.orderType);
   orderTypeSelect.addEventListener('change', () => {
     setOrderType(orderTypeSelect.value);
+    updateTotals(); // delivery-platform charge depends on the selected type
   });
   setOrderType(orderTypeSelect.value);
 }
+loadOrderTypes();
 function loadTransferOrder() {
   try {
     const raw = localStorage.getItem('pos_transfer_order');

@@ -92,9 +92,9 @@
             </div>
             <div class="order-meta">
               <select id="orderType" class="select">
-                <option value="dine_in">Dine In</option>
-                <option value="takeaway">Takeaway</option>
-                <option value="delivery">Delivery</option>
+                <option value="Dine In">Dine In</option>
+                <option value="Takeaway">Takeaway</option>
+                <option value="Delivery">Delivery</option>
               </select>
               <button class="ghost" id="clearOrder">Clear</button>
             </div>
@@ -138,6 +138,10 @@
             <div class="summary-row">
               <span>Discount</span>
               <strong id="discount">Rp 0</strong>
+            </div>
+            <div class="summary-row" id="deliveryChargeRow" style="display:none;">
+              <span id="deliveryChargeLabel">Delivery charge</span>
+              <strong id="deliveryCharge">Rp 0</strong>
             </div>
             <div class="summary-row" id="redeemedRow" style="display:none;">
               <span>Points Redeemed</span>
@@ -238,9 +242,11 @@
             </select>
             <div class="orders-chips" id="posOrdersTypeChips">
               <button class="chip-btn active" data-type="">All</button>
-              <button class="chip-btn" data-type="dine_in">Dine In</button>
-              <button class="chip-btn" data-type="takeaway">Takeout</button>
-              <button class="chip-btn" data-type="delivery">Delivery</button>
+              <button class="chip-btn" data-type="Dine In">Dine In</button>
+              <button class="chip-btn" data-type="Takeaway">Takeout</button>
+              <button class="chip-btn" data-type="Delivery">Delivery</button>
+              <button class="chip-btn" data-type="Grab Food">Grab Food</button>
+              <button class="chip-btn" data-type="Go Food">Go Food</button>
             </div>
           </div>
           <div class="orders-list" id="posOrdersList"></div>

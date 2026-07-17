@@ -40,6 +40,7 @@ app.use('/api/pos-ingredients', requireRole(['admin', 'manager', 'staff']), requ
 app.use('/api/pos-category-sales', requireRole(['admin', 'manager', 'staff']), require('./routes/pos-category-sales'));
 app.use('/api/customers', requireRole(['admin', 'manager', 'staff']), require('./routes/customers'));
 app.use('/api/loyalty-config', requireRole(['admin', 'manager', 'staff']), require('./routes/loyalty-config'));
+app.use('/api/order-types', requireRole(['admin', 'manager', 'staff']), require('./routes/order-types'));
 app.use('/api/qr', requireRole(['admin', 'manager', 'staff']), require('./routes/qr'));
 app.get('/api/clock/status', (req, res) => res.json({active:false,employee:null}));
 app.use('/api/reports', manager, require('./routes/reports'));

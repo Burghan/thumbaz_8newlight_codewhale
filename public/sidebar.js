@@ -14,6 +14,7 @@
     { type: 'link', href: '/pos/ui/1/register', label: '🛒  POS' },
     { type: 'link', href: '/kitchen.html', label: '🔔  Kitchen' },
     { type: 'link', href: '/inventory.html', label: '📦  Inventory' },
+    { type: 'link', href: '/order-types.html', label: '🧾  Order Types' },
     { type: 'divider' },
     { type: 'group', label: '📋  Product', children: [
       { href: '/menu.html', label: 'Menu Items' },
