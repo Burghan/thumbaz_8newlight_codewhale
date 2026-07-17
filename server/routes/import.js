@@ -202,7 +202,7 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
   const col = (name) => header.findIndex(h => h === normName(name));
   const cNo = col('No. Struk'), cDate = col('Tanggal'), cJam = col('Jam'),
         cProd = col('Produk'), cQty = col('Jumlah Produk'), cCancel = col('Jumlah Dibatalkan'),
-        cPrice = col('Harga Per Produk'), cStatus = col('Status'), cPay = col('Metode Pembayaran');
+        cPrice = col('Harga Per Produk'), cPay = col('Metode Pembayaran');
   if (cNo < 0 || cDate < 0 || cProd < 0) {
     return res.status(400).json({ error: 'Missing expected columns (No. Struk / Tanggal / Produk) — is this a Riwayat Transaksi export?' });
   }
@@ -246,6 +246,13 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
   // new, anything we've previously recorded with a reference in that same
   // window but missing from this set gets voided below — the fresh export
   // wins.
+  // A line counts as valid by its actual remaining quantity (Jumlah Produk
+  // minus Jumlah Dibatalkan), not by the Status label — "Batal Sebagian"
+  // (partial cancel) is applied at the receipt level to every one of its
+  // rows, even ones that weren't actually cancelled, so trusting the label
+  // alone would drop real revenue on the still-valid lines of that receipt.
+  const netQty = (row) => Number(row[cQty] || 1) - Number(row[cCancel] || 0);
+
   const validReceiptsInFile = new Set();
   let fileMinDate = null, fileMaxDate = null;
   for (const row of sheetRows.slice(1)) {
@@ -256,8 +263,7 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
       if (!fileMinDate || dateStr < fileMinDate) fileMinDate = dateStr;
       if (!fileMaxDate || dateStr > fileMaxDate) fileMaxDate = dateStr;
     }
-    const status = String(row[cStatus] || '').trim().toLowerCase();
-    if (status.includes('batal')) continue;
+    if (!(netQty(row) > 0)) continue;
     validReceiptsInFile.add(no);
   }
 
@@ -272,15 +278,13 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
 
   db.transaction(() => {
     for (const row of sheetRows.slice(1)) {
-      const status = String(row[cStatus] || '').trim().toLowerCase();
-      if (status.includes('batal')) { cancelledLines++; continue; }
       const no = String(row[cNo] || '').trim();
       if (!no) continue;
       if (already.has(no)) { skippedDuplicateReceipts.add(no); continue; }
       const nameRaw = row[cProd];
       if (!nameRaw) continue;
-      const qty = Number(row[cQty] || 1) - Number(row[cCancel] || 0);
-      if (!(qty > 0)) continue;
+      const qty = netQty(row);
+      if (!(qty > 0)) { cancelledLines++; continue; }
       const price = Math.round(Number(row[cPrice] || 0));
       const { product, created } = resolveOrCreateProduct(nameRaw, price);
       if (created) createdProducts.add(product.name);
