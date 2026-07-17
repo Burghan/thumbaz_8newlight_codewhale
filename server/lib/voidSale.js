@@ -7,7 +7,7 @@ const db = require('../db');
 // Shared by the manual void endpoint (POST /api/sales/:id/void) and the
 // riwayat import's reconciliation step (auto-voiding orders that disappeared
 // from a re-imported source export).
-function voidSale(id, { restock, reason }) {
+function voidSale(id, { restock, reason, reference }) {
   const txn = db.prepare('SELECT id, customer_id, points_earned, redeem_points FROM transactions WHERE id = ?').get(id);
   if (!txn) return { ok: false, error: 'Sale not found' };
 
@@ -43,9 +43,9 @@ function voidSale(id, { restock, reason }) {
     }
 
     db.prepare(
-      `INSERT INTO void_log (transaction_id, total, items, reason, restocked)
-       VALUES (?, ?, ?, ?, ?)`
-    ).run(id, total, itemsSummary, reason, restock ? 1 : 0);
+      `INSERT INTO void_log (transaction_id, total, items, reason, restocked, reference)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(id, total, itemsSummary, reason, restock ? 1 : 0, reference || null);
 
     db.prepare('DELETE FROM transaction_items WHERE transaction_id = ?').run(id);
     db.prepare('DELETE FROM transactions WHERE id = ?').run(id);

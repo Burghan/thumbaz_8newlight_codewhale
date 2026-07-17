@@ -178,9 +178,13 @@ router.post('/sales', upload.single('file'), async (req, res) => {
 
 // POST /api/import/riwayat — import the POS's "Riwayat Transaksi" export (.xls or
 // .xlsx). Unlike /sales (one row = one order), this file has one row per line
-// item and groups into receipts via "No. Struk"; cancelled lines are skipped.
-// Deducts inventory automatically (was a manual/forgettable step before) and
-// reports the post-import stock impact so nothing needs a separate check.
+// item and groups into receipts via "No. Struk". Deducts inventory
+// automatically (was a manual/forgettable step before) and reports the
+// post-import stock impact so nothing needs a separate check.
+// A wholly cancelled receipt ("Dibatalkan", or a "Batal Sebagian" that
+// cancelled every line) isn't just skipped — it's recorded at its original
+// quantities and immediately voided, so void_log shows it was rung up and
+// cancelled rather than it never having existed in our data.
 // Also reconciles: this is the only way transactions enter the system (no
 // parallel live POS), so within the date range this file covers, any receipt
 // we'd previously imported that's no longer valid here (edited/voided in the
@@ -267,41 +271,71 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
     validReceiptsInFile.add(no);
   }
 
-  // Group by receipt number, skipping cancelled lines and receipts already imported.
+  // Group by receipt number, skipping receipts already imported or already
+  // recorded as a void from a prior import of this same file (a fully
+  // cancelled receipt is created-then-voided below, which deletes its
+  // transaction row — without also checking void_log, re-importing the same
+  // file would recreate and re-void it every time).
   const already = new Set(db.prepare("SELECT reference FROM transactions WHERE reference IS NOT NULL").all().map(r => r.reference));
-  const txns = new Map();
+  const alreadyVoided = new Set(db.prepare("SELECT DISTINCT reference FROM void_log WHERE reference IS NOT NULL").all().map(r => r.reference));
+  const receipts = new Map();
   let cancelledLines = 0, skippedDuplicateReceipts = new Set(), createdProducts = new Set();
 
   const insT = db.prepare("INSERT INTO transactions (transacted_at,payment_method,reference) VALUES (?,?,?)");
   const insI = db.prepare("INSERT INTO transaction_items (transaction_id,product_id,quantity,unit_price,line_total,hpp_at_sale) VALUES (?,?,?,?,?,?)");
   let nt = 0, ni = 0, revenue = 0;
+  const autoVoided = [];
+
+  for (const row of sheetRows.slice(1)) {
+    const no = String(row[cNo] || '').trim();
+    if (!no) continue;
+    if (already.has(no) || alreadyVoided.has(no)) { skippedDuplicateReceipts.add(no); continue; }
+    const nameRaw = row[cProd];
+    if (!nameRaw) continue;
+    const origQty = Number(row[cQty] || 1);
+    const qty = netQty(row);
+    const price = Math.round(Number(row[cPrice] || 0));
+    const { product, created } = resolveOrCreateProduct(nameRaw, price);
+    if (created) createdProducts.add(product.name);
+    const dateStr = normDate(row[cDate]);
+    const jam = String(row[cJam] || '00:00:00').trim();
+    const pay = String(row[cPay] || '').toUpperCase().includes('QRIS') ? 'qris' : 'cash';
+    if (!receipts.has(no)) receipts.set(no, { at: `${dateStr} ${jam}`, pay, ref: no, lines: [] });
+    receipts.get(no).lines.push({ pid: product.id, qty, origQty, price, hpp: hppFor(product.id) });
+  }
 
   db.transaction(() => {
-    for (const row of sheetRows.slice(1)) {
-      const no = String(row[cNo] || '').trim();
-      if (!no) continue;
-      if (already.has(no)) { skippedDuplicateReceipts.add(no); continue; }
-      const nameRaw = row[cProd];
-      if (!nameRaw) continue;
-      const qty = netQty(row);
-      if (!(qty > 0)) { cancelledLines++; continue; }
-      const price = Math.round(Number(row[cPrice] || 0));
-      const { product, created } = resolveOrCreateProduct(nameRaw, price);
-      if (created) createdProducts.add(product.name);
-      const dateStr = normDate(row[cDate]);
-      const jam = String(row[cJam] || '00:00:00').trim();
-      const pay = String(row[cPay] || '').toUpperCase().includes('QRIS') ? 'qris' : 'cash';
-      if (!txns.has(no)) txns.set(no, { at: `${dateStr} ${jam}`, pay, ref: no, items: [] });
-      txns.get(no).items.push({ pid: product.id, qty, price, hpp: hppFor(product.id) });
-    }
+    for (const [, r] of receipts) {
+      const hasValidLine = r.lines.some((l) => l.qty > 0);
+      const tr = insT.run(r.at, r.pay, r.ref);
 
-    for (const [, t] of txns) {
-      const tr = insT.run(t.at, t.pay, t.ref);
-      nt++;
-      for (const it of t.items) {
-        insI.run(tr.lastInsertRowid, it.pid, it.qty, it.price, it.qty * it.price, it.hpp);
-        deductStockForSale(tr.lastInsertRowid, [{ product_id: it.pid, quantity: it.qty }]);
-        ni++; revenue += it.qty * it.price;
+      if (hasValidLine) {
+        nt++;
+        for (const l of r.lines) {
+          if (!(l.qty > 0)) { cancelledLines++; continue; }
+          insI.run(tr.lastInsertRowid, l.pid, l.qty, l.price, l.qty * l.price, l.hpp);
+          deductStockForSale(tr.lastInsertRowid, [{ product_id: l.pid, quantity: l.qty }]);
+          ni++; revenue += l.qty * l.price;
+        }
+      } else {
+        // Every line on this receipt was cancelled ("Dibatalkan", or a
+        // "Batal Sebagian" that happened to cancel everything) — record it
+        // at its original (pre-cancellation) quantities so there's a real
+        // transaction to void, then immediately void it. The result is a
+        // void_log entry showing it was rung up and cancelled, rather than
+        // the receipt simply never having existed in our data.
+        for (const l of r.lines) {
+          const q = l.origQty > 0 ? l.origQty : 1;
+          insI.run(tr.lastInsertRowid, l.pid, q, l.price, q * l.price, l.hpp);
+          deductStockForSale(tr.lastInsertRowid, [{ product_id: l.pid, quantity: q }]);
+          cancelledLines++;
+        }
+        const result = voidSale(tr.lastInsertRowid, {
+          restock: true,
+          reason: 'Cancelled in source POS (Dibatalkan)',
+          reference: r.ref
+        });
+        if (result.ok) autoVoided.push(r.ref);
       }
     }
   })();
@@ -320,7 +354,8 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
       if (validReceiptsInFile.has(t.reference)) continue;
       const result = voidSale(t.id, {
         restock: true,
-        reason: 'Riwayat re-import reconciliation: receipt no longer present in source export'
+        reason: 'Riwayat re-import reconciliation: receipt no longer present in source export',
+        reference: t.reference
       });
       if (result.ok) reconciledVoids.push(t.reference);
     }
@@ -335,11 +370,13 @@ router.post('/riwayat', upload.single('file'), async (req, res) => {
   res.json({
     message: `Imported: ${nt} transactions, ${ni} line-items, revenue Rp${revenue.toLocaleString('id-ID')}. Inventory deducted automatically.`
       + (createdProducts.size ? ` ${createdProducts.size} new product(s) added to the menu — set their category/recipe when convenient.` : '')
+      + (autoVoided.length ? ` ${autoVoided.length} fully cancelled receipt(s) recorded and voided.` : '')
       + (reconciledVoids.length ? ` ${reconciledVoids.length} previously-imported order(s) voided — no longer present in this export.` : ''),
     transactions: nt, lineItems: ni, revenue,
     cancelledLinesSkipped: cancelledLines,
     duplicateReceiptsSkipped: skippedDuplicateReceipts.size,
     createdProducts: [...createdProducts],
+    autoVoided,
     reconciledVoids,
     outOfStock: outOfStock.map(r => `${r.name} (${r.base_unit})`)
   });
