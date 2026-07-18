@@ -19,7 +19,9 @@
   .statusrow { display:flex; align-items:center; gap:14px; margin-bottom:18px; }
   .dot { width:12px; height:12px; border-radius:50%; flex:none; background:var(--muted); }
   .dot.ok { background:var(--good, #3B7458); }
+  .dot.warn { background:#C08A2E; }
   .dot.off { background:var(--danger); }
+  .st-desc code { background:var(--cream-soft, #f0eee9); padding:1px 5px; border-radius:5px; }
   .st-name { font-size:17px; font-weight:700; }
   .st-desc { font-size:13px; color:var(--muted); margin-top:2px; }
   .btns { display:flex; flex-wrap:wrap; gap:10px; }
@@ -117,11 +119,17 @@
   async function refresh() {
     const name = window.BlePrinter.savedPrinterName();
     if (name) {
-      // Confirm the browser still remembers it (survives reloads).
+      // Does the browser still hand the device back (i.e. will it reconnect
+      // silently), or only remember the name?
       const dev = await window.BlePrinter.savedDevice().catch(() => null);
-      dot.className = 'dot ok';
       stName.textContent = name;
-      stDesc.textContent = dev ? 'Saved — ready to print.' : 'Saved on this device.';
+      if (dev) {
+        dot.className = 'dot ok';
+        stDesc.textContent = '✓ Saved — reconnects automatically. No need to pair again.';
+      } else {
+        dot.className = 'dot warn';
+        stDesc.innerHTML = 'Paired, but this browser isn\'t keeping the permission between pages, so printing will keep asking. To make it stick: open <code>chrome://flags</code>, enable <b>“Use the new permissions backend for Web Bluetooth”</b>, relaunch Chrome, then pair once here.';
+      }
       testBtn.disabled = false; forgetBtn.disabled = false;
       connectBtn.textContent = 'Change printer';
     } else {
