@@ -31,13 +31,15 @@
       { href: '/supplier.html', label: 'Suppliers' },
     ]},
     { type: 'divider' },
-    { type: 'group', label: '👥  People', children: [
-      { href: '/employees.html', label: 'Users' },
+    { type: 'group', label: '👥  Employee', children: [
       { href: '/payroll.html', label: 'Payroll' },
       { href: '/clock.html', label: 'Attendance' },
     ]},
+    { type: 'group', label: '⚙️  Setup', children: [
+      { href: '/employees.html', label: 'Users' },
+      { href: '/import-center.html', label: 'Import Center' },
+    ]},
     { type: 'divider' },
-    { type: 'link', href: '/import-center.html', label: '📥  Import Center' },
     { type: 'link', href: '/logout.html', label: '🚪  Logout' },
   ];
   items.forEach(item => {
