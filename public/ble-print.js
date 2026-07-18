@@ -1,77 +1,31 @@
 // Bluetooth (BLE) thermal-printer support for the POS receipt.
 //
-// Sends the on-screen receipt straight to an ESC/POS BLE printer via Web
-// Bluetooth, as an alternative to the browser's Print dialog (window.print()).
-// Auto-discovers the printer's writable characteristic from a wide candidate
-// list (the same net /ble-scan.html uses), so it works with most generic 58mm
-// ESC/POS BLE boards without pre-configuring a UUID. The receipt is read from
-// the modal DOM, so the printout always matches what's shown.
+// Prints the receipt to an ESC/POS BLE printer so the result matches the
+// on-screen / browser-printed receipt: the receipt is drawn to a canvas (logo,
+// items, totals, QR, footer) and sent as an ESC/POS RASTER bitmap. That keeps
+// it portrait and crisp, with the logo and QR the plain-text approach can't do.
 //
-// Web Bluetooth constraints: Chrome/Edge on Android or desktop, served over
-// HTTPS (or localhost). Classic-Bluetooth (SPP)-only printers can't be reached
-// by any browser — and iOS/Safari has no Web Bluetooth at all; on those, the
-// "Print Full Receipt" (browser print) button is the path.
+// Web Bluetooth constraints: Chrome/Edge on Android or desktop, over HTTPS (or
+// localhost). Classic-Bluetooth (SPP)-only printers can't be reached; iOS/Safari
+// has no Web Bluetooth — on those, use the browser "Print Full Receipt" button.
 (function () {
   'use strict';
 
-  // Same candidate services as /ble-scan.html — Web Bluetooth only exposes
-  // services named here, so the printer's must be in this list to connect.
   var CANDIDATE_SERVICES = [
-    '49535343-fe7d-4ae5-8fa9-9fafd205e455', // ISSC/Microchip transparent UART (very common clone)
-    '0000ffe0-0000-1000-8000-00805f9b34fb', // HM-10 style UART clone
-    '000018f0-0000-1000-8000-00805f9b34fb', // cheap OEM ESC/POS BLE boards
-    'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // Nordic-style UART variant
-    '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART Service (NUS)
+    '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+    '0000ffe0-0000-1000-8000-00805f9b34fb',
+    '000018f0-0000-1000-8000-00805f9b34fb',
+    'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+    '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
     'generic_access', 'generic_attribute', 'device_information', 'battery_service'
   ];
+  // Known VSC-TM-58D Pro (58mm) channel — tried first for a fast connect.
+  var KNOWN = { service: '0000ffe0-0000-1000-8000-00805f9b34fb', write: '0000ffe1-0000-1000-8000-00805f9b34fb' };
 
-  var COLS = 32;        // 58mm paper = 32 columns. Set to 48 for an 80mm printer.
-  var CHUNK = 180;      // bytes per BLE write; cheap boards choke on large frames
-  var CHUNK_DELAY = 24; // ms between chunks — some boards need the breathing room
-
-  // Known printer profile — VSC-TM-58D Pro (58mm). Tried first for a fast,
-  // deterministic connect; auto-discovery below is the fallback for others.
-  var KNOWN = {
-    service: '0000ffe0-0000-1000-8000-00805f9b34fb',
-    write: '0000ffe1-0000-1000-8000-00805f9b34fb'
-  };
-
-  // ---- ESC/POS byte builder ----------------------------------------------
-  function bytesOf(str) {
-    var a = [];
-    for (var i = 0; i < str.length; i++) {
-      var c = str.charCodeAt(i);
-      a.push(c < 256 ? c : 63); // non-latin -> '?', printers can't render it anyway
-    }
-    return a;
-  }
-  function Esc() { this.b = []; }
-  Esc.prototype.raw = function () { for (var i = 0; i < arguments.length; i++) this.b.push(arguments[i]); return this; };
-  Esc.prototype.init = function () { return this.raw(0x1B, 0x40); };
-  Esc.prototype.align = function (n) { return this.raw(0x1B, 0x61, n); };   // 0 left, 1 center, 2 right
-  Esc.prototype.bold = function (on) { return this.raw(0x1B, 0x45, on ? 1 : 0); };
-  Esc.prototype.big = function (on) { return this.raw(0x1D, 0x21, on ? 0x11 : 0x00); }; // double W+H
-  Esc.prototype.text = function (s) { this.b = this.b.concat(bytesOf(s)); return this; };
-  Esc.prototype.ln = function (s) { return this.text(s || '').raw(0x0A); };
-  Esc.prototype.feed = function (n) { for (var i = 0; i < (n || 1); i++) this.raw(0x0A); return this; };
-  Esc.prototype.cut = function () { return this.raw(0x1D, 0x56, 0x42, 0x00); }; // partial cut (cutterless printers ignore it)
-  Esc.prototype.bytes = function () { return new Uint8Array(this.b); };
-
-  function repeat(ch, n) { return n > 0 ? new Array(n + 1).join(ch) : ''; }
-  function rule() { return repeat('-', COLS); }
-  function center(s) {
-    s = String(s);
-    if (s.length >= COLS) return s.slice(0, COLS);
-    return repeat(' ', Math.floor((COLS - s.length) / 2)) + s;
-  }
-  // "left ........ right" padded to COLS; left is truncated if it would collide.
-  function row(left, right) {
-    left = String(left); right = String(right);
-    var space = COLS - right.length;
-    if (left.length > space - 1) left = left.slice(0, Math.max(0, space - 1));
-    var pad = Math.max(1, COLS - left.length - right.length);
-    return left + repeat(' ', pad) + right;
-  }
+  var WIDTH = 384;      // 58mm printer = 384 dots across
+  var MARGIN = 14;
+  var CHUNK = 180;      // bytes per BLE write
+  var CHUNK_DELAY = 20; // ms between chunks
 
   // ---- read the on-screen receipt ----------------------------------------
   function visibleText(id) {
@@ -80,17 +34,13 @@
     return (el.textContent || '').replace(/\s+/g, ' ').trim();
   }
   function readItems() {
-    var nodes = document.querySelectorAll('#receiptItems .receipt-item');
-    var out = [];
+    var nodes = document.querySelectorAll('#receiptItems .receipt-item'), out = [];
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
-      var qtyEl = el.children[0];
-      var nameEl = el.querySelector('.name');
-      var totalEl = el.children[el.children.length - 1];
       out.push({
-        qty: qtyEl ? (qtyEl.textContent || '').trim() : '',
-        name: nameEl ? (nameEl.textContent || '').replace(/\s+/g, ' ').trim() : '',
-        total: totalEl ? (totalEl.textContent || '').trim() : ''
+        qty: el.children[0] ? (el.children[0].textContent || '').trim() : '',
+        name: el.querySelector('.name') ? (el.querySelector('.name').textContent || '').replace(/\s+/g, ' ').trim() : '',
+        total: el.children[el.children.length - 1] ? (el.children[el.children.length - 1].textContent || '').trim() : ''
       });
     }
     return out;
@@ -99,38 +49,117 @@
     var r = document.getElementById('receiptChangeLine');
     return !!(r && r.style.display !== 'none');
   }
+  function loadImage(src) {
+    return new Promise(function (res) {
+      if (!src) { res(null); return; }
+      var im = new Image();
+      im.onload = function () { res(im); };
+      im.onerror = function () { res(null); }; // skip a broken image rather than fail the print
+      im.src = src;
+    });
+  }
 
-  function buildReceiptBytes() {
-    var store = visibleText('receiptLogoText') || '8 NewLight';
-    var e = new Esc().init().align(1).bold(true).big(true).ln(store).big(false).bold(false);
+  // ---- draw the receipt onto a canvas ------------------------------------
+  function fitText(ctx, text, maxWidth) {
+    if (ctx.measureText(text).width <= maxWidth) return text;
+    var t = text;
+    while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth) t = t.slice(0, -1);
+    return t + '…';
+  }
+
+  async function renderCanvas() {
+    var logoImg = await loadImage((document.getElementById('receiptLogoImg') || {}).src);
+    var qrImg = await loadImage((document.getElementById('receiptQr') || {}).src);
+
+    var canvas = document.createElement('canvas');
+    canvas.width = WIDTH; canvas.height = 2400;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, WIDTH, canvas.height);
+    ctx.fillStyle = '#000'; ctx.textBaseline = 'top';
+
+    var y = 10;
+    var center = function (text, font, lh) {
+      ctx.font = font; ctx.textAlign = 'center';
+      ctx.fillText(text, WIDTH / 2, y); y += lh;
+    };
+    var rule = function () {
+      ctx.textAlign = 'left'; ctx.font = '18px monospace';
+      ctx.fillText('--------------------------------', MARGIN, y); y += 22;
+    };
+    var row = function (left, right, font, bold) {
+      ctx.font = (bold ? 'bold ' : '') + font;
+      ctx.textAlign = 'right'; var rightW = ctx.measureText(right).width;
+      ctx.textAlign = 'left';
+      ctx.fillText(fitText(ctx, left, WIDTH - MARGIN * 2 - rightW - 10), MARGIN, y);
+      ctx.textAlign = 'right'; ctx.fillText(right, WIDTH - MARGIN, y);
+    };
+
+    // Logo (scaled to ~200px wide, centered), else the store name as text.
+    if (logoImg && logoImg.width) {
+      var lw = 200, lh = Math.round(logoImg.height * (lw / logoImg.width));
+      ctx.drawImage(logoImg, (WIDTH - lw) / 2, y, lw, lh); y += lh + 8;
+    } else {
+      center(visibleText('receiptLogoText') || '8 NewLight', 'bold 34px sans-serif', 40);
+    }
 
     var ticket = visibleText('receiptTicket');
-    if (ticket) e.ln(ticket);
-
-    e.align(0);
+    if (ticket) center(ticket, 'bold 22px sans-serif', 28);
     ['receiptTime', 'receiptCashier', 'receiptOrderType', 'receiptCustomer', 'receiptNote', 'receiptLoyalty']
-      .forEach(function (id) { var t = visibleText(id); if (t) e.ln(t); });
+      .forEach(function (id) { var t = visibleText(id); if (t) center(t, '20px sans-serif', 25); });
 
-    e.ln(rule());
+    y += 6; rule();
+
     var items = readItems();
     for (var i = 0; i < items.length; i++) {
-      var it = items[i];
-      e.ln((it.qty ? it.qty + ' ' : '') + it.name);   // name line (wraps on the printer)
-      e.ln(row('', it.total));                         // price right-aligned under it
+      row((items[i].qty ? items[i].qty + '  ' : '') + items[i].name, items[i].total, '23px sans-serif', true);
+      y += 30;
     }
-    e.ln(rule());
+    rule();
 
     var subtotal = visibleText('receiptSubtotal');
     var tax = visibleText('receiptTax');
-    var total = visibleText('receiptTotal2') || visibleText('receiptTotal');
-    if (subtotal) e.ln(row('Subtotal', subtotal));
-    if (tax && tax !== 'Rp 0') e.ln(row('Tax', tax));
-    e.bold(true).ln(row('TOTAL', total)).bold(false);
-    if (changeVisible()) { var ch = visibleText('receiptChange'); if (ch) e.ln(row('Change', ch)); }
+    if (subtotal) { row('Subtotal', subtotal, '22px sans-serif', false); y += 28; }
+    if (tax && tax !== 'Rp 0') { row('Tax', tax, '22px sans-serif', false); y += 28; }
+    row('TOTAL', visibleText('receiptTotal2') || visibleText('receiptTotal'), '30px sans-serif', true); y += 40;
+    if (changeVisible()) { var ch = visibleText('receiptChange'); if (ch) { row('Change', ch, '22px sans-serif', false); y += 30; } }
 
-    e.feed(1).align(1).ln(visibleText('receiptFooterText') || 'Thank you!');
-    e.feed(3).cut();
-    return e.bytes();
+    y += 10;
+    if (qrImg && qrImg.width) {
+      var q = 180; ctx.drawImage(qrImg, (WIDTH - q) / 2, y, q, q); y += q + 8;
+    }
+    center(visibleText('receiptFooterText') || 'Thank you!', '20px sans-serif', 26);
+    y += 24;
+
+    return { ctx: ctx, height: Math.min(canvas.height, Math.ceil(y)) };
+  }
+
+  // ---- canvas -> ESC/POS raster (GS v 0), banded -------------------------
+  function toEscPos(ctx, height) {
+    var bytesPerRow = Math.ceil(WIDTH / 8); // 48 for 384
+    var out = [0x1B, 0x40];                 // ESC @ (init)
+    var BAND = 128;                         // rows per GS v 0 command
+    for (var y0 = 0; y0 < height; y0 += BAND) {
+      var bh = Math.min(BAND, height - y0);
+      var data = ctx.getImageData(0, y0, WIDTH, bh).data;
+      out.push(0x1D, 0x76, 0x30, 0x00, bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff, bh & 0xff, (bh >> 8) & 0xff);
+      for (var y = 0; y < bh; y++) {
+        for (var bx = 0; bx < bytesPerRow; bx++) {
+          var b = 0;
+          for (var bit = 0; bit < 8; bit++) {
+            var x = bx * 8 + bit;
+            if (x < WIDTH) {
+              var idx = (y * WIDTH + x) * 4;
+              var lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+              if (lum < 140) b |= (0x80 >> bit); // dark pixel -> print
+            }
+          }
+          out.push(b);
+        }
+      }
+    }
+    out.push(0x0A, 0x0A, 0x0A, 0x0A);       // feed
+    out.push(0x1D, 0x56, 0x42, 0x00);       // partial cut (cutterless printers ignore)
+    return new Uint8Array(out);
   }
 
   // ---- connection + write ------------------------------------------------
@@ -141,24 +170,18 @@
     if (!navigator.bluetooth) {
       throw new Error('This browser can\'t do Bluetooth printing. Use Chrome or Edge on Android/desktop (over HTTPS). On iPhone/Safari, use "Print Full Receipt" instead.');
     }
-    var device = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true, optionalServices: CANDIDATE_SERVICES
-    });
+    var device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: CANDIDATE_SERVICES });
     var server = await device.gatt.connect();
     var writable = null;
-
-    // 1. Try the known VSC-TM-58D Pro channel (ffe0 / ffe1) directly.
     try {
       var svc = await server.getPrimaryService(KNOWN.service);
       writable = await svc.getCharacteristic(KNOWN.write);
     } catch (_) { writable = null; }
-
-    // 2. Fallback: scan every visible service for the first writable characteristic.
     if (!writable) {
       var services = await server.getPrimaryServices();
       for (var i = 0; i < services.length && !writable; i++) {
         var chars;
-        try { chars = await services[i].getCharacteristics(); } catch (_) { continue; }
+        try { chars = await services[i].getCharacteristics(); } catch (e) { continue; }
         for (var j = 0; j < chars.length; j++) {
           var p = chars[j].properties;
           if (p.write || p.writeWithoutResponse) { writable = chars[j]; break; }
@@ -184,12 +207,13 @@
   }
 
   async function printReceipt() {
-    var bytes = buildReceiptBytes();
+    var rendered = await renderCanvas();
+    var bytes = toEscPos(rendered.ctx, rendered.height);
     var char = await connect();
     await writeAll(char, bytes);
   }
 
-  window.BlePrinter = { printReceipt: printReceipt, buildReceiptBytes: buildReceiptBytes };
+  window.BlePrinter = { printReceipt: printReceipt, renderCanvas: renderCanvas };
 
   // ---- wire the receipt-modal button -------------------------------------
   document.addEventListener('click', async function (ev) {
