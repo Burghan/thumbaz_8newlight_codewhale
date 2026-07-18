@@ -24,8 +24,8 @@
 
   var WIDTH = 384;      // 58mm printer = 384 dots across
   var MARGIN = 14;
-  var CHUNK = 180;      // bytes per BLE write
-  var CHUNK_DELAY = 20; // ms between chunks
+  var CHUNK = 128;      // bytes per BLE write — small enough for the printer's buffer
+  var CHUNK_DELAY = 14; // ms between chunks, so the printer can drain its buffer
 
   // ---- read the on-screen receipt ----------------------------------------
   function visibleText(id) {
@@ -196,12 +196,25 @@
     return writable;
   }
 
+  function writeSlice(char, slice, withResponse) {
+    if (withResponse) return char.writeValueWithResponse ? char.writeValueWithResponse(slice) : char.writeValue(slice);
+    return char.writeValueWithoutResponse ? char.writeValueWithoutResponse(slice) : char.writeValue(slice);
+  }
+
   async function writeAll(char, bytes) {
-    var useNoResp = char.properties.writeWithoutResponse && char.writeValueWithoutResponse;
+    // Prefer ACKNOWLEDGED writes (writeValueWithResponse): they wait for the
+    // printer between packets, which stops the small buffer overflowing mid-raster
+    // ("GATT operation failed" / print stops halfway). One retry per chunk rides
+    // out a transient hiccup.
+    var withResponse = !!char.properties.write;
     for (var i = 0; i < bytes.length; i += CHUNK) {
       var slice = bytes.slice(i, i + CHUNK);
-      if (useNoResp) await char.writeValueWithoutResponse(slice);
-      else await char.writeValue(slice);
+      try {
+        await writeSlice(char, slice, withResponse);
+      } catch (e) {
+        await new Promise(function (r) { setTimeout(r, 120); }); // let it recover, then retry once
+        await writeSlice(char, slice, withResponse);
+      }
       await new Promise(function (r) { setTimeout(r, CHUNK_DELAY); });
     }
   }
