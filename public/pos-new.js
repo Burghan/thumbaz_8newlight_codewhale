@@ -1026,7 +1026,6 @@ function openReceiptFromHeld(order) {
           <div>${item.qty}x</div>
           <div>
             <div class="name">${item.name}${mods}</div>
-            <div class="sub">${formatCurrency(item.price)} / unit</div>
             ${note}
           </div>
           <div>${formatCurrency(item.price * item.qty)}</div>
@@ -2414,7 +2413,6 @@ confirmPay.addEventListener('click', async () => {
           <div>${item.qty}x</div>
           <div>
             <div class="name">${item.name}${mods}</div>
-            <div class="sub">${formatCurrency(item.price)} / unit</div>
             ${note}
           </div>
           <div>${formatCurrency(item.price * item.qty)}</div>
