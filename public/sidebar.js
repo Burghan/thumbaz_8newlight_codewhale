@@ -15,6 +15,7 @@
       { href: '/pos/ui/1/register', label: 'Register' },
       { href: '/kitchen.html', label: 'Kitchen' },
       { href: '/order-types.html', label: 'Order Types' },
+      { href: '/printer-setup.html', label: 'Printer' },
       { href: '/customers.html', label: 'Customers' },
       { href: '/pos/ui/1/register#loyalty-setup', label: 'Loyalty Setup' },
     ]},

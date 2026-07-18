@@ -185,30 +185,47 @@
     return null;
   }
 
-  async function connect() {
-    if (!navigator.bluetooth) {
-      throw new Error('This browser can\'t do Bluetooth printing. Use Chrome or Edge on Android/desktop (over HTTPS). On iPhone/Safari, use "Print Full Receipt" instead.');
-    }
-    // Recover a previously-granted printer WITHOUT the chooser: reuse the device
-    // from this session, or ask the browser for devices this origin was already
-    // permitted to use (survives page reloads). Only fall back to the chooser
-    // (requestDevice) the very first time / if nothing was remembered.
-    if (!conn.device && navigator.bluetooth.getDevices) {
-      try {
-        var granted = await navigator.bluetooth.getDevices();
-        if (granted && granted.length) conn.device = granted[0];
-      } catch (_) { /* getDevices unsupported/blocked — chooser below */ }
-    }
-    if (!conn.device) {
-      conn.device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: CANDIDATE_SERVICES });
-    }
+  // --- saved-printer setup (pair once, print silently thereafter) ----------
+  var STORE_ID = 'ble_printer_id', STORE_NAME = 'ble_printer_name';
+  function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (_) { return ''; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (_) {} }
+  function savedPrinterName() { return lsGet(STORE_NAME); }
 
-    // Force a CLEAN reconnect each print, then grab a fresh characteristic.
-    // A handle left over from a previous connection goes stale after the printer
-    // auto-disconnects, so writes silently vanish ("connected" but nothing
-    // prints). Dropping and re-opening the link (no chooser — that only comes
-    // from requestDevice) replicates the fresh connection that printed in SC8.
-    var gatt = conn.device.gatt;
+  // Pair/select the printer once (this is the ONLY place the chooser appears).
+  // Saves it so every later print connects with no prompt.
+  async function pairPrinter() {
+    if (!navigator.bluetooth) throw new Error('Bluetooth needs Chrome or Edge on Android/desktop, served over HTTPS.');
+    var device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: CANDIDATE_SERVICES });
+    lsSet(STORE_ID, device.id || '');
+    lsSet(STORE_NAME, device.name || 'Bluetooth printer');
+    conn.device = device;
+    return { id: device.id || '', name: device.name || 'Bluetooth printer' };
+  }
+
+  function forgetPrinter() { lsDel(STORE_ID); lsDel(STORE_NAME); conn.device = null; conn.char = null; }
+
+  // Resolve the saved printer WITHOUT a chooser: this session's device, or one
+  // this origin was already granted (survives reloads) via getDevices().
+  async function savedDevice() {
+    if (conn.device) return conn.device;
+    if (!navigator.bluetooth || !navigator.bluetooth.getDevices) return null;
+    var id = lsGet(STORE_ID), name = lsGet(STORE_NAME);
+    if (!id && !name) return null;
+    var devs;
+    try { devs = await navigator.bluetooth.getDevices(); } catch (_) { return null; }
+    var m = null, i;
+    for (i = 0; i < devs.length; i++) { if (id && devs[i].id === id) { m = devs[i]; break; } }
+    if (!m) for (i = 0; i < devs.length; i++) { if (name && devs[i].name === name) { m = devs[i]; break; } }
+    conn.device = m;
+    return m;
+  }
+
+  // Clean (re)connect to a device + fresh writable characteristic. No chooser.
+  // A stale handle from a prior connection makes writes silently vanish, so drop
+  // any half-open link and re-open before each job.
+  async function connectDevice(device) {
+    var gatt = device.gatt;
     if (gatt.connected) { try { gatt.disconnect(); } catch (_) {} await new Promise(function (r) { setTimeout(r, 350); }); }
     var server = await gatt.connect();
     var writable = await findWritable(server);
@@ -242,13 +259,38 @@
   }
 
   async function printReceipt() {
+    var device = await savedDevice();
+    if (!device) throw new Error('No printer set up yet. Open Setup → Printer and connect your Bluetooth printer first.');
     var rendered = await renderCanvas();
     var bytes = toEscPos(rendered.ctx, rendered.height);
-    var char = await connect();
+    var char = await connectDevice(device);
     await writeAll(char, bytes);
   }
 
-  window.BlePrinter = { printReceipt: printReceipt, renderCanvas: renderCanvas };
+  // Small text test slip, for the setup screen's "Test print" button.
+  async function testPrint() {
+    var device = conn.device || await savedDevice();
+    if (!device) throw new Error('Connect a printer first.');
+    var char = await connectDevice(device);
+    var e = [0x1B, 0x40, 0x1B, 0x61, 0x01]; // init + centre
+    var line = function (s) { for (var i = 0; i < s.length; i++) { var c = s.charCodeAt(i); e.push(c < 256 ? c : 63); } e.push(0x0A); };
+    e.push(0x1D, 0x21, 0x11); line('8 NewLight'); e.push(0x1D, 0x21, 0x00);
+    line('Bluetooth printer test');
+    line('Connection OK');
+    line(new Date().toLocaleString('id-ID'));
+    e.push(0x0A, 0x0A, 0x0A, 0x1D, 0x56, 0x42, 0x00);
+    await writeAll(char, new Uint8Array(e));
+  }
+
+  window.BlePrinter = {
+    printReceipt: printReceipt,
+    testPrint: testPrint,
+    pairPrinter: pairPrinter,
+    forgetPrinter: forgetPrinter,
+    savedDevice: savedDevice,
+    savedPrinterName: savedPrinterName,
+    supported: !!(navigator.bluetooth)
+  };
 
   // ---- wire the receipt-modal button -------------------------------------
   document.addEventListener('click', async function (ev) {

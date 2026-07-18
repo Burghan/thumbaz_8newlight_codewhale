@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Printer Setup – 8 NewLight</title>
+<link rel="stylesheet" href="/sidebar.css"/><link rel="stylesheet" href="/theme.css"/>
+<style>
+  body { margin:0; color:var(--ink); }
+  .wrap { padding:16px; max-width:680px; margin:0 auto; }
+  @media(min-width:900px){ .wrap{ padding:24px; } }
+  .head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+  .head h1 { margin:0; font-size:24px; }
+  .head .spacer { flex:1; }
+  .head .who { font-size:13px; color:var(--muted); }
+  .head .icon-btn { background:var(--card); color:var(--brand-ink); border:1px solid var(--border); min-height:40px; padding:8px 14px; border-radius:10px; cursor:pointer; }
+  .sub { color:var(--muted); font-size:14px; margin:2px 0 20px; }
+
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow-sm); padding:22px; }
+  .statusrow { display:flex; align-items:center; gap:14px; margin-bottom:18px; }
+  .dot { width:12px; height:12px; border-radius:50%; flex:none; background:var(--muted); }
+  .dot.ok { background:var(--good, #3B7458); }
+  .dot.off { background:var(--danger); }
+  .st-name { font-size:17px; font-weight:700; }
+  .st-desc { font-size:13px; color:var(--muted); margin-top:2px; }
+  .btns { display:flex; flex-wrap:wrap; gap:10px; }
+  button.act { border:none; border-radius:11px; padding:12px 18px; font-size:14px; font-weight:600; cursor:pointer; min-height:44px; }
+  button.primary { background:var(--brand); color:#fff; }
+  button.ghost { background:var(--card); color:var(--ink); border:1px solid var(--border); }
+  button.danger { background:none; color:var(--danger); border:1px solid var(--border); }
+  button.danger:hover { border-color:var(--danger); }
+  button:disabled { opacity:.5; cursor:default; }
+
+  .note { margin-top:18px; font-size:13px; color:var(--muted); line-height:1.6; }
+  .warn { margin-top:18px; padding:14px 16px; border:1px solid var(--danger); background:var(--danger-bg); color:var(--danger); border-radius:12px; font-size:13.5px; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:11px 20px; border-radius:10px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; }
+  .toast.show { opacity:.96; }
+  code { background:var(--cream-soft, #f0eee9); padding:1px 6px; border-radius:6px; font-size:12.5px; }
+</style>
+<meta name="theme-color" content="#5c7da6" />
+</head>
+<body class="theme-cafe">
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee Bar" /></span>
+    <div class="brand-text">
+      <div class="brand-title">8 NewLight Coffee Bar</div>
+      <div class="brand-subtitle">Back Office</div>
+    </div>
+  </div>
+</aside>
+
+<div class="wrap">
+  <div class="head">
+    <button class="icon-btn" id="menuToggle" aria-label="Menu">☰</button>
+    <h1>🖨 Printer Setup</h1>
+    <div class="spacer"></div>
+    <span class="who" id="who"></span>
+  </div>
+  <p class="sub">Pair this device with the Bluetooth receipt printer once. After that, the “Print via Bluetooth” button on every receipt goes straight to it — no picking a device each time.</p>
+
+  <div class="card" id="card">
+    <div class="statusrow">
+      <span class="dot" id="dot"></span>
+      <div>
+        <div class="st-name" id="stName">Checking…</div>
+        <div class="st-desc" id="stDesc"></div>
+      </div>
+    </div>
+    <div class="btns">
+      <button class="act primary" id="connectBtn">Connect a printer</button>
+      <button class="act ghost" id="testBtn">Test print</button>
+      <button class="act danger" id="forgetBtn">Forget printer</button>
+    </div>
+    <div class="note">
+      This pairing is saved per device. Set it up once on each tablet/phone that prints.
+      The printer must be a <b>Bluetooth LE</b> model (e.g. VSC-TM-58D Pro) — classic-only
+      printers can’t be reached from the browser.
+    </div>
+  </div>
+
+  <div class="warn" id="unsupported" style="display:none">
+    This browser can’t use Bluetooth printing. Use <b>Chrome</b> or <b>Edge</b> on Android or desktop, over HTTPS.
+    (iPhone/Safari has no Web Bluetooth — use the receipt’s “Print Full Receipt” button there instead.)
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/auth.js"></script>
+<script src="/pwa.js"></script>
+<script src="/ble-print.js"></script>
+<script src="/sidebar.js"></script>
+<script>
+  const A = requireRole(['admin','manager','staff']);
+  if (!A || !A.id) { document.getElementById('stName').textContent = 'Not logged in'; throw Error('no auth'); }
+  document.getElementById('who').textContent = `${A.name} · ${A.role}`;
+
+  const dot = document.getElementById('dot');
+  const stName = document.getElementById('stName');
+  const stDesc = document.getElementById('stDesc');
+  const connectBtn = document.getElementById('connectBtn');
+  const testBtn = document.getElementById('testBtn');
+  const forgetBtn = document.getElementById('forgetBtn');
+
+  let toastTimer;
+  function toast(msg) {
+    const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+  }
+
+  if (!window.BlePrinter || !window.BlePrinter.supported) {
+    document.getElementById('card').style.display = 'none';
+    document.getElementById('unsupported').style.display = '';
+  }
+
+  async function refresh() {
+    const name = window.BlePrinter.savedPrinterName();
+    if (name) {
+      // Confirm the browser still remembers it (survives reloads).
+      const dev = await window.BlePrinter.savedDevice().catch(() => null);
+      dot.className = 'dot ok';
+      stName.textContent = name;
+      stDesc.textContent = dev ? 'Saved — ready to print.' : 'Saved on this device.';
+      testBtn.disabled = false; forgetBtn.disabled = false;
+      connectBtn.textContent = 'Change printer';
+    } else {
+      dot.className = 'dot off';
+      stName.textContent = 'No printer set up';
+      stDesc.textContent = 'Tap “Connect a printer” to pair one.';
+      testBtn.disabled = true; forgetBtn.disabled = true;
+      connectBtn.textContent = 'Connect a printer';
+    }
+  }
+
+  connectBtn.addEventListener('click', async () => {
+    connectBtn.disabled = true; const t = connectBtn.textContent; connectBtn.textContent = 'Choose printer…';
+    try {
+      const info = await window.BlePrinter.pairPrinter();
+      toast(`Paired: ${info.name}`);
+      await refresh();
+    } catch (e) {
+      if (e && e.name !== 'NotFoundError') alert('Could not pair: ' + (e && e.message ? e.message : e));
+    } finally { connectBtn.disabled = false; connectBtn.textContent = t; refresh(); }
+  });
+
+  testBtn.addEventListener('click', async () => {
+    testBtn.disabled = true; const t = testBtn.textContent; testBtn.textContent = 'Printing…';
+    try { await window.BlePrinter.testPrint(); toast('Test sent to printer'); }
+    catch (e) { alert('Test print failed: ' + (e && e.message ? e.message : e)); }
+    finally { testBtn.disabled = false; testBtn.textContent = t; }
+  });
+
+  forgetBtn.addEventListener('click', async () => {
+    if (!confirm('Forget the saved printer on this device?')) return;
+    window.BlePrinter.forgetPrinter();
+    toast('Printer forgotten');
+    refresh();
+  });
+
+  refresh();
+</script>
+</body>
+</html>
