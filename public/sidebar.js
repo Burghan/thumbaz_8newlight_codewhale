@@ -11,10 +11,14 @@
       { href: '/transactions.html', label: 'Transactions' },
       { href: '/budget.html', label: 'Budget' },
     ]},
-    { type: 'link', href: '/pos/ui/1/register', label: '🛒  POS' },
-    { type: 'link', href: '/kitchen.html', label: '🔔  Kitchen' },
+    { type: 'group', label: '🛒  POS', children: [
+      { href: '/pos/ui/1/register', label: 'Register' },
+      { href: '/kitchen.html', label: 'Kitchen' },
+      { href: '/order-types.html', label: 'Order Types' },
+      { href: '/customers.html', label: 'Customers' },
+      { href: '/pos/ui/1/register#loyalty-setup', label: 'Loyalty Setup' },
+    ]},
     { type: 'link', href: '/inventory.html', label: '📦  Inventory' },
-    { type: 'link', href: '/order-types.html', label: '🧾  Order Types' },
     { type: 'divider' },
     { type: 'group', label: '📋  Product', children: [
       { href: '/menu.html', label: 'Menu Items' },
@@ -31,10 +35,6 @@
       { href: '/employees.html', label: 'Users' },
       { href: '/payroll.html', label: 'Payroll' },
       { href: '/clock.html', label: 'Attendance' },
-    ]},
-    { type: 'group', label: '💳  Customers & Loyalty', children: [
-      { href: '/customers.html', label: 'Customers' },
-      { href: '/pos/ui/1/register#loyalty-setup', label: 'Loyalty Setup' },
     ]},
     { type: 'divider' },
     { type: 'link', href: '/import-center.html', label: '📥  Import Center' },
