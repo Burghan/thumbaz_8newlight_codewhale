@@ -239,8 +239,32 @@
     if (!writable) {
       throw new Error('Connected, but this printer exposes no writable channel — it looks like a Classic-Bluetooth (SPP) printer, which browsers can\'t print to. A BLE / "Bluetooth LE" printer is required.');
     }
+    // A freshly-opened link isn't ready instantly — writing immediately mangles
+    // or drops the first packets, which is why an un-primed print needed a second
+    // tap. Settle, then PRIME with a wake/init byte, then settle again, so the
+    // real print lands correctly on the first try.
+    await new Promise(function (r) { setTimeout(r, 400); });
+    try { await writeSlice(writable, new Uint8Array([0x1B, 0x40])); } catch (_) {} // ESC @ wake/init
+    await new Promise(function (r) { setTimeout(r, 300); });
     conn.char = writable;
     return writable;
+  }
+
+  // Resolve the printer to use: saved/remembered device, or re-acquire it within
+  // the current tap (chooser) if the browser couldn't hand it back silently.
+  async function resolveDevice() {
+    var device = await savedDevice();
+    if (!device && navigator.bluetooth) {
+      try {
+        await pairPrinter();
+        device = conn.device;
+      } catch (e) {
+        if (e && e.name === 'NotFoundError') throw new Error('No printer selected.');
+        throw e;
+      }
+    }
+    if (!device) throw new Error('Bluetooth printing needs Chrome or Edge over HTTPS. Otherwise use the "Print Full Receipt" button.');
+    return device;
   }
 
   function writeSlice(char, slice) {
@@ -266,21 +290,7 @@
   }
 
   async function printReceipt() {
-    var device = await savedDevice();
-    if (!device && navigator.bluetooth) {
-      // getDevices() didn't hand back the paired printer on this page (some
-      // browsers don't persist Web Bluetooth grants across page loads). Re-acquire
-      // it within this tap — still inside the button's activation window — and
-      // remember it, so the rest of this POS session prints with no prompt.
-      try {
-        await pairPrinter();
-        device = conn.device;
-      } catch (e) {
-        if (e && e.name === 'NotFoundError') throw new Error('No printer selected.');
-        throw e;
-      }
-    }
-    if (!device) throw new Error('Bluetooth printing needs Chrome or Edge over HTTPS. Otherwise use the "Print Full Receipt" button.');
+    var device = await resolveDevice();
     var rendered = await renderCanvas();
     var bytes = toEscPos(rendered.ctx, rendered.height);
     var char = await connectDevice(device);
@@ -289,8 +299,7 @@
 
   // Small text test slip, for the setup screen's "Test print" button.
   async function testPrint() {
-    var device = conn.device || await savedDevice();
-    if (!device) throw new Error('Connect a printer first.');
+    var device = await resolveDevice();
     var char = await connectDevice(device);
     var e = [0x1B, 0x40, 0x1B, 0x61, 0x01]; // init + centre
     var line = function (s) { for (var i = 0; i < s.length; i++) { var c = s.charCodeAt(i); e.push(c < 256 ? c : 63); } e.push(0x0A); };
