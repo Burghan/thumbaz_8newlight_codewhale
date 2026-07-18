@@ -2477,14 +2477,11 @@ confirmPay.addEventListener('click', async () => {
   if (receiptCashier) receiptCashier.textContent = `Served by: ${auth?.name || 'Cashier'}`;
   if (receiptFooterText) receiptFooterText.textContent = settings.receiptFooter || 'Thank you!';
   if (receiptLogoImg && receiptLogoText) {
-    if (settings.logoUrl) {
-      receiptLogoImg.src = settings.logoUrl;
-      receiptLogoImg.parentElement?.classList.add('has-image');
-      receiptLogoText.textContent = settings.storeName || '8 NewLight';
-    } else {
-      receiptLogoImg.parentElement?.classList.remove('has-image');
-      receiptLogoText.textContent = settings.storeName || '8 NewLight';
-    }
+    // Always show the 8 NewLight logo (custom logoUrl if configured, else the
+    // high-contrast black receipt logo baked in for thermal printing).
+    receiptLogoImg.src = settings.logoUrl || '/receipt-logo.png';
+    receiptLogoImg.parentElement?.classList.add('has-image');
+    receiptLogoText.textContent = settings.storeName || '8 NewLight';
   }
   if (receiptQr) {
     receiptQr.src = qrImageUrl;
@@ -3375,6 +3372,12 @@ function loadTransferOrder() {
 showRegisterView();
 setOrderMeta();
 initProducts();
+// Default the receipt logo up-front so held/re-printed receipts show it too
+// (checkout re-applies it, honouring a custom logoUrl if configured).
+if (receiptLogoImg) {
+  receiptLogoImg.src = settings.logoUrl || '/receipt-logo.png';
+  receiptLogoImg.parentElement?.classList.add('has-image');
+}
 loadLoyaltyConfig().then(() => {
   updateTotals();
   // Deep link from the sidebar's "Customers & Loyalty" > Loyalty Setup entry.
