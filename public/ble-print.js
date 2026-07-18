@@ -189,9 +189,6 @@
     if (!navigator.bluetooth) {
       throw new Error('This browser can\'t do Bluetooth printing. Use Chrome or Edge on Android/desktop (over HTTPS). On iPhone/Safari, use "Print Full Receipt" instead.');
     }
-    // Already connected this session.
-    if (conn.char && conn.device && conn.device.gatt && conn.device.gatt.connected) return conn.char;
-
     // Recover a previously-granted printer WITHOUT the chooser: reuse the device
     // from this session, or ask the browser for devices this origin was already
     // permitted to use (survives page reloads). Only fall back to the chooser
@@ -204,10 +201,16 @@
     }
     if (!conn.device) {
       conn.device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: CANDIDATE_SERVICES });
-      conn.device.addEventListener('gattserverdisconnected', function () { conn.char = null; }); // keep device, just drop the handle
     }
 
-    var server = await conn.device.gatt.connect(); // no chooser — reconnect straight to the known device
+    // Force a CLEAN reconnect each print, then grab a fresh characteristic.
+    // A handle left over from a previous connection goes stale after the printer
+    // auto-disconnects, so writes silently vanish ("connected" but nothing
+    // prints). Dropping and re-opening the link (no chooser — that only comes
+    // from requestDevice) replicates the fresh connection that printed in SC8.
+    var gatt = conn.device.gatt;
+    if (gatt.connected) { try { gatt.disconnect(); } catch (_) {} await new Promise(function (r) { setTimeout(r, 350); }); }
+    var server = await gatt.connect();
     var writable = await findWritable(server);
     if (!writable) {
       throw new Error('Connected, but this printer exposes no writable channel — it looks like a Classic-Bluetooth (SPP) printer, which browsers can\'t print to. A BLE / "Bluetooth LE" printer is required.');
