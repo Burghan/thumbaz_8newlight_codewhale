@@ -24,8 +24,8 @@
 
   var WIDTH = 384;      // 58mm printer = 384 dots across
   var MARGIN = 14;
-  var CHUNK = 128;      // bytes per BLE write — small enough for the printer's buffer
-  var CHUNK_DELAY = 14; // ms between chunks, so the printer can drain its buffer
+  var CHUNK = 180;      // bytes per BLE write (this size transmitted fine on the VSC-TM-58D)
+  var CHUNK_DELAY = 40; // ms between chunks — paced under the printer's speed so its buffer never overflows
 
   // ---- read the on-screen receipt ----------------------------------------
   function visibleText(id) {
@@ -196,24 +196,23 @@
     return writable;
   }
 
-  function writeSlice(char, slice, withResponse) {
-    if (withResponse) return char.writeValueWithResponse ? char.writeValueWithResponse(slice) : char.writeValue(slice);
-    return char.writeValueWithoutResponse ? char.writeValueWithoutResponse(slice) : char.writeValue(slice);
+  function writeSlice(char, slice) {
+    // This printer (HM-10-style ffe1) only takes UNacknowledged writes —
+    // writeValueWithResponse prints nothing on it. Flow control is done by pacing
+    // (CHUNK_DELAY) instead, kept under the printer's physical print speed so its
+    // buffer never overflows mid-raster.
+    if (char.writeValueWithoutResponse) return char.writeValueWithoutResponse(slice);
+    return char.writeValue(slice);
   }
 
   async function writeAll(char, bytes) {
-    // Prefer ACKNOWLEDGED writes (writeValueWithResponse): they wait for the
-    // printer between packets, which stops the small buffer overflowing mid-raster
-    // ("GATT operation failed" / print stops halfway). One retry per chunk rides
-    // out a transient hiccup.
-    var withResponse = !!char.properties.write;
     for (var i = 0; i < bytes.length; i += CHUNK) {
       var slice = bytes.slice(i, i + CHUNK);
       try {
-        await writeSlice(char, slice, withResponse);
+        await writeSlice(char, slice);
       } catch (e) {
-        await new Promise(function (r) { setTimeout(r, 120); }); // let it recover, then retry once
-        await writeSlice(char, slice, withResponse);
+        await new Promise(function (r) { setTimeout(r, 150); }); // brief recovery, then retry once
+        await writeSlice(char, slice);
       }
       await new Promise(function (r) { setTimeout(r, CHUNK_DELAY); });
     }
