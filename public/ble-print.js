@@ -29,6 +29,13 @@
   var CHUNK = 180;      // bytes per BLE write; cheap boards choke on large frames
   var CHUNK_DELAY = 24; // ms between chunks — some boards need the breathing room
 
+  // Known printer profile — VSC-TM-58D Pro (58mm). Tried first for a fast,
+  // deterministic connect; auto-discovery below is the fallback for others.
+  var KNOWN = {
+    service: '0000ffe0-0000-1000-8000-00805f9b34fb',
+    write: '0000ffe1-0000-1000-8000-00805f9b34fb'
+  };
+
   // ---- ESC/POS byte builder ----------------------------------------------
   function bytesOf(str) {
     var a = [];
@@ -138,14 +145,24 @@
       acceptAllDevices: true, optionalServices: CANDIDATE_SERVICES
     });
     var server = await device.gatt.connect();
-    var services = await server.getPrimaryServices();
     var writable = null;
-    for (var i = 0; i < services.length && !writable; i++) {
-      var chars;
-      try { chars = await services[i].getCharacteristics(); } catch (_) { continue; }
-      for (var j = 0; j < chars.length; j++) {
-        var p = chars[j].properties;
-        if (p.write || p.writeWithoutResponse) { writable = chars[j]; break; }
+
+    // 1. Try the known VSC-TM-58D Pro channel (ffe0 / ffe1) directly.
+    try {
+      var svc = await server.getPrimaryService(KNOWN.service);
+      writable = await svc.getCharacteristic(KNOWN.write);
+    } catch (_) { writable = null; }
+
+    // 2. Fallback: scan every visible service for the first writable characteristic.
+    if (!writable) {
+      var services = await server.getPrimaryServices();
+      for (var i = 0; i < services.length && !writable; i++) {
+        var chars;
+        try { chars = await services[i].getCharacteristics(); } catch (_) { continue; }
+        for (var j = 0; j < chars.length; j++) {
+          var p = chars[j].properties;
+          if (p.write || p.writeWithoutResponse) { writable = chars[j]; break; }
+        }
       }
     }
     if (!writable) {
