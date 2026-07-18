@@ -2856,9 +2856,10 @@ body {
 
 /* ---- Print: receipt only, styled for a narrow (~80mm) receipt printer ---- */
 @media print {
-  /* 58mm thermal roll. Sizing the page to the paper stops the driver scaling an
-     80mm layout down (which was shrinking the text). */
-  @page { size: 58mm auto; margin: 2mm; }
+  /* No explicit @page size — let the browser/driver keep its native portrait
+     orientation and flow onto a second page if the receipt is long. (Forcing a
+     58mm page size made this printer's driver rotate the receipt sideways.) */
+  @page { margin: 6mm; }
 
   body > *:not(#receiptModal) { display: none !important; }
 
@@ -2885,34 +2886,14 @@ body {
   }
 
   #receiptModal .receipt-paper {
-    width: 48mm;          /* real printable width of a 58mm roll; was 80mm (scaled = tiny) */
+    width: 80mm;
     margin: 0 auto;
     padding: 0;
     border: none;
     min-height: 0;
-    gap: 7px;
-    font-size: 15px;      /* was 12px */
     color: #000;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
   }
 
-  /* Pure black everywhere — the muted greys printed faint on thermal paper. */
-  #receiptModal .receipt-meta,
-  #receiptModal .receipt-item .name,
-  #receiptModal .receipt-item .sub,
-  #receiptModal .receipt-item .receipt-note,
-  #receiptModal .receipt-line,
-  #receiptModal .receipt-footer { color: #000 !important; }
-
-  #receiptModal .receipt-logo { font-size: 15px; }
-  #receiptModal .receipt-logo img { max-height: none; width: 40mm; max-width: 40mm; }
-  #receiptModal .receipt-meta { font-size: 12px; }
-  #receiptModal .receipt-item { font-size: 14px; grid-template-columns: 26px 1fr auto; }
-  #receiptModal .receipt-item .name { font-weight: 700; }
-  #receiptModal .receipt-item .sub { font-size: 11px; }
-  #receiptModal .receipt-line { font-size: 15px; font-weight: 700; }
-  #receiptModal .receipt-line.total { font-size: 20px; }
-  #receiptModal .receipt-footer { font-size: 12px; }
-  #receiptModal .receipt-qr img { width: 30mm; height: 30mm; }
+  #receiptModal .receipt-logo img { max-height: 40px; }
+  #receiptModal .receipt-qr img { width: 100px; height: 100px; }
 }
