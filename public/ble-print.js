@@ -237,6 +237,43 @@
     device.addEventListener('gattserverdisconnected', function () { conn.char = null; });
   }
 
+  function delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // A remembered device (from getDevices) won't connect until Chrome has heard it
+  // advertise — otherwise gatt.connect() throws "no longer in range". Listen for
+  // one advertisement (bounded by a timeout), then let the caller connect.
+  function waitForAdvertisement(device, timeout) {
+    return new Promise(function (resolve, reject) {
+      if (!device.watchAdvertisements) { reject(new Error('no watchAdvertisements')); return; }
+      var ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var settled = false;
+      function onAdv() { finish(true); }
+      function finish(ok) {
+        if (settled) return; settled = true;
+        try { device.removeEventListener('advertisementreceived', onAdv); } catch (_) {}
+        if (ac) { try { ac.abort(); } catch (_) {} }
+        ok ? resolve() : reject(new Error('advertisement timeout'));
+      }
+      device.addEventListener('advertisementreceived', onAdv);
+      try { var p = device.watchAdvertisements(ac ? { signal: ac.signal } : undefined); if (p && p.catch) p.catch(function () {}); }
+      catch (_) {}
+      setTimeout(function () { finish(false); }, timeout);
+    });
+  }
+
+  // Open a GATT connection, recovering from "not in range" by waiting to hear the
+  // printer advertise before each retry (falls back to a plain delay where
+  // watchAdvertisements isn't available).
+  async function openConnection(device) {
+    var lastErr = null;
+    for (var a = 0; a < 6; a++) {
+      try { return await device.gatt.connect(); }
+      catch (e) { lastErr = e; }
+      try { await waitForAdvertisement(device, 4000); } catch (_) { await delay(700); }
+    }
+    throw new Error('Couldn\'t reach the printer. Make sure it\'s switched ON, has paper, is close to the tablet, and not connected to another phone, then try again.' + (lastErr && lastErr.message ? ' (' + lastErr.message + ')' : ''));
+  }
+
   async function connectDevice(device) {
     // KEEP the connection alive between prints. Reconnecting on every print is
     // what glitched the first tap (a fresh link drops its first packets, so it
@@ -246,17 +283,7 @@
     if (conn.char) return conn.char;
 
     ensureDisconnectListener(device);
-    // A remembered device often reports "not in range" on the first connect
-    // attempt (it's asleep / not advertising for a moment) — retry a few times
-    // before giving up.
-    var server = null, lastErr = null, a;
-    for (a = 0; a < 5; a++) {
-      try { server = await device.gatt.connect(); break; }
-      catch (e) { lastErr = e; await new Promise(function (r) { setTimeout(r, 500); }); }
-    }
-    if (!server) {
-      throw new Error('Couldn\'t reach the printer. Make sure it\'s switched ON, has paper, and is close to the tablet, then try again.' + (lastErr && lastErr.message ? ' (' + lastErr.message + ')' : ''));
-    }
+    var server = await openConnection(device);
     var writable = await findWritable(server);
     if (!writable) {
       throw new Error('Connected, but this printer exposes no writable channel — it looks like a Classic-Bluetooth (SPP) printer, which browsers can\'t print to. A BLE / "Bluetooth LE" printer is required.');
