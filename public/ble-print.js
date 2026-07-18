@@ -207,16 +207,23 @@
 
   // Resolve the saved printer WITHOUT a chooser: this session's device, or one
   // this origin was already granted (survives reloads) via getDevices().
+  function isConfigured() { return !!(lsGet(STORE_ID) || lsGet(STORE_NAME)); }
+
   async function savedDevice() {
     if (conn.device) return conn.device;
     if (!navigator.bluetooth || !navigator.bluetooth.getDevices) return null;
+    if (!isConfigured()) return null;
     var id = lsGet(STORE_ID), name = lsGet(STORE_NAME);
-    if (!id && !name) return null;
     var devs;
     try { devs = await navigator.bluetooth.getDevices(); } catch (_) { return null; }
+    if (!devs || !devs.length) return null;
     var m = null, i;
     for (i = 0; i < devs.length; i++) { if (id && devs[i].id === id) { m = devs[i]; break; } }
     if (!m) for (i = 0; i < devs.length; i++) { if (name && devs[i].name === name) { m = devs[i]; break; } }
+    // id can come back empty / the name can differ slightly across pages — if a
+    // printer was configured and the browser granted us some device(s), use the
+    // first rather than falsely reporting "no printer".
+    if (!m) m = devs[0];
     conn.device = m;
     return m;
   }
@@ -260,7 +267,20 @@
 
   async function printReceipt() {
     var device = await savedDevice();
-    if (!device) throw new Error('No printer set up yet. Open Setup → Printer and connect your Bluetooth printer first.');
+    if (!device && navigator.bluetooth) {
+      // getDevices() didn't hand back the paired printer on this page (some
+      // browsers don't persist Web Bluetooth grants across page loads). Re-acquire
+      // it within this tap — still inside the button's activation window — and
+      // remember it, so the rest of this POS session prints with no prompt.
+      try {
+        await pairPrinter();
+        device = conn.device;
+      } catch (e) {
+        if (e && e.name === 'NotFoundError') throw new Error('No printer selected.');
+        throw e;
+      }
+    }
+    if (!device) throw new Error('Bluetooth printing needs Chrome or Edge over HTTPS. Otherwise use the "Print Full Receipt" button.');
     var rendered = await renderCanvas();
     var bytes = toEscPos(rendered.ctx, rendered.height);
     var char = await connectDevice(device);
