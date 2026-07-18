@@ -231,18 +231,28 @@
   // Clean (re)connect to a device + fresh writable characteristic. No chooser.
   // A stale handle from a prior connection makes writes silently vanish, so drop
   // any half-open link and re-open before each job.
+  function ensureDisconnectListener(device) {
+    if (device._bleListener) return;
+    device._bleListener = true;
+    device.addEventListener('gattserverdisconnected', function () { conn.char = null; });
+  }
+
   async function connectDevice(device) {
-    var gatt = device.gatt;
-    if (gatt.connected) { try { gatt.disconnect(); } catch (_) {} await new Promise(function (r) { setTimeout(r, 350); }); }
-    var server = await gatt.connect();
+    // KEEP the connection alive between prints. Reconnecting on every print is
+    // what glitched the first tap (a fresh link drops its first packets, so it
+    // needed a second tap). If the link is still up, reuse the live
+    // characteristic — repeat prints are then instant and reliable.
+    if (device.gatt && !device.gatt.connected) conn.char = null;
+    if (conn.char) return conn.char;
+
+    ensureDisconnectListener(device);
+    var server = await device.gatt.connect();
     var writable = await findWritable(server);
     if (!writable) {
       throw new Error('Connected, but this printer exposes no writable channel — it looks like a Classic-Bluetooth (SPP) printer, which browsers can\'t print to. A BLE / "Bluetooth LE" printer is required.');
     }
-    // A freshly-opened link isn't ready instantly — writing immediately mangles
-    // or drops the first packets, which is why an un-primed print needed a second
-    // tap. Settle, then PRIME with a wake/init byte, then settle again, so the
-    // real print lands correctly on the first try.
+    // Only a genuinely fresh link needs priming: settle, send a wake/init byte,
+    // settle again, so the first real print lands correctly.
     await new Promise(function (r) { setTimeout(r, 400); });
     try { await writeSlice(writable, new Uint8Array([0x1B, 0x40])); } catch (_) {} // ESC @ wake/init
     await new Promise(function (r) { setTimeout(r, 300); });
