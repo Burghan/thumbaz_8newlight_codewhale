@@ -94,41 +94,41 @@
       ctx.textAlign = 'right'; ctx.fillText(right, WIDTH - MARGIN, y);
     };
 
-    // Logo (scaled to ~200px wide, centered), else the store name as text.
+    // Logo (scaled, centered), else the store name as text.
     if (logoImg && logoImg.width) {
-      var lw = 200, lh = Math.round(logoImg.height * (lw / logoImg.width));
-      ctx.drawImage(logoImg, (WIDTH - lw) / 2, y, lw, lh); y += lh + 8;
+      var lw = 150, lh = Math.round(logoImg.height * (lw / logoImg.width));
+      ctx.drawImage(logoImg, (WIDTH - lw) / 2, y, lw, lh); y += lh + 6;
     } else {
-      center(visibleText('receiptLogoText') || '8 NewLight', 'bold 34px sans-serif', 40);
+      center(visibleText('receiptLogoText') || '8 NewLight', 'bold 26px sans-serif', 32);
     }
 
     var ticket = visibleText('receiptTicket');
-    if (ticket) center(ticket, 'bold 22px sans-serif', 28);
+    if (ticket) center(ticket, 'bold 18px sans-serif', 22);
     ['receiptTime', 'receiptCashier', 'receiptOrderType', 'receiptCustomer', 'receiptNote', 'receiptLoyalty']
-      .forEach(function (id) { var t = visibleText(id); if (t) center(t, '20px sans-serif', 25); });
+      .forEach(function (id) { var t = visibleText(id); if (t) center(t, '16px sans-serif', 20); });
 
-    y += 6; rule();
+    y += 4; rule();
 
     var items = readItems();
     for (var i = 0; i < items.length; i++) {
-      row((items[i].qty ? items[i].qty + '  ' : '') + items[i].name, items[i].total, '23px sans-serif', true);
-      y += 30;
+      row((items[i].qty ? items[i].qty + '  ' : '') + items[i].name, items[i].total, '17px sans-serif', true);
+      y += 23;
     }
     rule();
 
     var subtotal = visibleText('receiptSubtotal');
     var tax = visibleText('receiptTax');
-    if (subtotal) { row('Subtotal', subtotal, '22px sans-serif', false); y += 28; }
-    if (tax && tax !== 'Rp 0') { row('Tax', tax, '22px sans-serif', false); y += 28; }
-    row('TOTAL', visibleText('receiptTotal2') || visibleText('receiptTotal'), '30px sans-serif', true); y += 40;
-    if (changeVisible()) { var ch = visibleText('receiptChange'); if (ch) { row('Change', ch, '22px sans-serif', false); y += 30; } }
+    if (subtotal) { row('Subtotal', subtotal, '16px sans-serif', false); y += 22; }
+    if (tax) { row('Tax', tax, '16px sans-serif', false); y += 22; }
+    row('TOTAL', visibleText('receiptTotal2') || visibleText('receiptTotal'), '21px sans-serif', true); y += 30;
+    if (changeVisible()) { var ch = visibleText('receiptChange'); if (ch) { row('Change', ch, '16px sans-serif', false); y += 22; } }
 
-    y += 10;
+    y += 8;
     if (qrImg && qrImg.width) {
-      var q = 180; ctx.drawImage(qrImg, (WIDTH - q) / 2, y, q, q); y += q + 8;
+      var q = 110; ctx.drawImage(qrImg, (WIDTH - q) / 2, y, q, q); y += q + 6;
     }
-    center(visibleText('receiptFooterText') || 'Thank you!', '20px sans-serif', 26);
-    y += 24;
+    center(visibleText('receiptFooterText') || 'Thank you!', '16px sans-serif', 22);
+    y += 20;
 
     return { ctx: ctx, height: Math.min(canvas.height, Math.ceil(y)) };
   }
