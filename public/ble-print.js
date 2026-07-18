@@ -165,34 +165,54 @@
   // ---- connection + write ------------------------------------------------
   var conn = { device: null, char: null };
 
+  // Find the writable characteristic on a connected GATT server (known ffe1
+  // first, then scan). The chooser is NOT involved here.
+  async function findWritable(server) {
+    try {
+      var svc = await server.getPrimaryService(KNOWN.service);
+      var c = await svc.getCharacteristic(KNOWN.write);
+      if (c) return c;
+    } catch (_) { /* fall through to scan */ }
+    var services = await server.getPrimaryServices();
+    for (var i = 0; i < services.length; i++) {
+      var chars;
+      try { chars = await services[i].getCharacteristics(); } catch (e) { continue; }
+      for (var j = 0; j < chars.length; j++) {
+        var p = chars[j].properties;
+        if (p.write || p.writeWithoutResponse) return chars[j];
+      }
+    }
+    return null;
+  }
+
   async function connect() {
-    if (conn.char && conn.device && conn.device.gatt && conn.device.gatt.connected) return conn.char;
     if (!navigator.bluetooth) {
       throw new Error('This browser can\'t do Bluetooth printing. Use Chrome or Edge on Android/desktop (over HTTPS). On iPhone/Safari, use "Print Full Receipt" instead.');
     }
-    var device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: CANDIDATE_SERVICES });
-    var server = await device.gatt.connect();
-    var writable = null;
-    try {
-      var svc = await server.getPrimaryService(KNOWN.service);
-      writable = await svc.getCharacteristic(KNOWN.write);
-    } catch (_) { writable = null; }
-    if (!writable) {
-      var services = await server.getPrimaryServices();
-      for (var i = 0; i < services.length && !writable; i++) {
-        var chars;
-        try { chars = await services[i].getCharacteristics(); } catch (e) { continue; }
-        for (var j = 0; j < chars.length; j++) {
-          var p = chars[j].properties;
-          if (p.write || p.writeWithoutResponse) { writable = chars[j]; break; }
-        }
-      }
+    // Already connected this session.
+    if (conn.char && conn.device && conn.device.gatt && conn.device.gatt.connected) return conn.char;
+
+    // Recover a previously-granted printer WITHOUT the chooser: reuse the device
+    // from this session, or ask the browser for devices this origin was already
+    // permitted to use (survives page reloads). Only fall back to the chooser
+    // (requestDevice) the very first time / if nothing was remembered.
+    if (!conn.device && navigator.bluetooth.getDevices) {
+      try {
+        var granted = await navigator.bluetooth.getDevices();
+        if (granted && granted.length) conn.device = granted[0];
+      } catch (_) { /* getDevices unsupported/blocked — chooser below */ }
     }
+    if (!conn.device) {
+      conn.device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: CANDIDATE_SERVICES });
+      conn.device.addEventListener('gattserverdisconnected', function () { conn.char = null; }); // keep device, just drop the handle
+    }
+
+    var server = await conn.device.gatt.connect(); // no chooser — reconnect straight to the known device
+    var writable = await findWritable(server);
     if (!writable) {
       throw new Error('Connected, but this printer exposes no writable channel — it looks like a Classic-Bluetooth (SPP) printer, which browsers can\'t print to. A BLE / "Bluetooth LE" printer is required.');
     }
-    device.addEventListener('gattserverdisconnected', function () { conn.char = null; });
-    conn.device = device; conn.char = writable;
+    conn.char = writable;
     return writable;
   }
 
