@@ -16,6 +16,14 @@
   .sub { color:var(--muted); font-size:14px; margin:2px 0 20px; }
 
   .card { background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow-sm); padding:22px; }
+  .card + .card { margin-top:14px; }
+  .method { display:flex; gap:12px; align-items:flex-start; padding:14px; border:1px solid var(--border); border-radius:12px; cursor:pointer; }
+  .method + .method { margin-top:10px; }
+  .method input { margin-top:3px; flex:none; }
+  .method .m-title { font-weight:700; font-size:15px; }
+  .method .m-desc { font-size:13px; color:var(--muted); margin-top:2px; line-height:1.55; }
+  .method.selected { border-color:var(--brand); background:var(--cream-soft, #f6f4ef); }
+  .m-badge { display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.04em; color:#2f5a45; background:var(--positive-bg, #e2efe7); border-radius:999px; padding:1px 8px; margin-left:6px; vertical-align:middle; }
   .statusrow { display:flex; align-items:center; gap:14px; margin-bottom:18px; }
   .dot { width:12px; height:12px; border-radius:50%; flex:none; background:var(--muted); }
   .dot.ok { background:var(--good, #3B7458); }
@@ -60,6 +68,25 @@
     <span class="who" id="who"></span>
   </div>
   <p class="sub">Pair this device with the Bluetooth receipt printer once. After that, the “Print via Bluetooth” button on every receipt goes straight to it — no picking a device each time.</p>
+
+  <div class="card">
+    <label class="method" id="methodRawbt">
+      <input type="radio" name="pmethod" value="rawbt"/>
+      <span>
+        <span class="m-title">Print through the RawBT app<span class="m-badge">RECOMMENDED</span></span>
+        <span class="m-desc">Uses Android's native Bluetooth — the same way other printing apps work.
+        Install the free <a href="https://play.google.com/store/apps/details?id=ru.a402d.rawbtprinter" target="_blank" rel="noopener">RawBT print service</a>,
+        open it once and pair your printer inside RawBT. After that it never asks again — every receipt prints silently.</span>
+      </span>
+    </label>
+    <label class="method" id="methodWebble">
+      <input type="radio" name="pmethod" value="webble"/>
+      <span>
+        <span class="m-title">Direct from Chrome (Web Bluetooth)</span>
+        <span class="m-desc">Chrome connects to the printer itself. Depends on Chrome's Bluetooth support, which can be unreliable on some tablets.</span>
+      </span>
+    </label>
+  </div>
 
   <div class="card" id="card">
     <div class="statusrow">
@@ -111,12 +138,33 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
   }
 
-  if (!window.BlePrinter || !window.BlePrinter.supported) {
-    document.getElementById('card').style.display = 'none';
-    document.getElementById('unsupported').style.display = '';
+  // --- print method chooser ---
+  const radios = document.querySelectorAll('input[name="pmethod"]');
+  function syncMethodUI() {
+    const m = window.BlePrinter.printMethod();
+    radios.forEach(r => { r.checked = (r.value === m); r.closest('.method').classList.toggle('selected', r.value === m); });
   }
+  radios.forEach(r => r.addEventListener('change', () => {
+    window.BlePrinter.setPrintMethod(r.value);
+    toast(r.value === 'rawbt' ? 'Printing via RawBT app' : 'Printing directly via Chrome');
+    syncMethodUI(); refresh();
+  }));
 
   async function refresh() {
+    const method = window.BlePrinter.printMethod();
+    document.getElementById('unsupported').style.display =
+      (method === 'webble' && !window.BlePrinter.supported) ? '' : 'none';
+
+    if (method === 'rawbt') {
+      dot.className = 'dot ok';
+      stName.textContent = 'RawBT print service';
+      stDesc.textContent = 'Receipts are handed to the RawBT app, which prints them over native Bluetooth. Pair the printer inside RawBT (once). Use Test print to check the whole chain.';
+      connectBtn.disabled = true; forgetBtn.disabled = true; testBtn.disabled = false;
+      connectBtn.textContent = 'Connect a printer';
+      return;
+    }
+    connectBtn.disabled = false;
+
     const name = window.BlePrinter.savedPrinterName();
     if (name) {
       // Does the browser still hand the device back (i.e. will it reconnect
@@ -140,6 +188,7 @@
       connectBtn.textContent = 'Connect a printer';
     }
   }
+  syncMethodUI();
 
   connectBtn.addEventListener('click', async () => {
     connectBtn.disabled = true; const t = connectBtn.textContent; connectBtn.textContent = 'Choose printer…';

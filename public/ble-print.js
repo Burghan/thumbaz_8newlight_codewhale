@@ -336,26 +336,53 @@
     }
   }
 
+  // ---- print method: RawBT bridge vs direct Web Bluetooth ------------------
+  // RawBT (free Android app, package ru.a402d.rawbtprinter) owns the printer via
+  // Android's NATIVE Bluetooth stack — pair once inside RawBT and it never asks
+  // again. We hand it the finished ESC/POS job through its intent URL scheme.
+  // This is the same reliable path native POS apps use; Web Bluetooth stays as
+  // the direct option.
+  var METHOD_KEY = 'print_method'; // 'rawbt' | 'webble'
+  function printMethod() { return lsGet(METHOD_KEY) === 'rawbt' ? 'rawbt' : 'webble'; }
+  function setPrintMethod(m) { lsSet(METHOD_KEY, m === 'rawbt' ? 'rawbt' : 'webble'); }
+
+  function bytesToBase64(bytes) {
+    var bin = '';
+    for (var i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(bin);
+  }
+
+  function rawbtPrint(bytes) {
+    // If RawBT isn't installed, Android opens its Play Store page instead.
+    window.location.href = 'intent:base64,' + bytesToBase64(bytes)
+      + '#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
+  }
+
   async function printReceipt() {
-    var device = await resolveDevice();
     var rendered = await renderCanvas();
     var bytes = toEscPos(rendered.ctx, rendered.height);
+    if (printMethod() === 'rawbt') { rawbtPrint(bytes); return; }
+    var device = await resolveDevice();
     var char = await connectDevice(device);
     await writeAll(char, bytes);
   }
 
   // Small text test slip, for the setup screen's "Test print" button.
   async function testPrint() {
-    var device = await resolveDevice();
-    var char = await connectDevice(device);
     var e = [0x1B, 0x40, 0x1B, 0x61, 0x01]; // init + centre
     var line = function (s) { for (var i = 0; i < s.length; i++) { var c = s.charCodeAt(i); e.push(c < 256 ? c : 63); } e.push(0x0A); };
     e.push(0x1D, 0x21, 0x11); line('8 NewLight'); e.push(0x1D, 0x21, 0x00);
-    line('Bluetooth printer test');
+    line('Printer test');
     line('Connection OK');
     line(new Date().toLocaleString('id-ID'));
     e.push(0x0A, 0x0A, 0x0A, 0x1D, 0x56, 0x42, 0x00);
-    await writeAll(char, new Uint8Array(e));
+    var bytes = new Uint8Array(e);
+    if (printMethod() === 'rawbt') { rawbtPrint(bytes); return; }
+    var device = await resolveDevice();
+    var char = await connectDevice(device);
+    await writeAll(char, bytes);
   }
 
   window.BlePrinter = {
@@ -365,6 +392,8 @@
     forgetPrinter: forgetPrinter,
     savedDevice: savedDevice,
     savedPrinterName: savedPrinterName,
+    printMethod: printMethod,
+    setPrintMethod: setPrintMethod,
     supported: !!(navigator.bluetooth)
   };
 
