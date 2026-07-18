@@ -246,7 +246,17 @@
     if (conn.char) return conn.char;
 
     ensureDisconnectListener(device);
-    var server = await device.gatt.connect();
+    // A remembered device often reports "not in range" on the first connect
+    // attempt (it's asleep / not advertising for a moment) — retry a few times
+    // before giving up.
+    var server = null, lastErr = null, a;
+    for (a = 0; a < 5; a++) {
+      try { server = await device.gatt.connect(); break; }
+      catch (e) { lastErr = e; await new Promise(function (r) { setTimeout(r, 500); }); }
+    }
+    if (!server) {
+      throw new Error('Couldn\'t reach the printer. Make sure it\'s switched ON, has paper, and is close to the tablet, then try again.' + (lastErr && lastErr.message ? ' (' + lastErr.message + ')' : ''));
+    }
     var writable = await findWritable(server);
     if (!writable) {
       throw new Error('Connected, but this printer exposes no writable channel — it looks like a Classic-Bluetooth (SPP) printer, which browsers can\'t print to. A BLE / "Bluetooth LE" printer is required.');
