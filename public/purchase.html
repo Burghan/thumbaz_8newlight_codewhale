@@ -13,6 +13,25 @@
     .main-area { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 380px; gap: 12px; min-height: 0; overflow: hidden; }
     @media(max-width:800px){ .main-area { grid-template-columns: 1fr; } }
 
+    /* Below 800px the layout stacks into one column, so there's no longer a
+       single fixed-height row to flex two tables into — let the page scroll
+       naturally instead of squeezing each card's table into a sliver. */
+    @media(max-width:800px){
+      .content { height: auto; overflow: visible; }
+      .main-area { overflow: visible; min-height: 0; }
+      .table-wrap { overflow: visible; }
+      .list-scroll { overflow: visible; max-height: none; }
+    }
+    /* Narrow screens: both tables have more columns than fit — turn each row
+       into a labeled stacked card instead of forcing horizontal scroll. */
+    @media(max-width:640px){
+      #rows, #lowStockRows { display: block; }
+      #rows tr, #lowStockRows tr { display: block; padding: 8px 0; border-bottom: 1px solid var(--border); }
+      #rows td, #lowStockRows td { display: flex; justify-content: space-between; gap: 12px; border-bottom: none; padding: 3px 0; text-align: right; }
+      #rows td::before, #lowStockRows td::before { content: attr(data-label); font-weight: 600; color: var(--accent); font-size: 11px; text-transform: uppercase; text-align: left; }
+      #rows thead, #lowStockRows thead { display: none; }
+    }
+
     .topbar { display: flex; align-items: center; gap: 10px; }
     .topbar h1 { margin: 0; flex: 1; font-size: 20px; }
     .topbar button { width: auto; margin-top: 0; }
@@ -236,7 +255,7 @@
         [...data].reverse().forEach(p=>{
           const item=p.category==='ingredient'?p.ingredient_name:p.item_name||'';
           const tr=document.createElement('tr');
-          tr.innerHTML=`<td>${p.date}</td><td>${p.category}</td><td>${item}</td><td class="num">${p.quantity||''}</td><td>${p.purchase_unit||''}</td><td class="num">${formatRp(p.total_cost)}</td>`;
+          tr.innerHTML=`<td data-label="Date">${p.date}</td><td data-label="Category">${p.category}</td><td data-label="Item">${item}</td><td class="num" data-label="Qty">${p.quantity||''}</td><td data-label="Unit">${p.purchase_unit||''}</td><td class="num" data-label="Total Cost">${formatRp(p.total_cost)}</td>`;
           tbody.appendChild(tr);
         });
         updateStats(data);
@@ -272,7 +291,7 @@
           low.forEach(item=>{
             const sf=Math.max(0,item.minStock-item.qty);
             const tr=document.createElement('tr');tr.classList.add('low-row');
-            tr.innerHTML=`<td class="low">${item.name}</td><td class="num">${item.qty.toFixed(2)}</td><td>${item.unit||''}</td><td class="num">${item.minStock.toFixed(2)}</td><td class="num">${sf.toFixed(2)}</td>`;
+            tr.innerHTML=`<td class="low" data-label="Ingredient">${item.name}</td><td class="num" data-label="On Hand">${item.qty.toFixed(2)}</td><td data-label="Unit">${item.unit||''}</td><td class="num" data-label="Min">${item.minStock.toFixed(2)}</td><td class="num" data-label="Shortfall">${sf.toFixed(2)}</td>`;
             lb.appendChild(tr);
           });
         });
