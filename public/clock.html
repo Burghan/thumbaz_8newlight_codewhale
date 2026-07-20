@@ -134,10 +134,11 @@
   <script>
     const auth = requireRole(['admin','manager','staff']);
     const empSelect = document.getElementById('empSelect');
-    fetch('/api/users', {headers:authHeaders(),credentials:'same-origin'}).then(r=>r.json()).then(async users=>{users.filter(u=>u.active).forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.name;empSelect.appendChild(o);});
+    fetch('/api/attendance/employees', {headers:authHeaders(),credentials:'same-origin'}).then(r=>r.json()).then(async users=>{
+    (Array.isArray(users) ? users : []).forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.name;empSelect.appendChild(o);});
     // Auto-select current logged-in user
     try { const me = await fetch('/api/auth/me', {headers:authHeaders(),credentials:'same-origin'}).then(r=>r.json()); if (me && me.id) empSelect.value = me.id; } catch {}
-  });
+  }).catch(()=>{});
 
     // Populate employee list
     

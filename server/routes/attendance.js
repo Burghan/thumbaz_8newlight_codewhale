@@ -7,6 +7,21 @@ const router = express.Router();
 const PHOTO_DIR = path.join(__dirname, '..', '..', 'data', 'photos');
 if (!fs.existsSync(PHOTO_DIR)) fs.mkdirSync(PHOTO_DIR, { recursive: true });
 
+// The mount (/api/attendance) is open to staff so they can clock in/out; these
+// sub-routes carry payroll figures or every employee's history, so they stay
+// admin/manager only even though the router itself is staff-reachable.
+function managerOnly(req, res, next) {
+  if (!req.user || !['admin', 'manager'].includes(req.user.role)) return res.status(403).json({ error: 'Manager or admin only' });
+  next();
+}
+
+// Minimal employee picker for the clock-in/out dropdown — id+name only, no
+// pay rate (the full /api/users list is manager-gated to keep rate private).
+router.get('/employees', (req, res) => {
+  const rows = db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY name').all();
+  res.json(rows);
+});
+
 // Today's attendance
 router.get('/today', (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
@@ -14,7 +29,7 @@ router.get('/today', (req, res) => {
   res.json(rows);
 });
 // Save payroll data (overtime, bonus, deduction)
-router.post('/payroll', (req, res) => {
+router.post('/payroll', managerOnly, (req, res) => {
   const { user_id, month, overtime, bonus, deduction } = req.body || {};
   if (!user_id || !month) return res.status(400).json({ error: 'user_id and month required' });
   db.prepare(`INSERT OR REPLACE INTO payroll (user_id, month, overtime, bonus, deduction)
@@ -23,7 +38,7 @@ router.post('/payroll', (req, res) => {
 });
 
 // Get attendance history for a given month
-router.get('/history', (req, res) => {
+router.get('/history', managerOnly, (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0,7);
   const rows = db.prepare(`
     SELECT a.*, p.overtime, p.bonus, p.deduction
@@ -36,7 +51,7 @@ router.get('/history', (req, res) => {
 });
 
 // Get a specific attendance record
-router.get('/:id', (req, res) => {
+router.get('/:id', managerOnly, (req, res) => {
   const row = db.prepare('SELECT * FROM attendances WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(row);
@@ -99,7 +114,7 @@ router.post('/clock-out', (req, res) => {
 });
 
 // Get attendance history
-router.get('/history/:name', (req, res) => {
+router.get('/history/:name', managerOnly, (req, res) => {
   const rows = db.prepare(`SELECT * FROM attendances WHERE employee_name = ? ORDER BY id DESC LIMIT 50`).all(req.params.name);
   res.json(rows);
 });

@@ -159,7 +159,7 @@ function renderProducts() {
 }
 
 async function fetchProducts() {
-  const response = await fetch('/api/products', { headers: typeof authHeaders === 'function' ? authHeaders() : {} });
+  const response = await fetch('/api/pos-products', { headers: typeof authHeaders === 'function' ? authHeaders() : {} });
   if (!response.ok) throw new Error('Failed to load products.');
   const data = await response.json();
   return (Array.isArray(data) ? data : []).filter((item) => item.active !== 0 && item.active !== false);

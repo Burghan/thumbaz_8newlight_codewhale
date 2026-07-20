@@ -680,10 +680,11 @@ function renderProducts() {
 }
 
 async function fetchProducts() {
-  // thumbaz's /api/products returns a bare array of {id,name,category,price,active,...}
+  // /api/pos-products is the staff-safe menu list (no cost/margin fields) —
+  // returns a bare array of {id,name,category,price,active,...}
   // (the old coffee-pos prototype expected {products:[...]} with pos_ok/product_type
   // flags that don't exist here).
-  const response = await fetch('/api/products', { headers: typeof authHeaders === 'function' ? authHeaders() : {} });
+  const response = await fetch('/api/pos-products', { headers: typeof authHeaders === 'function' ? authHeaders() : {} });
   if (!response.ok) throw new Error('Failed to load products.');
   const data = await response.json();
   return (Array.isArray(data) ? data : []).filter((item) => item.active !== 0 && item.active !== false);
