@@ -64,6 +64,16 @@
     .stat-card { display: flex; flex-direction: column; overflow: hidden; }
     .stat-card .stat-card-header { flex: 0 0 auto; }
     .stat-card .table-wrap { flex: 1 1 auto; }
+
+    /* The New Purchase form and the Low Stock card share the right column's
+       height. The form has no shrink limit by default, so on any viewport
+       short enough (even full desktop height, not just mobile) it claims its
+       whole natural height and leaves Low Stock's flexed table-wrap squeezed
+       to a sliver. Let the form shrink + scroll internally instead, and give
+       Low Stock a guaranteed minimum so its rows are always at least partly
+       visible. */
+    #purchaseFormCard { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+    #lowStockCard { flex: 1 1 220px; min-height: 220px; }
   </style>
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#5c7da6" />
@@ -159,7 +169,7 @@
         </div>
 
         <!-- Low Stock Watchlist -->
-        <div class="card stat-card" style="flex:1;min-height:0;">
+        <div class="card stat-card" id="lowStockCard">
           <div class="stat-card-header" style="display:flex;justify-content:space-between;align-items:center;">
             <strong style="color:var(--accent);">⚠ Low Stock</strong>
             <span class="hint" id="lowStockCount">–</span>
