@@ -21,6 +21,7 @@
       .main-area { overflow: visible; min-height: 0; }
       .table-wrap { overflow: visible; }
       .list-scroll { overflow: visible; max-height: none; }
+      #purchaseHistoryCard { width: 100%; }
     }
     /* Narrow screens: both tables have more columns than fit — turn each row
        into a labeled stacked card instead of forcing horizontal scroll. */
@@ -50,6 +51,7 @@
     /* Purchase History's columns (date/category/item/qty/unit/cost) are all
        short — stretching to the card's full width just spreads them out with
        big empty gaps. Size it to its content instead. */
+    #purchaseHistoryCard { width: fit-content; max-width: 100%; }
     #purchaseHistoryTable { width: auto; }
     #purchaseHistoryTable th, #purchaseHistoryTable td { padding-right: 28px; white-space: nowrap; }
     #purchaseHistoryTable th:last-child, #purchaseHistoryTable td:last-child { padding-right: 8px; }
@@ -143,7 +145,7 @@
 
     <div class="main-area">
       <!-- Purchase History -->
-      <div class="card stat-card">
+      <div class="card stat-card" id="purchaseHistoryCard">
         <div class="stat-card-header"><strong style="color:var(--accent);">Purchase History</strong></div>
         <div class="table-wrap"><div class="list-scroll">
           <table id="purchaseHistoryTable"><thead><tr><th>Date</th><th>Category</th><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Total Cost</th></tr></thead>
