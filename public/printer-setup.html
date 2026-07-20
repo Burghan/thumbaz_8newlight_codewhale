@@ -70,11 +70,20 @@
   <p class="sub">Pair this device with the Bluetooth receipt printer once. After that, the “Print via Bluetooth” button on every receipt goes straight to it — no picking a device each time.</p>
 
   <div class="card">
+    <label class="method" id="methodNative" style="display:none">
+      <input type="radio" name="pmethod" value="native"/>
+      <span>
+        <span class="m-title">Native app printing<span class="m-badge">RECOMMENDED</span></span>
+        <span class="m-desc">The app talks to the printer directly through Android's own Bluetooth stack —
+        no separate app to install, no Chrome Bluetooth flakiness. Tap Test print once and it finds and
+        remembers the printer automatically.</span>
+      </span>
+    </label>
     <label class="method" id="methodRawbt">
       <input type="radio" name="pmethod" value="rawbt"/>
       <span>
-        <span class="m-title">Print through the RawBT app<span class="m-badge">RECOMMENDED</span></span>
-        <span class="m-desc">Uses Android's native Bluetooth — the same way other printing apps work.
+        <span class="m-title">Print through the RawBT app</span>
+        <span class="m-desc">Uses Android's native Bluetooth via a separate app — the same way other printing apps work.
         Install the free <a href="https://play.google.com/store/apps/details?id=ru.a402d.rawbtprinter" target="_blank" rel="noopener">RawBT print service</a>,
         open it once and pair your printer inside RawBT. After that it never asks again — every receipt prints silently.</span>
       </span>
@@ -139,6 +148,7 @@
   }
 
   // --- print method chooser ---
+  document.getElementById('methodNative').style.display = window.BlePrinter.nativeAvailable() ? '' : 'none';
   const radios = document.querySelectorAll('input[name="pmethod"]');
   function syncMethodUI() {
     const m = window.BlePrinter.printMethod();
@@ -146,7 +156,7 @@
   }
   radios.forEach(r => r.addEventListener('change', () => {
     window.BlePrinter.setPrintMethod(r.value);
-    toast(r.value === 'rawbt' ? 'Printing via RawBT app' : 'Printing directly via Chrome');
+    toast(r.value === 'native' ? 'Printing via native app Bluetooth' : r.value === 'rawbt' ? 'Printing via RawBT app' : 'Printing directly via Chrome');
     syncMethodUI(); refresh();
   }));
 
@@ -154,6 +164,24 @@
     const method = window.BlePrinter.printMethod();
     document.getElementById('unsupported').style.display =
       (method === 'webble' && !window.BlePrinter.supported) ? '' : 'none';
+
+    if (method === 'native') {
+      connectBtn.disabled = true; connectBtn.textContent = 'Connect a printer';
+      const name = window.BlePrinter.nativeSavedPrinterName();
+      if (name) {
+        dot.className = 'dot ok';
+        stName.textContent = name;
+        stDesc.textContent = '✓ Saved — reconnects automatically. No need to scan again.';
+        forgetBtn.disabled = false;
+      } else {
+        dot.className = 'dot off';
+        stName.textContent = 'No printer connected yet';
+        stDesc.textContent = 'Tap “Test print” — the app will scan for the printer, connect, and remember it.';
+        forgetBtn.disabled = true;
+      }
+      testBtn.disabled = false;
+      return;
+    }
 
     if (method === 'rawbt') {
       dot.className = 'dot ok';
@@ -205,7 +233,7 @@
     testBtn.disabled = true; const t = testBtn.textContent; testBtn.textContent = 'Printing…';
     try { await window.BlePrinter.testPrint(); toast('Test sent to printer'); }
     catch (e) { alert('Test print failed: ' + (e && e.message ? e.message : e)); }
-    finally { testBtn.disabled = false; testBtn.textContent = t; }
+    finally { testBtn.disabled = false; testBtn.textContent = t; refresh(); }
   });
 
   forgetBtn.addEventListener('click', async () => {

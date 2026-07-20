@@ -336,15 +336,25 @@
     }
   }
 
-  // ---- print method: RawBT bridge vs direct Web Bluetooth ------------------
-  // RawBT (free Android app, package ru.a402d.rawbtprinter) owns the printer via
-  // Android's NATIVE Bluetooth stack — pair once inside RawBT and it never asks
-  // again. We hand it the finished ESC/POS job through its intent URL scheme.
-  // This is the same reliable path native POS apps use; Web Bluetooth stays as
-  // the direct option.
-  var METHOD_KEY = 'print_method'; // 'rawbt' | 'webble'
-  function printMethod() { return lsGet(METHOD_KEY) === 'rawbt' ? 'rawbt' : 'webble'; }
-  function setPrintMethod(m) { lsSet(METHOD_KEY, m === 'rawbt' ? 'rawbt' : 'webble'); }
+  // ---- print method: native Android bridge vs RawBT vs direct Web Bluetooth -
+  // 'native' talks to Android's own Bluetooth stack directly (see BlePrinter.kt
+  // in the Android wrapper, exposed as window.AndroidPrinter) — no external app,
+  // no Chrome Web Bluetooth flakiness. RawBT (free Android app, package
+  // ru.a402d.rawbtprinter) is a fallback that owns the printer via its own native
+  // Bluetooth stack, handed the job through its intent URL scheme. Web Bluetooth
+  // stays as the direct/desktop option.
+  var METHOD_KEY = 'print_method'; // 'native' | 'rawbt' | 'webble'
+  function nativeAvailable() {
+    return !!(window.AndroidPrinter && window.AndroidPrinter.isAvailable && window.AndroidPrinter.isAvailable());
+  }
+  function printMethod() {
+    var m = lsGet(METHOD_KEY);
+    if (m === 'native' || m === 'rawbt' || m === 'webble') return m;
+    return nativeAvailable() ? 'native' : 'webble'; // default to native when running inside the wrapper app
+  }
+  function setPrintMethod(m) {
+    lsSet(METHOD_KEY, (m === 'native' || m === 'rawbt') ? m : 'webble');
+  }
 
   function bytesToBase64(bytes) {
     var bin = '';
@@ -360,10 +370,33 @@
       + '#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
   }
 
+  // Native bridge: hand the bytes to Kotlin and await its evaluateJavascript
+  // callback (see BlePrinter.printBytes / window.__androidPrintCallback).
+  var nativeCallbacks = {};
+  window.__androidPrintCallback = function (requestId, ok, message) {
+    var cb = nativeCallbacks[requestId];
+    if (!cb) return;
+    delete nativeCallbacks[requestId];
+    if (ok) cb.resolve(message); else cb.reject(new Error(message));
+  };
+  function nativePrint(bytes) {
+    return new Promise(function (resolve, reject) {
+      if (!nativeAvailable()) { reject(new Error('Native printing isn\'t available in this app build.')); return; }
+      var requestId = 'p' + Date.now() + Math.random().toString(36).slice(2);
+      nativeCallbacks[requestId] = { resolve: resolve, reject: reject };
+      window.AndroidPrinter.printBytes(bytesToBase64(bytes), requestId);
+      setTimeout(function () {
+        if (nativeCallbacks[requestId]) { delete nativeCallbacks[requestId]; reject(new Error('Printer timed out.')); }
+      }, 20000);
+    });
+  }
+
   async function printReceipt() {
     var rendered = await renderCanvas();
     var bytes = toEscPos(rendered.ctx, rendered.height);
-    if (printMethod() === 'rawbt') { rawbtPrint(bytes); return; }
+    var m = printMethod();
+    if (m === 'native') { await nativePrint(bytes); return; }
+    if (m === 'rawbt') { rawbtPrint(bytes); return; }
     var device = await resolveDevice();
     var char = await connectDevice(device);
     await writeAll(char, bytes);
@@ -379,21 +412,32 @@
     line(new Date().toLocaleString('id-ID'));
     e.push(0x0A, 0x0A, 0x0A, 0x1D, 0x56, 0x42, 0x00);
     var bytes = new Uint8Array(e);
-    if (printMethod() === 'rawbt') { rawbtPrint(bytes); return; }
+    var m = printMethod();
+    if (m === 'native') { await nativePrint(bytes); return; }
+    if (m === 'rawbt') { rawbtPrint(bytes); return; }
     var device = await resolveDevice();
     var char = await connectDevice(device);
     await writeAll(char, bytes);
+  }
+
+  function forgetPrinterAll() {
+    forgetPrinter();
+    if (nativeAvailable()) { try { window.AndroidPrinter.forgetPrinter(); } catch (_) {} }
   }
 
   window.BlePrinter = {
     printReceipt: printReceipt,
     testPrint: testPrint,
     pairPrinter: pairPrinter,
-    forgetPrinter: forgetPrinter,
+    forgetPrinter: forgetPrinterAll,
     savedDevice: savedDevice,
     savedPrinterName: savedPrinterName,
     printMethod: printMethod,
     setPrintMethod: setPrintMethod,
+    nativeAvailable: nativeAvailable,
+    nativeSavedPrinterName: function () {
+      return nativeAvailable() ? (window.AndroidPrinter.savedPrinterName() || '') : '';
+    },
     supported: !!(navigator.bluetooth)
   };
 
