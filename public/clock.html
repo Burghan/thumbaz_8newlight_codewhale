@@ -201,7 +201,9 @@
           headers: { 'Content-Type': 'application/json', ...authHeaders() }, credentials: 'same-origin',
           body: JSON.stringify({ user_id: name, photo })
         });
-        const d = await r.json();
+        let d = null;
+        try { d = await r.json(); } catch {}
+        if (!r.ok) throw new Error((d && d.error) || `Server error (${r.status})`);
         statusEl.textContent = `✅ ${d.message} — ${new Date(d.time).toLocaleTimeString('id-ID')}`;
         statusEl.className = 'status ok';
         if (photo && action === 'in') {
@@ -213,7 +215,7 @@
           document.getElementById('photoOutPreview').style.display = '';
         }
         loadToday();
-      } catch { statusEl.textContent = '❌ Failed'; statusEl.className = 'status'; }
+      } catch (e) { statusEl.textContent = `❌ ${e.message || 'Failed'}`; statusEl.className = 'status'; }
       finally {
         if (action === 'in') { document.getElementById('clockInBtn').disabled = false; document.getElementById('clockInBtn').textContent = '📸 Take Photo & Clock In'; }
         else { document.getElementById('clockOutBtn').disabled = false; document.getElementById('clockOutBtn').textContent = '📸 Take Photo & Clock Out'; }

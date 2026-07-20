@@ -9,7 +9,9 @@ runMigrations();
 const { attachSession, requireRole, sessionGate } = require('./middleware/auth');
 
 const app = express();
-app.use(express.json());
+// Default 100kb body limit is too small for a base64 webcam photo
+// (clock-in/out attaches one) — bump it to fit those comfortably.
+app.use(express.json({ limit: '5mb' }));
 app.use('/api', attachSession);
 
 const manager = requireRole(['admin', 'manager']);
