@@ -105,7 +105,7 @@
     if (!auth || !auth.role) return;
 
     if (auth.role === 'staff') {
-    const allowed = new Set(['/pos/ui/1/register', '/kitchen.html', '/customers.html', '/clock.html', '/logout.html']);
+    const allowed = new Set(['/pos/ui/1/register', '/kitchen.html', '/customers.html', '/clock.html', '/printer-setup.html', '/logout.html']);
       sidebar.querySelectorAll('a[href]').forEach(link => {
         const href = link.getAttribute('href');
         if (!allowed.has(href)) {
