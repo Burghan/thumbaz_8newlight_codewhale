@@ -21,7 +21,17 @@ router.get('/today', (req, res) => {
   const rows = db.prepare(`SELECT * FROM attendances WHERE date(clock_in) = ? OR date(clock_out) = ? ORDER BY id DESC`).all(today, today);
   res.json(rows);
 });
-// Save payroll data (overtime, bonus, deduction)
+// Saved payroll bonus per user for a month — independent of attendance rows,
+// so admin/manager (who may have no clock-in records at all) still see a
+// bonus that was saved for them. Overtime/deduction are no longer read from
+// here; Payroll now derives both from attendance + rate on every load.
+router.get('/payroll', managerOnly, (req, res) => {
+  const month = req.query.month || new Date().toISOString().slice(0, 7);
+  const rows = db.prepare('SELECT user_id, bonus FROM payroll WHERE month = ?').all(month);
+  res.json(rows);
+});
+
+// Save payroll data (bonus; overtime/deduction kept 0 — computed, not stored)
 router.post('/payroll', managerOnly, (req, res) => {
   const { user_id, month, overtime, bonus, deduction } = req.body || {};
   if (!user_id || !month) return res.status(400).json({ error: 'user_id and month required' });

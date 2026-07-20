@@ -62,15 +62,14 @@
       </div>
       <table><thead><tr><th>Name</th><th>Role</th><th class="num">Shifts</th><th class="num">Hours</th><th class="num">Rate / Salary</th><th class="num">Base Pay</th><th class="num">Overtime</th><th class="num">Bonus</th><th class="num">Deduction</th><th class="num">Total</th><th>Edit</th></tr></thead>
       <tbody id="payrollRows"><tr><td colspan="11">Select month above</td></tr></tbody></table>
-      <p style="font-size:12px;color:var(--muted);margin:8px 0 0;">Staff: Base Pay is computed from attendance — a normal 8-hour shift pays the day rate; hours beyond 8 are paid on top at the prorated hourly rate (rate ÷ 8). Admin/Manager: Rate is a fixed monthly salary, independent of attendance.</p>
+      <p style="font-size:12px;color:var(--muted);margin:8px 0 0;">Staff: Base Pay = shifts worked × daily rate. Attendance then adjusts it per shift against an 8-hour baseline (rate ÷ 8 per hour): work past 8h adds Overtime, leave before 8h adds a Deduction. Admin/Manager: Rate is a fixed monthly salary — Base Pay, no Overtime/Deduction, independent of attendance.</p>
     </div>
 
     <div class="modal-backdrop" id="payrollModal" hidden>
       <div class="modal"><div class="modal-head"><span class="title" id="payrollModalTitle">Edit Payroll</span><button class="row-btn" id="closePayrollModal">✕</button></div>
         <label id="payRateLabel">Rate (Rp)</label><input id="payRate" type="number" value="0" /><input type="hidden" id="payUserId" />
-        <label>Overtime (Rp)</label><input id="payOvertime" type="number" value="0" />
         <label>Bonus (Rp)</label><input id="payBonus" type="number" value="0" />
-        <label>Deduction (Rp)</label><input id="payDeduction" type="number" value="0" />
+        <p style="font-size:11px;color:var(--muted);margin:6px 0 0;">Overtime and deduction are computed automatically from attendance hours (see the table) and can't be overridden here.</p>
         <button id="savePayroll" style="margin-top:14px;">Save</button>
       </div>
     </div>
@@ -92,19 +91,16 @@
       sel.value = months[0]; loadPayroll();
     }
 
-    // Same formula as clock.html's Today's Attendance: a normal 8-hour shift
-    // pays the day rate; hours beyond 8 are paid on top at the prorated
-    // hourly rate (rate / 8). Admin/manager instead have a flat monthly
-    // salary in the same `rate` field, untouched by attendance.
+    // Staff pay = shifts worked × day rate (Base Pay — the simple, easy-to-
+    // audit figure a shift count gives you) plus/minus attendance-derived
+    // adjustments per shift, using an 8-hour baseline and the rate ÷ 8
+    // hourly rate: work past 8h → Overtime; leave before 8h → Deduction.
+    // Admin/manager have a flat monthly salary in the same `rate` field
+    // instead — Base Pay = rate, no shift/hour math, no OT/deduction.
     function calcHours(clockIn, clockOut) {
       if (!clockIn || !clockOut) return null;
       const ms = new Date(clockOut) - new Date(clockIn);
       return ms > 0 ? ms / 3600000 : null;
-    }
-    function calcShiftPay(rate, hours) {
-      if (!rate || hours == null) return null;
-      const hourly = rate / 8;
-      return hours <= 8 ? rate : rate + (hours - 8) * hourly;
     }
 
     let usersCache = [];
@@ -113,7 +109,13 @@
       const month = document.getElementById('payrollMonth').value || new Date().toISOString().slice(0,7);
       const users = await fetch('/api/users', opts).then(r=>r.json());
       usersCache = users;
-      const attData = await fetch('/api/attendance/history?month='+month, opts).then(r=>r.json()).catch(()=>[]);
+      const [attData, payrollRows] = await Promise.all([
+        fetch('/api/attendance/history?month='+month, opts).then(r=>r.json()).catch(()=>[]),
+        fetch('/api/attendance/payroll?month='+month, opts).then(r=>r.json()).catch(()=>[])
+      ]);
+      const bonusByUser = {};
+      (Array.isArray(payrollRows) ? payrollRows : []).forEach(p => { bonusByUser[p.user_id] = Number(p.bonus || 0); });
+
       const tb = document.getElementById('payrollRows'); tb.innerHTML = '';
       let totalPayroll = 0;
       users.filter(u=>u.active).forEach(u => {
@@ -121,29 +123,33 @@
         const days = new Set(userAtt.map(a=>a.clock_in?a.clock_in.slice(0,10):null).filter(Boolean));
         const shifts = days.size;
         const rate = Number(u.rate||0);
+        const hourly = rate / 8;
         const isStaff = u.role === 'staff';
 
-        let hours = null, basePay;
+        let hours = null, basePay, overtime = 0, deduction = 0;
         if (isStaff) {
           const perShift = userAtt.map(a => calcHours(a.clock_in, a.clock_out)).filter(h => h != null);
           hours = perShift.reduce((s,h)=>s+h, 0);
-          basePay = userAtt.reduce((s,a) => s + (calcShiftPay(rate, calcHours(a.clock_in, a.clock_out)) || 0), 0);
+          basePay = shifts * rate;
+          perShift.forEach(h => {
+            if (h > 8) overtime += (h - 8) * hourly;
+            else if (h < 8) deduction += (8 - h) * hourly;
+          });
         } else {
           basePay = rate; // fixed monthly salary, independent of attendance
         }
 
-        const saved = attData.find(a => String(a.user_id)===String(u.id)) || {};
-        const ot = Number(saved.overtime||0), bonus = Number(saved.bonus||0), deduct = Number(saved.deduction||0);
-        const total = basePay + ot + bonus - deduct; totalPayroll += total;
+        const bonus = bonusByUser[u.id] || 0;
+        const total = basePay + overtime + bonus - deduction; totalPayroll += total;
         tb.innerHTML += '<tr><td>'+u.name+'</td><td>'+u.role+'</td><td class="num">'+shifts+'</td>'
           + '<td class="num">'+(hours!=null?hours.toFixed(1)+' h':'—')+'</td>'
           + '<td class="num">'+(rate?'Rp '+rate.toLocaleString('id-ID'):'—')+(isStaff?'':' /mo')+'</td>'
           + '<td class="num">'+(basePay?'Rp '+basePay.toLocaleString('id-ID'):'—')+'</td>'
-          + '<td class="num">'+(ot?'Rp '+ot.toLocaleString('id-ID'):'—')+'</td>'
+          + '<td class="num">'+(overtime?'Rp '+Math.round(overtime).toLocaleString('id-ID'):'—')+'</td>'
           + '<td class="num">'+(bonus?'Rp '+bonus.toLocaleString('id-ID'):'—')+'</td>'
-          + '<td class="num">'+(deduct?'Rp '+deduct.toLocaleString('id-ID'):'—')+'</td>'
-          + '<td class="num" style="font-weight:700;">'+(total?'Rp '+total.toLocaleString('id-ID'):'—')+'</td>'
-          + '<td><button class="row-btn" data-pay-edit="'+u.id+'" data-rate="'+rate+'" data-ot="'+ot+'" data-bonus="'+bonus+'" data-ded="'+deduct+'">✎</button></td></tr>';
+          + '<td class="num">'+(deduction?'Rp '+Math.round(deduction).toLocaleString('id-ID'):'—')+'</td>'
+          + '<td class="num" style="font-weight:700;">'+(total?'Rp '+Math.round(total).toLocaleString('id-ID'):'—')+'</td>'
+          + '<td><button class="row-btn" data-pay-edit="'+u.id+'" data-rate="'+rate+'" data-bonus="'+bonus+'">✎</button></td></tr>';
       });
       const staffCount = users.filter(u=>u.active).length;
       document.getElementById("pStatStaff").textContent = staffCount;
@@ -161,9 +167,7 @@
       document.getElementById('payRate').value = btn.getAttribute('data-rate');
       document.getElementById('payRateLabel').textContent = (u && u.role === 'staff') ? 'Daily Rate (Rp)' : 'Basic Salary / month (Rp)';
       document.getElementById('payrollModalTitle').textContent = 'Edit Payroll — ' + (u ? u.name : '');
-      document.getElementById('payOvertime').value = btn.getAttribute('data-ot');
       document.getElementById('payBonus').value = btn.getAttribute('data-bonus');
-      document.getElementById('payDeduction').value = btn.getAttribute('data-ded');
       document.getElementById('payrollModal').hidden = false;
     });
     document.getElementById('closePayrollModal').addEventListener('click', ()=>document.getElementById('payrollModal').hidden=true);
@@ -173,8 +177,8 @@
       await fetch(`/api/users/${userId}/rate`, { method:'PATCH', headers:{'Content-Type':'application/json',...h},
         body: JSON.stringify({ rate: Number(document.getElementById('payRate').value)||0 }) });
       await fetch('/api/attendance/payroll', { method:'POST', headers:{'Content-Type':'application/json',...h},
-        body: JSON.stringify({ user_id: userId, month, overtime: Number(document.getElementById('payOvertime').value)||0,
-          bonus: Number(document.getElementById('payBonus').value)||0, deduction: Number(document.getElementById('payDeduction').value)||0 }) });
+        body: JSON.stringify({ user_id: userId, month, overtime: 0,
+          bonus: Number(document.getElementById('payBonus').value)||0, deduction: 0 }) });
       document.getElementById('payrollModal').hidden = true; loadPayroll();
     });
 
