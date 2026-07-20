@@ -47,6 +47,12 @@
     .list-scroll { overflow: auto; max-height: none; flex: 1 1 auto; min-height: 0; }
     .table-wrap { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    /* Purchase History's columns (date/category/item/qty/unit/cost) are all
+       short — stretching to the card's full width just spreads them out with
+       big empty gaps. Size it to its content instead. */
+    #purchaseHistoryTable { width: auto; }
+    #purchaseHistoryTable th, #purchaseHistoryTable td { padding-right: 28px; white-space: nowrap; }
+    #purchaseHistoryTable th:last-child, #purchaseHistoryTable td:last-child { padding-right: 8px; }
     th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
     th { position: sticky; top: 0; background: var(--card); color: var(--accent); font-size: 11px; text-transform: uppercase; z-index: 1; }
     .num { text-align: right; }
@@ -140,7 +146,7 @@
       <div class="card stat-card">
         <div class="stat-card-header"><strong style="color:var(--accent);">Purchase History</strong></div>
         <div class="table-wrap"><div class="list-scroll">
-          <table><thead><tr><th>Date</th><th>Category</th><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Total Cost</th></tr></thead>
+          <table id="purchaseHistoryTable"><thead><tr><th>Date</th><th>Category</th><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Total Cost</th></tr></thead>
           <tbody id="rows"><tr><td colspan="6">Loading…</td></tr></tbody></table>
         </div></div>
       </div>
