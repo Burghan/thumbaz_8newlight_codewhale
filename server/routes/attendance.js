@@ -15,13 +15,6 @@ function managerOnly(req, res, next) {
   next();
 }
 
-// Minimal employee picker for the clock-in/out dropdown — id+name only, no
-// pay rate (the full /api/users list is manager-gated to keep rate private).
-router.get('/employees', (req, res) => {
-  const rows = db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY name').all();
-  res.json(rows);
-});
-
 // Today's attendance
 router.get('/today', (req, res) => {
   const today = new Date().toISOString().slice(0, 10);

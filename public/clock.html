@@ -16,6 +16,7 @@
 
     .card { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 8px 20px rgba(41,26,18,0.16); text-align: center; }
     .card h2 { margin: 0 0 12px; font-size: 18px; color: var(--accent); }
+    .who { font-size: 15px; font-weight: 600; color: var(--brand-ink); margin-bottom: 8px; }
     .time-display { font-size: 48px; font-weight: 700; font-family: var(--font-brand); color: var(--brand-ink); margin: 10px 0; }
     .clock-btn { width: 100%; padding: 16px; font-size: 18px; border-radius: 14px; border: none; cursor: pointer; font-weight: 700; color: #fff; margin-top: 12px; }
     .clock-btn.in { background: #2e7d32; }
@@ -26,12 +27,22 @@
     .photo-preview { width: 120px; height: 120px; border-radius: 12px; object-fit: cover; margin: 8px auto; border: 2px solid var(--border); }
     .status { margin-top: 8px; font-size: 14px; font-weight: 600; min-height: 20px; }
     .status.ok { color: #2e7d32; }
-    .today-list { margin-top: 20px; max-width: 700px; }
+    .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+    @media(max-width:760px){ .kpis{ grid-template-columns:repeat(2,1fr); } }
+    @media(max-width:420px){ .kpis{ grid-template-columns:1fr; } }
+    .kpi { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 18px; box-shadow:var(--shadow-sm); }
+    .kpi .lbl { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
+    .kpi .val { font-family:var(--font-brand); font-size:22px; font-weight:700; color:var(--brand-ink); margin-top:6px; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    .today-list { margin-top: 20px; max-width: 900px; }
     .today-list h3 { color: var(--accent); margin-bottom: 8px; }
-    .att-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--card); border-radius: 10px; margin-bottom: 6px; border: 1px solid var(--border); font-size: 13px; }
-    .att-row img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; margin: 0 6px; }
-    .att-row .in { color: #2e7d32; font-weight: 600; }
-    .att-row .out { color: var(--danger); font-weight: 600; }
+    .today-list table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--card); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+    .today-list th, .today-list td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    .today-list th { color: var(--accent); font-size: 11px; text-transform: uppercase; background: var(--card-tint); }
+    .today-list .num { text-align: right; }
+    .today-list td img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; margin-left: 6px; vertical-align: middle; }
+    .today-list .in { color: #2e7d32; font-weight: 600; }
+    .today-list .out { color: var(--danger); font-weight: 600; }
 
     select, input { padding: 10px 14px; font-size: 15px; border-radius: 10px; min-height: 44px; width: 100%; box-sizing: border-box; }
     label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--accent); }
@@ -91,12 +102,18 @@
       <div class="time-display" id="liveClock" style="font-size:24px;margin:0;">--:--</div>
     </div>
 
+    <div class="kpis" id="attKpis" style="display:none;">
+      <div class="kpi"><div class="lbl">Present Today</div><div class="val" id="kPresent">–</div></div>
+      <div class="kpi"><div class="lbl">Total Hours Today</div><div class="val" id="kHours">–</div></div>
+      <div class="kpi"><div class="lbl">Avg Hours / Employee</div><div class="val" id="kAvgHours">–</div></div>
+      <div class="kpi"><div class="lbl">Est. Payroll Today</div><div class="val" id="kPayroll">–</div></div>
+    </div>
+
     <div class="clock-area">
       <!-- Clock In -->
       <div class="card" id="cardIn">
         <h2>🟢 Clock In</h2>
-        <label>Employee</label>
-        <select id="empSelect"></select>
+        <div class="who" id="whoIn">👤 —</div>
         <img class="photo-preview" id="photoInPreview" src="" style="display:none;" alt="Photo" />
         <button class="clock-btn in" id="clockInBtn">📸 Take Photo & Clock In</button>
         <div class="status" id="statusIn"></div>
@@ -105,6 +122,7 @@
       <!-- Clock Out -->
       <div class="card" id="cardOut">
         <h2>🔴 Clock Out</h2>
+        <div class="who" id="whoOut">👤 —</div>
         <img class="photo-preview" id="photoOutPreview" src="" style="display:none;" alt="Photo" />
         <button class="clock-btn out" id="clockOutBtn">📸 Take Photo & Clock Out</button>
         <div class="status" id="statusOut"></div>
@@ -124,7 +142,12 @@
     <!-- Today's Attendance -->
     <div class="today-list">
       <h3>📋 Today's Attendance</h3>
-      <div id="todayList">Loading…</div>
+      <table>
+        <thead><tr id="todayHead">
+          <th>Employee</th><th>Clock In</th><th>Clock Out</th>
+        </tr></thead>
+        <tbody id="todayList"><tr><td colspan="3">Loading…</td></tr></tbody>
+      </table>
     </div>
   </div>
 
@@ -133,15 +156,8 @@
   <script src="/sidebar.js"></script>
   <script>
     const auth = requireRole(['admin','manager','staff']);
-    const empSelect = document.getElementById('empSelect');
-    fetch('/api/attendance/employees', {headers:authHeaders(),credentials:'same-origin'}).then(r=>r.json()).then(async users=>{
-    (Array.isArray(users) ? users : []).forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent=u.name;empSelect.appendChild(o);});
-    // Auto-select current logged-in user
-    try { const me = await fetch('/api/auth/me', {headers:authHeaders(),credentials:'same-origin'}).then(r=>r.json()); if (me && me.id) empSelect.value = me.id; } catch {}
-  }).catch(()=>{});
-
-    // Populate employee list
-    
+    document.getElementById('whoIn').textContent = `👤 ${auth.name}`;
+    document.getElementById('whoOut').textContent = `👤 ${auth.name}`;
 
     // Live clock
     function updateClock() { document.getElementById('liveClock').textContent = new Date().toLocaleTimeString('id-ID'); }
@@ -184,8 +200,7 @@
     });
 
     async function doClock(action, photo) {
-      const name = empSelect.value;
-      if (!name) return alert('Select an employee');
+      const userId = auth.id;
       const statusEl = document.getElementById(action === 'in' ? 'statusIn' : 'statusOut');
 
       if (action === 'in') {
@@ -200,7 +215,7 @@
         const r = await fetch(`/api/attendance/clock-${action}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders() }, credentials: 'same-origin',
-          body: JSON.stringify({ user_id: name, photo })
+          body: JSON.stringify({ user_id: userId, photo })
         });
         let d = null;
         try { d = await r.json(); } catch {}
@@ -226,23 +241,81 @@
     document.getElementById('clockInBtn').addEventListener('click', () => openCamera('in'));
     document.getElementById('clockOutBtn').addEventListener('click', () => openCamera('out'));
 
-    async function loadToday() {
+    // Hours + estimated pay, admin/manager only (needs each user's pay rate,
+    // which staff can't fetch — /api/users is manager-gated). The day rate
+    // covers a normal 8-hour shift; hours beyond 8 are paid on top at the
+    // prorated hourly rate (rate / 8).
+    const isManager = auth && (auth.role === 'admin' || auth.role === 'manager');
+    let rateById = {};
+
+    function calcHours(clockIn, clockOut) {
+      if (!clockIn || !clockOut) return null;
+      const ms = new Date(clockOut) - new Date(clockIn);
+      return ms > 0 ? ms / 3600000 : null;
+    }
+    function calcPay(rate, hours) {
+      if (!rate || hours == null) return null;
+      const hourly = rate / 8;
+      return hours <= 8 ? rate : rate + (hours - 8) * hourly;
+    }
+    function fmtDateTime(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    }
+    const RpFmt = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+
+    async function loadRates() {
+      if (!isManager) return;
       try {
-        const data = await fetch('/api/attendance/today', { headers: authHeaders(), credentials: 'same-origin' }).then(r => r.json());
-        const el = document.getElementById('todayList');
-        if (!data.length) { el.innerHTML = '<div style="color:var(--muted);">No attendance recorded today</div>'; return; }
-        el.innerHTML = data.map(a => `
-          <div class="att-row">
-            <strong>${a.employee_name}</strong>
-            <span class="in">🟢 ${a.clock_in ? new Date(a.clock_in).toLocaleTimeString('id-ID') : '—'}</span>
-            ${a.photo_in ? `<img src="${a.photo_in}">` : ''}
-            <span class="out">🔴 ${a.clock_out ? new Date(a.clock_out).toLocaleTimeString('id-ID') : '—'}</span>
-            ${a.photo_out ? `<img src="${a.photo_out}">` : ''}
-          </div>`).join('');
+        const users = await fetch('/api/users', { headers: authHeaders(), credentials: 'same-origin' }).then(r => r.json());
+        rateById = {};
+        (Array.isArray(users) ? users : []).forEach(u => { rateById[u.id] = Number(u.rate || 0); });
       } catch {}
     }
 
-    if (auth) loadToday();
+    async function loadToday() {
+      try {
+        const data = await fetch('/api/attendance/today', { headers: authHeaders(), credentials: 'same-origin' }).then(r => r.json());
+        const rows = Array.isArray(data) ? data : [];
+
+        document.getElementById('todayHead').innerHTML = '<th>Employee</th><th>Clock In</th><th>Clock Out</th>'
+          + (isManager ? '<th class="num">Hours</th><th class="num">Est. Pay</th>' : '');
+
+        const el = document.getElementById('todayList');
+        if (!rows.length) { el.innerHTML = `<tr><td colspan="${isManager ? 5 : 3}" style="color:var(--muted);">No attendance recorded today</td></tr>`; }
+        else {
+          el.innerHTML = rows.map(a => {
+            const hours = calcHours(a.clock_in, a.clock_out);
+            const pay = isManager ? calcPay(rateById[a.user_id], hours) : null;
+            return `
+            <tr>
+              <td><strong>${a.employee_name}</strong></td>
+              <td><span class="in">🟢 ${fmtDateTime(a.clock_in)}</span>${a.photo_in ? `<img src="${a.photo_in}">` : ''}</td>
+              <td><span class="out">🔴 ${fmtDateTime(a.clock_out)}</span>${a.photo_out ? `<img src="${a.photo_out}">` : ''}</td>
+              ${isManager ? `<td class="num">${hours != null ? hours.toFixed(1) + ' h' : '—'}</td>` : ''}
+              ${isManager ? `<td class="num">${pay != null ? RpFmt(pay) : '—'}</td>` : ''}
+            </tr>`;
+          }).join('');
+        }
+
+        if (isManager) {
+          const present = new Set(rows.map(r => r.employee_name)).size;
+          const withHours = rows.map(a => calcHours(a.clock_in, a.clock_out)).filter(h => h != null);
+          const totalHours = withHours.reduce((s, h) => s + h, 0);
+          const totalPay = rows.reduce((s, a) => {
+            const p = calcPay(rateById[a.user_id], calcHours(a.clock_in, a.clock_out));
+            return s + (p || 0);
+          }, 0);
+          document.getElementById('attKpis').style.display = '';
+          document.getElementById('kPresent').textContent = present;
+          document.getElementById('kHours').textContent = totalHours ? totalHours.toFixed(1) + ' h' : '—';
+          document.getElementById('kAvgHours').textContent = withHours.length ? (totalHours / withHours.length).toFixed(1) + ' h' : '—';
+          document.getElementById('kPayroll').textContent = totalPay ? RpFmt(totalPay) : '—';
+        }
+      } catch {}
+    }
+
+    if (auth) { loadRates().then(loadToday); }
   </script>
 </body>
 </html>
