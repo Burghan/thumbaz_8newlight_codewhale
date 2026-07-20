@@ -99,7 +99,7 @@
     <div class="stats">
       <div class="stat good"><div class="label">Active Team</div><div class="value" id="sActive">–</div><div class="sub" id="sActiveSub"></div></div>
       <div class="stat on"><div class="label">On Shift Now</div><div class="value" id="sOnShift">–</div><div class="sub" id="sOnShiftSub"></div></div>
-      <div class="stat"><div class="label">Daily Wage Bill</div><div class="value" id="sWage">–</div><div class="sub">active team / day</div></div>
+      <div class="stat"><div class="label">Fixed Monthly Salaries</div><div class="value" id="sWage">–</div><div class="sub">admin &amp; manager</div></div>
       <div class="stat"><div class="label">Team Mix</div><div class="value" id="sMix">–</div><div class="sub">admin · manager · staff</div></div>
     </div>
 
@@ -114,8 +114,9 @@
           <h2 style="margin:0;">User Management</h2>
           <button id="addUserBtn" style="width:auto;">＋ Add User</button>
         </div>
-        <table><thead><tr><th>Name</th><th>Role</th><th class="num">Rate</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="userRows"><tr><td colspan="5">Loading…</td></tr></tbody></table>
+        <table><thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="userRows"><tr><td colspan="4">Loading…</td></tr></tbody></table>
+        <p style="font-size:12px;color:var(--muted);margin:8px 0 0;">Pay rate / salary is set on the <a href="/payroll.html">Payroll</a> page, not here.</p>
       </div>
     </div>
 
@@ -133,7 +134,6 @@
       <div class="modal"><div class="modal-head"><span class="title" id="userModalTitle">Add User</span><button class="row-btn" id="closeUserModal">✕</button></div>
         <label>Name</label><input id="userName" required />
         <label>Role</label><select id="userRole"><option value="admin">Admin</option><option value="manager">Manager</option><option value="staff">Staff</option></select>
-        <label>Daily Rate (Rp)</label><input id="userRate" type="number" value="0" />
         <label>Phone</label><input id="userPhone" placeholder="08xx" />
         <label>PIN (leave blank to keep)</label><input id="userPin" type="password" maxlength="4" />
         <button id="saveUser" style="margin-top:14px;">Save</button>
@@ -171,7 +171,7 @@
       // KPIs
       const active = users.filter(u=>u.active);
       const onShift = (att||[]).filter(a=>a.clock_in && !a.clock_out).length;
-      const wage = active.reduce((s,u)=>s+Number(u.rate||0),0);
+      const wage = active.filter(u=>u.role!=='staff').reduce((s,u)=>s+Number(u.rate||0),0);
       const admins = users.filter(u=>u.role==='admin').length;
       const managers = users.filter(u=>u.role==='manager').length;
       const staff = users.filter(u=>u.role==='staff').length;
@@ -183,12 +183,11 @@
       document.getElementById('sMix').textContent = `${admins} · ${managers} · ${staff}`;
 
       const tb = document.getElementById('userRows'); tb.innerHTML = '';
-      if (!users.length) { tb.innerHTML = '<tr><td colspan="5">No users</td></tr>'; return; }
+      if (!users.length) { tb.innerHTML = '<tr><td colspan="4">No users</td></tr>'; return; }
       users.forEach(u => {
         const isSelf = String(u.id) === String(auth.id);
         const delBtn = isSelf ? '' : `<button class="row-btn danger" data-delete="${u.id}" data-name="${(u.name||'').replace(/"/g,'&quot;')}">Delete</button>`;
         tb.innerHTML += `<tr><td><strong>${u.name}</strong>${isSelf?' <span class="pill-inactive">you</span>':''}</td><td>${u.role}</td>
-          <td class="num">${u.rate?RpFmt(u.rate):'—'}</td>
           <td>${u.active?'<span class="pill-active">Active</span>':'<span class="pill-inactive">Inactive</span>'}</td>
           <td><button class="row-btn" data-edit="${u.id}">Edit</button>
             <button class="row-btn" data-toggle="${u.id}">${u.active?'Deactivate':'Activate'}</button>
@@ -216,7 +215,6 @@
       editingUserId = id;
       document.getElementById('userName').value = u.name;
       document.getElementById('userRole').value = u.role;
-      document.getElementById('userRate').value = u.rate||0;
       document.getElementById('userPhone').value = u.phone||'';
       document.getElementById('userPin').value = '';
       document.getElementById('userModalTitle').textContent = 'Edit User';
@@ -227,7 +225,6 @@
       editingUserId = null;
       document.getElementById('userName').value = '';
       document.getElementById('userRole').value = 'staff';
-      document.getElementById('userRate').value = '0';
       document.getElementById('userPhone').value = '';
       document.getElementById('userPin').value = '';
       document.getElementById('userModalTitle').textContent = 'Add User';
@@ -238,7 +235,7 @@
     document.getElementById('userModal').addEventListener('click', e=>{if(e.target===document.getElementById('userModal'))document.getElementById('userModal').hidden=true;});
 
     document.getElementById('saveUser').addEventListener('click', async ()=>{
-      const payload = { name: document.getElementById('userName').value, role: document.getElementById('userRole').value, rate: document.getElementById('userRate').value, phone: document.getElementById('userPhone').value, pin: document.getElementById('userPin').value };
+      const payload = { name: document.getElementById('userName').value, role: document.getElementById('userRole').value, phone: document.getElementById('userPhone').value, pin: document.getElementById('userPin').value };
       if (!payload.name.trim()) return;
       const url = editingUserId ? `/api/users/${editingUserId}` : '/api/users';
       const r = await fetch(url, { method: editingUserId?'PUT':'POST', headers:{'Content-Type':'application/json',...h}, body:JSON.stringify(payload) });
@@ -253,13 +250,13 @@
       if (!data.length) { tb.innerHTML = '<tr><td colspan="5">No attendance today</td></tr>'; return; }
       data.forEach(a => {
         let dur = ''; if (a.clock_in && a.clock_out) {
-          const ms = new Date(a.clock_out+'Z') - new Date(a.clock_in+'Z');
+          const ms = new Date(a.clock_out) - new Date(a.clock_in);
           dur = `${Math.floor(ms/3600000)}h ${Math.floor((ms%3600000)/60000)}m`;
         }
         tb.innerHTML += `<tr><td><strong>${a.employee_name}</strong></td>
-          <td>${a.clock_in?new Date(a.clock_in+'Z').toLocaleDateString('id-ID'):'—'}</td>
-          <td>${a.clock_in?new Date(a.clock_in+'Z').toLocaleTimeString('id-ID'):'—'}</td>
-          <td>${a.clock_out?new Date(a.clock_out+'Z').toLocaleTimeString('id-ID'):'—'}</td>
+          <td>${a.clock_in?new Date(a.clock_in).toLocaleDateString('id-ID'):'—'}</td>
+          <td>${a.clock_in?new Date(a.clock_in).toLocaleTimeString('id-ID'):'—'}</td>
+          <td>${a.clock_out?new Date(a.clock_out).toLocaleTimeString('id-ID'):'—'}</td>
           <td class="num">${dur}</td></tr>`;
       });
     }

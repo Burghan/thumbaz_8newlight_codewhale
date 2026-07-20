@@ -25,14 +25,26 @@ router.post('/', adminOnly, (req, res) => {
 });
 
 router.put('/:id', adminOnly, (req, res) => {
-  const { name, role, pin, rate, phone, notes } = req.body || {};
+  const { name, role, pin, phone, notes } = req.body || {};
   if (!name || !role) return res.status(400).json({ error: 'Name and role required' });
-  const updates = ['name = ?', 'role = ?', 'rate = ?', 'phone = ?', 'notes = ?'];
-  const params = [name.trim(), role, Number(rate || 0), (phone || '').trim() || null, (notes || '').trim() || null];
+  const updates = ['name = ?', 'role = ?', 'phone = ?', 'notes = ?'];
+  const params = [name.trim(), role, (phone || '').trim() || null, (notes || '').trim() || null];
   if (pin) { updates.push('pin_hash = ?'); params.push(hashPin(pin)); }
   params.push(req.params.id);
   db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
   res.json({ message: 'User updated' });
+});
+
+// Pay rate/salary lives on the Payroll page, not the Users form — staff's
+// `rate` is a day-rate (Payroll derives hourly pay from it via attendance);
+// admin/manager's `rate` is a flat monthly salary, untouched by attendance.
+// Open to manager too (the /api/users mount already requires admin|manager).
+router.patch('/:id/rate', (req, res) => {
+  const rate = Number(req.body?.rate);
+  if (!Number.isFinite(rate) || rate < 0) return res.status(400).json({ error: 'Valid rate required' });
+  const info = db.prepare('UPDATE users SET rate = ? WHERE id = ?').run(rate, req.params.id);
+  if (!info.changes) return res.status(404).json({ error: 'Not found' });
+  res.json({ message: 'Rate updated' });
 });
 
 router.patch('/:id/toggle', adminOnly, (req, res) => {

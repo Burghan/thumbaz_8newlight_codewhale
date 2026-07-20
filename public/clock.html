@@ -242,11 +242,13 @@
     document.getElementById('clockOutBtn').addEventListener('click', () => openCamera('out'));
 
     // Hours + estimated pay, admin/manager only (needs each user's pay rate,
-    // which staff can't fetch — /api/users is manager-gated). The day rate
-    // covers a normal 8-hour shift; hours beyond 8 are paid on top at the
-    // prorated hourly rate (rate / 8).
+    // which staff can't fetch — /api/users is manager-gated). Staff earn by
+    // attendance: a normal 8-hour shift pays the day rate, hours beyond 8 are
+    // paid on top at the prorated hourly rate (rate / 8). Admin/manager have
+    // a flat monthly salary in that same `rate` field instead — not tied to
+    // any single day, so "Est. Pay" only applies to staff rows.
     const isManager = auth && (auth.role === 'admin' || auth.role === 'manager');
-    let rateById = {};
+    let userById = {};
 
     function calcHours(clockIn, clockOut) {
       if (!clockIn || !clockOut) return null;
@@ -268,8 +270,8 @@
       if (!isManager) return;
       try {
         const users = await fetch('/api/users', { headers: authHeaders(), credentials: 'same-origin' }).then(r => r.json());
-        rateById = {};
-        (Array.isArray(users) ? users : []).forEach(u => { rateById[u.id] = Number(u.rate || 0); });
+        userById = {};
+        (Array.isArray(users) ? users : []).forEach(u => { userById[u.id] = { rate: Number(u.rate || 0), role: u.role }; });
       } catch {}
     }
 
@@ -286,14 +288,16 @@
         else {
           el.innerHTML = rows.map(a => {
             const hours = calcHours(a.clock_in, a.clock_out);
-            const pay = isManager ? calcPay(rateById[a.user_id], hours) : null;
+            const info = userById[a.user_id];
+            const isStaff = info && info.role === 'staff';
+            const pay = isManager && isStaff ? calcPay(info.rate, hours) : null;
             return `
             <tr>
               <td><strong>${a.employee_name}</strong></td>
               <td><span class="in">🟢 ${fmtDateTime(a.clock_in)}</span>${a.photo_in ? `<img src="${a.photo_in}">` : ''}</td>
               <td><span class="out">🔴 ${fmtDateTime(a.clock_out)}</span>${a.photo_out ? `<img src="${a.photo_out}">` : ''}</td>
               ${isManager ? `<td class="num">${hours != null ? hours.toFixed(1) + ' h' : '—'}</td>` : ''}
-              ${isManager ? `<td class="num">${pay != null ? RpFmt(pay) : '—'}</td>` : ''}
+              ${isManager ? `<td class="num">${isStaff ? (pay != null ? RpFmt(pay) : '—') : 'Salaried'}</td>` : ''}
             </tr>`;
           }).join('');
         }
@@ -303,14 +307,15 @@
           const withHours = rows.map(a => calcHours(a.clock_in, a.clock_out)).filter(h => h != null);
           const totalHours = withHours.reduce((s, h) => s + h, 0);
           const totalPay = rows.reduce((s, a) => {
-            const p = calcPay(rateById[a.user_id], calcHours(a.clock_in, a.clock_out));
-            return s + (p || 0);
+            const info = userById[a.user_id];
+            if (!info || info.role !== 'staff') return s;
+            return s + (calcPay(info.rate, calcHours(a.clock_in, a.clock_out)) || 0);
           }, 0);
           document.getElementById('attKpis').style.display = '';
           document.getElementById('kPresent').textContent = present;
           document.getElementById('kHours').textContent = totalHours ? totalHours.toFixed(1) + ' h' : '—';
           document.getElementById('kAvgHours').textContent = withHours.length ? (totalHours / withHours.length).toFixed(1) + ' h' : '—';
-          document.getElementById('kPayroll').textContent = totalPay ? RpFmt(totalPay) : '—';
+          document.getElementById('kPayroll').textContent = totalPay ? RpFmt(totalPay) + ' (staff)' : '—';
         }
       } catch {}
     }
