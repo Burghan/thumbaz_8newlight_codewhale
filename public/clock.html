@@ -178,8 +178,9 @@
       canvas.width = video.videoWidth; canvas.height = video.videoHeight;
       canvas.getContext('2d').drawImage(video, 0, 0);
       const photo = canvas.toDataURL('image/jpeg', 0.8);
+      const action = pendingAction;
       closeCamera();
-      doClock(pendingAction, photo);
+      doClock(action, photo);
     });
 
     async function doClock(action, photo) {
