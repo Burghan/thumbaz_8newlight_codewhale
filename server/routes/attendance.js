@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const fs = require('fs');
 const path = require('path');
+const { wibNowIso, wibToday, wibMonth } = require('../lib/time');
 const router = express.Router();
 
 const PHOTO_DIR = path.join(__dirname, '..', '..', 'data', 'photos');
@@ -17,7 +18,7 @@ function managerOnly(req, res, next) {
 
 // Today's attendance
 router.get('/today', (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = wibToday();
   const rows = db.prepare(`SELECT * FROM attendances WHERE date(clock_in) = ? OR date(clock_out) = ? ORDER BY id DESC`).all(today, today);
   res.json(rows);
 });
@@ -26,7 +27,7 @@ router.get('/today', (req, res) => {
 // bonus that was saved for them. Overtime/deduction are no longer read from
 // here; Payroll now derives both from attendance + rate on every load.
 router.get('/payroll', managerOnly, (req, res) => {
-  const month = req.query.month || new Date().toISOString().slice(0, 7);
+  const month = req.query.month || wibMonth();
   const rows = db.prepare('SELECT user_id, bonus FROM payroll WHERE month = ?').all(month);
   res.json(rows);
 });
@@ -42,7 +43,7 @@ router.post('/payroll', managerOnly, (req, res) => {
 
 // Get attendance history for a given month
 router.get('/history', managerOnly, (req, res) => {
-  const month = req.query.month || new Date().toISOString().slice(0,7);
+  const month = req.query.month || wibMonth();
   const rows = db.prepare(`
     SELECT a.*, p.overtime, p.bonus, p.deduction
     FROM attendances a
@@ -66,7 +67,7 @@ router.post('/clock-in', (req, res) => {
   const user = user_id ? db.prepare('SELECT name FROM users WHERE id=? AND active=1').get(user_id) : null;
   if (!user) return res.status(400).json({ error: 'Valid employee required' });
 
-  const now = new Date().toISOString();
+  const now = wibNowIso();
   let photoPath = null;
 
   if (photo) {
@@ -89,7 +90,7 @@ router.post('/clock-out', (req, res) => {
   const user = user_id ? db.prepare('SELECT name FROM users WHERE id=? AND active=1').get(user_id) : null;
   if (!user) return res.status(400).json({ error: 'Valid employee required' });
 
-  const now = new Date().toISOString();
+  const now = wibNowIso();
   let photoPath = null;
 
   if (photo) {
@@ -101,7 +102,7 @@ router.post('/clock-out', (req, res) => {
   }
 
   // Find the last clock-in without a clock-out for this employee today
-  const today = new Date().toISOString().slice(0, 10);
+  const today = wibToday();
   const row = db.prepare(`SELECT id FROM attendances WHERE user_id = ? AND date(clock_in) = ? AND clock_out IS NULL ORDER BY id DESC LIMIT 1`)
     .get(user_id, today);
 

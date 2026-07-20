@@ -57,8 +57,9 @@ router.post('/', (req, res) => {
   const tx = db.transaction(() => {
     // Create purchase header.
     const pinfo = db.prepare(
+      // WIB (UTC+7) wall-clock time — see server/lib/time.js.
       `INSERT INTO purchases (supplier_id, purchased_at, reference, notes)
-       VALUES (?, datetime('now'), ?, ?)`
+       VALUES (?, datetime('now', '+7 hours'), ?, ?)`
     ).run(b.supplier_id || null, b.reference || null, (b.notes || '').trim() || null);
     const purchaseId = pinfo.lastInsertRowid;
 

@@ -336,11 +336,15 @@
   // Default range: current month, unless the page was opened with filters in
   // the URL (e.g. "View all transactions" links from a KPI drill-down).
   const urlParams = new URLSearchParams(location.search);
+  // Local calendar date, not .toISOString() (UTC) — transacted_at is stored
+  // as WIB wall-clock time (server/lib/time.js), so a UTC-shifted "today"
+  // would exclude anything from local midnight to 7am.
+  const fmtLocalDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   (function defaultRange(){
     const now = new Date();
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
-    state.from = fFrom.value = urlParams.get('from') || first.toISOString().slice(0,10);
-    state.to = fTo.value = urlParams.get('to') || now.toISOString().slice(0,10);
+    state.from = fFrom.value = urlParams.get('from') || fmtLocalDate(first);
+    state.to = fTo.value = urlParams.get('to') || fmtLocalDate(now);
     if (urlParams.get('order_type')) state.order_type = urlParams.get('order_type');
     if (urlParams.get('q')) state.q = qEl.value = urlParams.get('q');
     if (urlParams.get('product_id')) state.product_id = urlParams.get('product_id');

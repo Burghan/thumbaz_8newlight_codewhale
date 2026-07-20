@@ -67,8 +67,10 @@ router.post('/', (req, res) => {
     const customer = customerId ? db.prepare('SELECT id, points_balance FROM customers WHERE id = ?').get(customerId) : null;
 
     const txn = db.prepare(
+      // WIB (UTC+7) wall-clock time, matching how Riwayat imports store the
+      // source .xls's own local timestamps — see server/lib/time.js.
       `INSERT INTO transactions (transacted_at, payment_method, notes, customer_note, customer_id)
-       VALUES (datetime('now'), ?, ?, ?, ?)`
+       VALUES (datetime('now', '+7 hours'), ?, ?, ?, ?)`
     ).run(payment, `${b.order_type||'dinein'}${b.discount_amount>0?` discount:${b.discount_amount}`:''}`, customerNote, customer ? customer.id : null);
 
     const txnId = txn.lastInsertRowid;
@@ -250,7 +252,7 @@ router.get('/', (req, res) => {
     FROM transactions t
     JOIN transaction_items ti ON ti.transaction_id = t.id
     JOIN products p ON p.id = ti.product_id
-     WHERE date(t.transacted_at) = date('now')
+     WHERE date(t.transacted_at) = date('now', '+7 hours')
     GROUP BY t.id ORDER BY t.id DESC LIMIT 50
   `).all();
   res.json(rows);
