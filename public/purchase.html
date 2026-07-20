@@ -10,7 +10,7 @@
     body { font-family: inherit; margin: 0; padding: 0; background: transparent; color: var(--ink); }
     .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; }
     .topbar, .page-sub, .stats, .filter-bar { flex: 0 0 auto; }
-    .main-area { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 380px; gap: 12px; min-height: 0; overflow: hidden; }
+    .main-area { flex: 1 1 auto; display: grid; grid-template-columns: max-content 1fr; gap: 12px; min-height: 0; overflow: hidden; }
     @media(max-width:800px){ .main-area { grid-template-columns: 1fr; } }
 
     /* Below 800px the layout stacks into one column, so there's no longer a
