@@ -234,9 +234,9 @@
         el.innerHTML = data.map(a => `
           <div class="att-row">
             <strong>${a.employee_name}</strong>
-            <span class="in">🟢 ${a.clock_in ? new Date(a.clock_in+'Z').toLocaleTimeString('id-ID') : '—'}</span>
+            <span class="in">🟢 ${a.clock_in ? new Date(a.clock_in).toLocaleTimeString('id-ID') : '—'}</span>
             ${a.photo_in ? `<img src="${a.photo_in}">` : ''}
-            <span class="out">🔴 ${a.clock_out ? new Date(a.clock_out+'Z').toLocaleTimeString('id-ID') : '—'}</span>
+            <span class="out">🔴 ${a.clock_out ? new Date(a.clock_out).toLocaleTimeString('id-ID') : '—'}</span>
             ${a.photo_out ? `<img src="${a.photo_out}">` : ''}
           </div>`).join('');
       } catch {}

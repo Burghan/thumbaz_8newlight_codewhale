@@ -69,6 +69,11 @@ app.get(/^\/pos\/ui\/[^/]+(\/.*)?$/, attachSession, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/pos-new.html'));
 });
 
+// Clock-in/out photos (server/routes/attendance.js writes here) — referenced
+// by the Today's Attendance list as /data/photos/<file>, but nothing was ever
+// serving that path, so the thumbnails always 404'd.
+app.use('/data/photos', express.static(path.join(__dirname, '../data/photos')));
+
 // --- static back-office UI (guarded) ---
 app.use(sessionGate);
 const publicDir = path.join(__dirname, '../public');
