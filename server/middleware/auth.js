@@ -35,7 +35,10 @@ function sessionGate(req, res, next) {
   if (req.method !== 'GET' || req.path.startsWith('/api/')) return next();
   const isHtml = req.path === '/' || req.path.endsWith('.html');
   if (!isHtml) return next();
-  const publicPaths = new Set(['/login.html', '/logout.html', '/auth.js']);
+  // receipt-view.html is the public digital-receipt page a customer opens
+  // from the printed QR code — it must be reachable with no session at all;
+  // the page itself does its own token check via /api/public-receipt.
+  const publicPaths = new Set(['/login.html', '/logout.html', '/auth.js', '/receipt-view.html']);
   if (publicPaths.has(req.path)) return next();
 
   const s = getSession(parseCookies(req.headers.cookie).session);

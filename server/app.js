@@ -28,17 +28,20 @@ app.use('/api/categories', manager, require('./routes/categories'));
 app.use('/api/ingredient-categories', manager, require('./routes/ingredient-categories'));
 app.use('/api/recipes', manager, require('./routes/recipes'));
 app.use('/api/export', manager, require('./routes/export'));
-app.use('/api/invoices', manager, require('./routes/invoices'));
 app.use('/api/import', manager, require('./routes/import'));
 app.use('/api/suppliers', manager, require('./routes/suppliers'));
 app.use('/api/purchases', manager, require('./routes/purchases'));
 app.use('/api/expenses', manager, require('./routes/expenses'));
 app.use('/api/attendance', posRole, require('./routes/attendance'));
 app.use('/api/inventory', manager, require('./routes/inventory'));
-app.use('/api/receipt', manager, require('./routes/receipt'));
 app.use('/api/transactions', manager, require('./routes/transactions'));
 app.use('/api/pos-transactions', posRole, require('./routes/pos-transactions'));
 app.use('/api/sales', posRole, require('./routes/sales'));
+// Deliberately unauthenticated — this is the digital-receipt link a customer
+// scans from the printed QR code (see server/lib/receiptToken.js); it does
+// its own HMAC token check instead of requiring a logged-in session.
+app.use('/api/public-receipt', require('./routes/public-receipt'));
+app.use('/api/sessions', posRole, require('./routes/sessions'));
 app.use('/api/modifiers', posRole, require('./routes/modifiers'));
 app.use('/api/kitchen', posRole, require('./routes/kitchen'));
 app.use('/api/pos-ingredients', posRole, require('./routes/pos-ingredients'));

@@ -4,6 +4,7 @@ const { deductStockForSale, deductIngredientsForSale } = require('../lib/stock')
 const { getLoyaltyConfig } = require('./loyalty-config');
 const { voidSale, voidPartialItem } = require('../lib/voidSale');
 const { verifyManagerPin } = require('../lib/auth');
+const { tokenFor } = require('../lib/receiptToken');
 const router = express.Router();
 
 // Loyalty earn/redeem rules now live in the loyalty_config table (managed from
@@ -191,6 +192,7 @@ router.post('/', (req, res) => {
   res.json({
     success: true,
     sale_id: txn.id,
+    receipt_token: tokenFor(txn.id),
     message: 'Sale completed',
     sale: {
       id: txn.id,
@@ -319,6 +321,7 @@ router.get('/:id', (req, res) => {
     order_type: txn.order_type,
     tax: txn.tax,
     service_fee: txn.service_fee,
+    receipt_token: tokenFor(txn.id),
     items: items.map(i => ({ item_id: i.id, product_id: i.product_id, name: i.name, quantity: i.quantity, price: i.unit_price, total: i.line_total }))
   });
 });

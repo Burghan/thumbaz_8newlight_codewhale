@@ -156,10 +156,13 @@ body {
   display: block;
 }
 
-.pos-close {
-  color: #fff;
-  text-decoration: none;
-  font-weight: 700;
+.pos-wifi {
+  cursor: default;
+}
+
+.pos-wifi.offline {
+  filter: grayscale(1);
+  opacity: 0.7;
 }
 
 @media (max-width: 980px) {
@@ -1091,6 +1094,33 @@ body {
 .void-sale-row:hover {
   border-color: var(--accent);
 }
+
+.cash-move-history {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.cash-move-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #f9fafc;
+  font-size: 13px;
+}
+
+.cash-move-row .cmr-main { display: grid; gap: 2px; }
+.cash-move-row .cmr-reason { color: var(--ink); font-weight: 600; }
+.cash-move-row .cmr-meta { color: var(--muted); font-size: 11px; }
+.cash-move-row .cmr-amount { font-weight: 800; white-space: nowrap; }
+.cash-move-row .cmr-amount.in { color: var(--positive, #3a8a5c); }
+.cash-move-row .cmr-amount.out { color: var(--danger, #c1584e); }
 
 .void-sale-total {
   font-weight: 800;
@@ -2193,34 +2223,35 @@ body {
   gap: 6px;
 }
 
-.pay-loyalty-balance {
-  font-size: 13px;
-  color: var(--muted, #666);
-}
-
-.pay-loyalty-controls {
-  display: flex;
-  align-items: center;
+.pay-loyalty-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
-  flex-wrap: wrap;
+  margin-top: 4px;
 }
 
-.pay-loyalty-controls input {
-  width: 90px;
-  padding: 6px 8px;
-  border: 1px solid #d7d7d7;
-  border-radius: 8px;
-  font-size: 14px;
+.pay-loyalty-tile {
+  background: var(--cream-soft, #faf7ef);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  text-align: center;
 }
 
-.pay-loyalty-controls .pay {
-  flex: 0 0 auto;
-  color: var(--ink);
+.pay-loyalty-tile .tile-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted, #666);
+  font-weight: 700;
 }
 
-.pay-loyalty-preview {
-  margin-left: auto;
-  font-weight: 600;
+.pay-loyalty-tile .tile-value {
+  font-family: var(--font-brand, inherit);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--brand-ink, #2e4864);
+  margin-top: 2px;
 }
 
 .pay-quickcash {
@@ -2366,12 +2397,61 @@ body {
 @media (max-width: 640px), (orientation: portrait) {
   .modal-card.pay-card {
     width: min(420px, 94vw);
+    padding: 14px;
+    gap: 8px;
   }
   .pay-layout {
     grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .pay-left,
+  .pay-right {
+    gap: 8px;
   }
   .pay-right .pay-keypad button {
     min-height: 48px;
+    font-size: 18px;
+  }
+
+  /* Tighten every info row in the stacked column — Payment Type/Customer,
+     Redeem Points, Discount — so the single-column layout has a real chance
+     of fitting without the modal's own scroll (max-height:94vh on
+     .modal-card.pay-card above). Large tap targets stay on the keypad only,
+     which is the part that actually needs a thumb. */
+  .modal-row {
+    gap: 4px;
+  }
+  .modal-row label {
+    font-size: 11px;
+  }
+  .modal-row input,
+  .modal-row select {
+    padding: 6px 8px;
+    min-height: 34px;
+  }
+  .pay-loyalty-tile {
+    padding: 6px 8px;
+  }
+  .pay-loyalty-tile .tile-value {
+    font-size: 15px;
+    margin-top: 0;
+  }
+  .pay-loyalty-tiles {
+    margin-top: 2px;
+    gap: 6px;
+  }
+  .pay-discount-auth {
+    gap: 4px;
+    margin-top: 2px;
+  }
+  .pay-discount-auth input {
+    padding: 6px 8px;
+    min-height: 34px;
+  }
+  .pay-header {
+    margin-bottom: 0;
+  }
+  .pay-due .modal-total {
     font-size: 18px;
   }
 }
@@ -2803,6 +2883,31 @@ body {
   .qty-btn.ghost {
     padding: 5px 10px;
     font-size: 12px;
+  }
+
+  /* The Orders view is a sibling of .layout inside .app, but only .layout
+     got the fixed-viewport treatment above — Orders had no height bound of
+     its own, so with .app's overflow:hidden its bottom content (Load Order/
+     Void Sale, or the tail of a long order list) was just clipped with no
+     way to reach it, not merely "needs a scroll". Same fix as .layout: give
+     it a bounded height so the flexible row inside actually has something
+     to shrink against instead of overflowing invisibly. */
+  .orders-view {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .orders-list-panel {
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+  }
+  .orders-list-panel .orders-list {
+    max-height: none;
+  }
+  .orders-detail-panel {
+    min-height: 0;
+    overflow: hidden;
   }
 }
 

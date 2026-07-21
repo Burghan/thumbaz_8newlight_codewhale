@@ -8,3 +8,4 @@ data/*.xlsx
 docs/*.xlsx
 .env
 .env.*
+data/.receipt-secret

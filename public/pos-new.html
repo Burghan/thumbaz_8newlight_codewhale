@@ -51,8 +51,7 @@
       </div>
       <div class="pos-user" id="posUser">--</div>
       <div class="pos-clock" id="clock">--:--</div>
-      <span class="pos-wifi" aria-label="Connection">📶</span>
-      <a class="pos-close" href="/logout.html">Close</a>
+      <span class="pos-wifi" id="posConnIcon" aria-label="Connection" title="Checking connection…">📶</span>
     </div>
   </header>
 
@@ -698,11 +697,11 @@
   </div>
 
   <div class="modal" id="cashMoveModal">
-    <div class="modal-card">
+    <div class="modal-card large">
       <div class="modal-head">
         <div>
           <h3>Cash In/Out</h3>
-          <div class="muted">Select cash movement type.</div>
+          <div class="muted">This shift's cash movements.</div>
         </div>
         <button class="ghost" id="closeCashMove">Close</button>
       </div>
@@ -710,6 +709,7 @@
         <button class="pay" id="cashMoveIn">Cash In</button>
         <button class="pay" id="cashMoveOut">Cash Out</button>
       </div>
+      <div class="cash-move-history" id="cashMoveHistory"><div class="muted">Loading…</div></div>
     </div>
   </div>
 

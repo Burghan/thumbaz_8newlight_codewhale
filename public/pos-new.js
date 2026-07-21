@@ -7,6 +7,46 @@ if (auth && userChip) {
 if (auth && posUser) {
   posUser.textContent = auth.name || 'User';
 }
+// The "POS ▾" switcher (Current POS / New Concept) is a developer/testing
+// toggle between two POS builds — admin-only, not something staff OR
+// managers should be flipping between mid-shift.
+if (auth && auth.role !== 'admin') {
+  document.querySelector('.pos-menu')?.classList.add('hidden');
+}
+
+// Live connection indicator — was a static 📶 that always showed full signal
+// regardless of actual connectivity. navigator.onLine only reflects whether
+// the network interface is up (wifi connected but server down still reads
+// "online"), so this also polls /api/health to catch that case.
+(function setupConnectionIndicator() {
+  const icon = document.getElementById('posConnIcon');
+  if (!icon) return;
+  let serverReachable = true;
+
+  function render() {
+    const online = navigator.onLine && serverReachable;
+    icon.textContent = online ? '📶' : '📴';
+    icon.classList.toggle('offline', !online);
+    icon.title = online ? 'Online' : 'Offline — sales may not save';
+  }
+
+  async function checkServer() {
+    if (!navigator.onLine) { serverReachable = false; render(); return; }
+    try {
+      const res = await fetch('/api/health', { cache: 'no-store' });
+      serverReachable = res.ok;
+    } catch (e) {
+      serverReachable = false;
+    }
+    render();
+  }
+
+  window.addEventListener('online', checkServer);
+  window.addEventListener('offline', render);
+  render();
+  checkServer();
+  setInterval(checkServer, 15000);
+})();
 
 const settings = loadSettings();
 let products = [];
@@ -600,7 +640,12 @@ function renderOrdersDetail(order) {
     posOrderAction.textContent = isPaid ? `View ${order.status === 'invoice' ? 'Invoice' : 'Receipt'}` : 'Load Order';
     posOrderAction.onclick = () => {
       if (isPaid) {
-        openReceiptFromHeld(order);
+        // Route through reprintSale so the receipt gets a fresh token for a
+        // real, scannable digital-receipt link — openReceiptFromHeld alone
+        // only has whatever was cached locally at Save/Hold time, with no
+        // token attached.
+        const realId = resolveSaleId(order);
+        if (realId) reprintSale(realId); else openReceiptFromHeld(order);
       } else {
         loadOrderIntoRegister(order);
       }
@@ -1080,9 +1125,12 @@ function openReceiptFromHeld(order) {
   const isInvoice = Boolean(order.isInvoice || order.status === 'invoice');
   const ticket = order.receiptNumber || (isInvoice ? `INV-${Date.now().toString().slice(-6)}` : `RCPT-${Date.now().toString().slice(-6)}`);
   const totals = calculateTotalsForItems(order.items || []);
-  // Scannable receipt code — plain-text summary (ticket/total/date), not a
-  // link, since there's no digital receipt page to link to yet.
-  const receiptLink = `${ticket}\n${formatCurrency(totals.total)}\n${new Date(order.paidAt || order.updatedAt || Date.now()).toLocaleString('id-ID')}`;
+  // Real link to the digital receipt page when we have a token (reprintSale
+  // fetches one fresh from the server) and the real sale id; plain-text
+  // fallback for anything without one (e.g. a held/unpaid order preview).
+  const receiptLink = (order.receiptToken && order.saleIdForQr)
+    ? `${window.location.origin}/receipt-view.html?id=${order.saleIdForQr}&t=${order.receiptToken}`
+    : `${ticket}\n${formatCurrency(totals.total)}\n${new Date(order.paidAt || order.updatedAt || Date.now()).toLocaleString('id-ID')}`;
   const qrImageUrl = `/api/qr?text=${encodeURIComponent(receiptLink)}&format=png&ts=${Date.now()}`;
   if (receiptItems) {
     receiptItems.innerHTML = (order.items || []).map((item) => {
@@ -1201,51 +1249,35 @@ function setTendered(v) {
 // the finished order, so this is where it lives (the numpad "Loyalty" chip only
 // showed on an empty cart). Needs a member and the program enabled; the server
 // re-validates and settles the discount authoritatively at checkout.
+// Just a Points Won / New Total preview now — redeeming points has its own
+// dedicated Loyalty modal (the numpad's Loyalty chip, openLoyaltyModal),
+// which already does it properly; duplicating balance + an input + Max/Clear
+// buttons here too just made the Payment modal cluttered and worse to use.
 function renderPaymentLoyalty(customer) {
   const row = document.getElementById('payLoyaltyRow');
   const body = document.getElementById('payLoyaltyBody');
   if (!row || !body) return;
-  const rate = Number(loyaltyConfig.redeem_rate || 0);
-  // Program off (or points worth nothing) → no redeem UI at all.
-  if (!loyaltyConfig.enabled || rate <= 0) { row.style.display = 'none'; return; }
+  const earnBase = Number(loyaltyConfig.earn_base || 0);
+  const earnPoints = Number(loyaltyConfig.earn_points || 0);
+  if (!loyaltyConfig.enabled) { row.style.display = 'none'; return; }
   row.style.display = '';
   if (!state.customerId) {
-    body.innerHTML = '<div class="muted">Pick a customer above to redeem their points.</div>';
+    body.innerHTML = '<div class="muted">Pick a customer above to see their points.</div>';
     return;
   }
   const c = customer || state.customer || {};
   const balance = Number(c.points_balance || 0);
-  // Gross = current net + whatever is already redeemed, so the cap stays stable
-  // while typing (can't redeem more than the customer has or than the bill).
-  const orderTotalGross = calculateTotals().total + Number(state.redeemValue || 0);
-  const maxByBill = Math.ceil(orderTotalGross / rate);
-  const maxRedeem = Math.max(0, Math.min(balance, maxByBill));
   const applied = Number(state.redeemPoints || 0);
+  // Same formula updateTotals() uses for the cart sidebar's "Loyalty Points"
+  // row — kept identical so the two never show contradicting numbers.
+  const pointsWon = earnBase > 0 ? Math.floor(calculateTotals().total / earnBase) * earnPoints : 0;
+  const newTotal = balance + pointsWon - applied;
   body.innerHTML = `
-    <div class="pay-loyalty-balance">${balance} pts available · 1 pt = ${formatCurrency(rate)}</div>
-    <div class="pay-loyalty-controls">
-      <input id="payRedeemInput" type="number" min="0" step="1" max="${maxRedeem}" value="${applied || ''}" placeholder="Points" />
-      <button class="pay" id="payRedeemMax" type="button">Max (${maxRedeem})</button>
-      ${applied ? '<button class="pay" id="payRedeemClear" type="button">Clear</button>' : ''}
-      <span class="pay-loyalty-preview">${applied ? '- ' + formatCurrency(applied * rate) : '—'}</span>
+    <div class="pay-loyalty-tiles">
+      <div class="pay-loyalty-tile"><div class="tile-label">Points Won</div><div class="tile-value">${pointsWon}</div></div>
+      <div class="pay-loyalty-tile"><div class="tile-label">New Total</div><div class="tile-value">${newTotal}</div></div>
     </div>
-    ${maxRedeem === 0 ? '<div class="muted">No points to redeem on this order.</div>' : ''}
   `;
-  const input = body.querySelector('#payRedeemInput');
-  const preview = body.querySelector('.pay-loyalty-preview');
-  const apply = () => {
-    let p = Math.max(0, Math.floor(Number(input.value) || 0));
-    if (p > maxRedeem) { p = maxRedeem; input.value = String(p); }
-    state.redeemPoints = p;
-    state.redeemValue = p * rate;
-    updateTotals();
-    updateChangeDisplay();
-    if (preview) preview.textContent = p > 0 ? '- ' + formatCurrency(p * rate) : '—';
-    return p;
-  };
-  input?.addEventListener('input', apply);
-  body.querySelector('#payRedeemMax')?.addEventListener('click', () => { input.value = String(maxRedeem); apply(); renderPaymentLoyalty(c); });
-  body.querySelector('#payRedeemClear')?.addEventListener('click', () => { clearRedemption(); updateChangeDisplay(); renderPaymentLoyalty(c); });
 }
 
 // Render immediately from cache, then refresh the balance from the server so the
@@ -1268,7 +1300,7 @@ searchInput.addEventListener('input', (event) => {
 
 
 if (cashMoveBtn) {
-  cashMoveBtn.addEventListener('click', () => cashMoveModal?.classList.add('active'));
+  cashMoveBtn.addEventListener('click', () => { cashMoveModal?.classList.add('active'); renderCashMoveHistory(); });
 }
 
 if (ordersBtn) {
@@ -1745,13 +1777,13 @@ function openCashMove(type) {
             const response = await fetch(`/api/sessions/${encodeURIComponent(posSessionId)}/cash-move`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ type, amount, reason })
+              body: JSON.stringify({ type, amount, reason, created_by: auth?.name || null })
             });
             if (!response.ok) {
               const data = await response.json().catch(() => ({}));
               throw new Error(data.message || 'Cash move failed.');
             }
-            openInfo('Saved', `${title} recorded.`);
+            renderCashMoveHistory();
           } catch (err) {
             openInfo('Cash move failed', err.message || 'Cash move failed.');
           }
@@ -1759,6 +1791,37 @@ function openCashMove(type) {
       });
     }
   });
+}
+
+// This shift's cash movements — was write-only (no way to see what had
+// already been recorded without leaving the POS).
+async function renderCashMoveHistory() {
+  const el = document.getElementById('cashMoveHistory');
+  if (!el) return;
+  if (!posSessionId) { el.innerHTML = '<div class="muted">No shift open yet.</div>'; return; }
+  el.innerHTML = '<div class="muted">Loading…</div>';
+  try {
+    const res = await fetch(`/api/sessions/${encodeURIComponent(posSessionId)}/cash-moves`);
+    if (!res.ok) throw new Error('Failed to load history.');
+    const data = await res.json();
+    const moves = data.moves || [];
+    if (!moves.length) { el.innerHTML = '<div class="muted">No cash movements this shift yet.</div>'; return; }
+    el.innerHTML = moves.map((m) => {
+      const time = m.created_at ? new Date(m.created_at.replace(' ', 'T')).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
+      const who = m.created_by ? ` · ${m.created_by}` : '';
+      return `
+        <div class="cash-move-row">
+          <div class="cmr-main">
+            <span class="cmr-reason">${m.reason || (m.type === 'in' ? 'Cash In' : 'Cash Out')}</span>
+            <span class="cmr-meta">${time}${who}</span>
+          </div>
+          <span class="cmr-amount ${m.type}">${m.type === 'in' ? '+' : '-'} ${formatCurrency(m.amount)}</span>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = `<div class="err">❌ ${e.message || 'Failed to load history.'}</div>`;
+  }
 }
 
 async function openCloseSessionModal() {
@@ -2506,6 +2569,7 @@ confirmPay.addEventListener('click', async () => {
   };
 
   let saleId = null;
+  let receiptToken = null;
   let earnedPoints = 0;
   let redeemedPoints = 0;
   let customerAfter = null;
@@ -2520,6 +2584,7 @@ confirmPay.addEventListener('click', async () => {
     if (!response.ok) {
       throw new Error(data.error || 'Failed to save order.');
     }
+    receiptToken = data.receipt_token || null;
     saleId = data.sale_id;
     earnedPoints = Number(data.points_earned || 0);
     redeemedPoints = Number(data.redeem_points || 0);
@@ -2553,9 +2618,12 @@ confirmPay.addEventListener('click', async () => {
     ? `INV-${String(saleId).padStart(6, '0')}`
     : `RCPT-${String(saleId).padStart(6, '0')}`;
   const time = new Date().toLocaleString('id-ID');
-  // Scannable receipt code — plain-text summary (ticket/total/date), not a
-  // link, since there's no digital receipt page to link to yet.
-  const receiptLink = `${ticket}\n${formatCurrency(totals.total)}\n${time}`;
+  // A real scannable link to the digital receipt page when the server gave
+  // us a token (every fresh sale does); plain-text summary as a fallback so
+  // this never breaks if receipt_token is ever missing for some reason.
+  const receiptLink = receiptToken
+    ? `${window.location.origin}/receipt-view.html?id=${saleId}&t=${receiptToken}`
+    : `${ticket}\n${formatCurrency(totals.total)}\n${time}`;
   const qrImageUrl = `/api/qr?text=${encodeURIComponent(receiptLink)}&format=png&ts=${Date.now()}`;
   if (receiptItems) {
     receiptItems.innerHTML = state.order.map((item) => {
@@ -3163,14 +3231,18 @@ function renderVoidList(sales) {
 // Entry point from the Orders detail panel — same void flow as the Void Sale
 // picker, just pre-seeded with the order already selected there instead of
 // making the cashier find it again in a second list.
+// order.id is a local UUID this order is tracked under client-side — several
+// actions (void, reprint) need the REAL database transaction id, stored
+// separately as saleId at payment time. Older records saved before that
+// existed won't have it (fall back to parsing it out of the receipt number,
+// e.g. "RCPT-002170" -> 2170).
+function resolveSaleId(order) {
+  return order.saleId || parseInt(String(order.receiptNumber || '').replace(/\D/g, ''), 10) || null;
+}
+
 function voidFromOrder(order) {
   if (!voidModal || !order) return;
-  // order.id is a local UUID this order is tracked under client-side — the
-  // void endpoint needs the REAL database transaction id, stored separately
-  // as saleId at payment time. Older records saved before that existed won't
-  // have it (fall back to parsing it out of the receipt number, e.g.
-  // "RCPT-002170" -> 2170).
-  const realId = order.saleId || parseInt(String(order.receiptNumber || '').replace(/\D/g, ''), 10) || null;
+  const realId = resolveSaleId(order);
   if (!realId) {
     openInfo('Can\'t void', 'This order has no linked sale id — try voiding it from the Void Sale list instead.');
     return;
@@ -3444,7 +3516,9 @@ async function reprintSale(saleId) {
       orderType: detail.order_type || 'dine_in',
       customerName: detail.customer_name || '',
       paidAt: detail.transacted_at,
-      items: (detail.items || []).map((i) => ({ qty: i.quantity, name: i.name, price: i.price }))
+      items: (detail.items || []).map((i) => ({ qty: i.quantity, name: i.name, price: i.price })),
+      receiptToken: detail.receipt_token || null,
+      saleIdForQr: detail.id
     });
   } catch (e) {
     openInfo('Reprint failed', e && e.message ? e.message : 'Could not load that sale.');
