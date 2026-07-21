@@ -3,6 +3,7 @@ const db = require('../db');
 const { deductStockForSale, deductIngredientsForSale } = require('../lib/stock');
 const { getLoyaltyConfig } = require('./loyalty-config');
 const { voidSale, voidPartialItem } = require('../lib/voidSale');
+const { verifyManagerPin } = require('../lib/auth');
 const router = express.Router();
 
 // Loyalty earn/redeem rules now live in the loyalty_config table (managed from
@@ -53,6 +54,13 @@ router.post('/', (req, res) => {
   // Whole-order discount, entered as a percent at Payment. Clamped 0..100; the
   // rupiah amount is derived server-side from the actual line total.
   const discountPct = Math.max(0, Math.min(100, Math.floor(Number(b.discount_pct || 0))));
+  const discountReason = String(b.discount_reason || '').trim() || null;
+  // Server-side enforcement — the client checks this PIN first for immediate
+  // feedback (POST /api/auth/verify-manager-pin), but that alone couldn't stop
+  // someone from calling this endpoint directly with a discount and no PIN.
+  if (discountPct > 0 && !verifyManagerPin(db, String(b.manager_pin || '').trim())) {
+    return res.status(403).json({ error: 'Valid manager PIN required for a discount.' });
+  }
 
   let pointsEarned = 0;
   let redeemPoints = 0;
@@ -98,8 +106,8 @@ router.post('/', (req, res) => {
     discountValue = Math.round(saleTotal * discountPct / 100);
     const afterDiscount = Math.max(0, saleTotal - discountValue);
     if (discountPct > 0) {
-      db.prepare('UPDATE transactions SET discount_pct = ?, discount_amount = ? WHERE id = ?')
-        .run(discountPct, discountValue, txnId);
+      db.prepare('UPDATE transactions SET discount_pct = ?, discount_amount = ?, discount_reason = ? WHERE id = ?')
+        .run(discountPct, discountValue, discountReason, txnId);
     }
 
     const loyalty = getLoyaltyConfig();
@@ -201,11 +209,21 @@ router.post('/', (req, res) => {
 //   restock = false → the item WAS made (comp / correction): reverse the money
 //                     only; the ingredients stay consumed (inventory + usage
 //                     movements untouched) so stock and COGS stay truthful.
-// Either way the transaction + items are removed (revenue reverses) and the
-// void is recorded in void_log for the shift's audit trail.
+// Either way the transaction/items stay in place (tagged status='Dibatalkan',
+// quantity/line_total zeroed so revenue nets out automatically) rather than
+// being deleted — same convention the Riwayat import already uses for a
+// cancelled receipt — and the void is recorded in void_log for the shift's
+// audit trail.
 router.post('/:id/void', (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid sale id' });
+
+  // Staff need an actual manager's PIN, verified server-side (the client
+  // already checks it too, for immediate feedback — this is the enforcement).
+  // A logged-in admin/manager voiding is already the authority, no PIN needed.
+  if (req.user?.role === 'staff' && !verifyManagerPin(db, String(req.body?.manager_pin || '').trim())) {
+    return res.status(403).json({ error: 'Valid manager PIN required to void.' });
+  }
 
   const restock = req.body?.restock === true || req.body?.restock === 'true' || req.body?.restock === 1;
   const reason = String(req.body?.reason || '').trim();
@@ -229,6 +247,10 @@ router.post('/:id/void-item', (req, res) => {
   const itemId = Number(req.body?.item_id);
   const newQty = Number(req.body?.new_qty);
   if (!Number.isInteger(itemId)) return res.status(400).json({ error: 'Invalid item_id' });
+
+  if (req.user?.role === 'staff' && !verifyManagerPin(db, String(req.body?.manager_pin || '').trim())) {
+    return res.status(403).json({ error: 'Valid manager PIN required to correct a quantity.' });
+  }
 
   const restock = req.body?.restock === true || req.body?.restock === 'true' || req.body?.restock === 1;
   const reason = String(req.body?.reason || '').trim();
@@ -273,10 +295,13 @@ router.get('/:id', (req, res) => {
     FROM transactions WHERE id = ?`).get(id);
   if (!txn) return res.status(404).json({ error: 'Sale not found' });
 
+  // Only still-live lines — a fully voided item (quantity zeroed, tagged
+  // Dibatalkan/Batal Sebagian) shouldn't show up on a reprinted receipt or be
+  // offered again in the void-by-item picker.
   const items = db.prepare(`
-    SELECT ti.product_id, ti.quantity, ti.unit_price, ti.line_total, p.name
+    SELECT ti.id, ti.product_id, ti.quantity, ti.unit_price, ti.line_total, p.name
     FROM transaction_items ti JOIN products p ON p.id = ti.product_id
-    WHERE ti.transaction_id = ?`).all(id);
+    WHERE ti.transaction_id = ? AND ti.quantity > 0`).all(id);
 
   res.json({
     id: txn.id,
@@ -289,7 +314,7 @@ router.get('/:id', (req, res) => {
     order_type: txn.order_type,
     tax: txn.tax,
     service_fee: txn.service_fee,
-    items: items.map(i => ({ product_id: i.product_id, name: i.name, quantity: i.quantity, price: i.unit_price, total: i.line_total }))
+    items: items.map(i => ({ item_id: i.id, product_id: i.product_id, name: i.name, quantity: i.quantity, price: i.unit_price, total: i.line_total }))
   });
 });
 

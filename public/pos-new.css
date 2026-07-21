@@ -968,6 +968,12 @@ body {
   border-color: var(--accent);
 }
 
+.pay.danger {
+  background: var(--danger-bg, #f7e6e3);
+  color: var(--danger, #c1584e);
+  border-color: var(--danger, #c1584e);
+}
+
 .numpad {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1025,10 +1031,20 @@ body {
   align-items: stretch;
 }
 
+/* Three stacked rows: Save/Pay, Clear Cart (full width), Void/Hold/More. */
 .numpad-footer {
   display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.footer-row {
+  display: grid;
+  gap: 8px;
+}
+
+.footer-row-bottom {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 10px;
 }
 
 .footer-action.more {
@@ -1129,10 +1145,19 @@ body {
   color: #fff;
 }
 
-.footer-action.send {
-  background: var(--accent-2, #3e5b7f);
-  border-color: var(--accent-2, #3e5b7f);
-  color: #fff;
+/* Clear Cart / Hold read as secondary (cream) actions — Pay is the one
+   bold/blue call-to-action, matching the reference layout. */
+.footer-action.clear-cart,
+.footer-action.hold-action {
+  background: var(--cream-soft, #faf7ef);
+  border-color: var(--border);
+  color: var(--brand-ink, #2e4864);
+}
+
+.footer-action.void-action {
+  background: var(--danger-bg, #f7e6e3);
+  border-color: var(--danger, #c1584e);
+  color: var(--danger, #c1584e);
 }
 
 .payment-options {
@@ -2258,6 +2283,19 @@ body {
 
 .pay-discount-row .pay-discount-view {
   font-weight: 600;
+}
+
+.pay-discount-auth {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.pay-discount-auth input {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fffaf6;
 }
 
 /* ---- Wide two-column payment layout (tablet landscape) ---- */

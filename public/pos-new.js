@@ -170,6 +170,13 @@ const infoMessage = document.getElementById('infoMessage');
 const infoOk = document.getElementById('infoOk');
 const infoClose = document.getElementById('infoClose');
 let promptHandler = null;
+const confirmModal = document.getElementById('confirmModal');
+const confirmTitle = document.getElementById('confirmTitle');
+const confirmMessage = document.getElementById('confirmMessage');
+const confirmAccept = document.getElementById('confirmAccept');
+const confirmDismiss = document.getElementById('confirmDismiss');
+const confirmClose = document.getElementById('confirmClose');
+let confirmHandler = null;
 const receiptModal = document.getElementById('receiptModal');
 const receiptTotal = document.getElementById('receiptTotal');
 const receiptTotal2 = document.getElementById('receiptTotal2');
@@ -202,7 +209,6 @@ const cashMoveModal = document.getElementById('cashMoveModal');
 const cashMoveIn = document.getElementById('cashMoveIn');
 const cashMoveOut = document.getElementById('cashMoveOut');
 const closeCashMove = document.getElementById('closeCashMove');
-const sendOrderBtn = document.getElementById('sendOrderBtn');
 const closeSessionModal = document.getElementById('closeSessionModal');
 const closeSessionSubhead = document.getElementById('closeSessionSubhead');
 const closeSessionClose = document.getElementById('closeSessionClose');
@@ -282,9 +288,34 @@ function saveHeldOrders(orders) {
   localStorage.setItem('pos_held_orders', JSON.stringify(orders));
 }
 
+// Discards a parked (Hold/Save, not-yet-paid) order — for one already sent to
+// the kitchen, tells it to drop the ticket first, same as cancelling the
+// live cart in the register (cancelCurrentOrder).
+function cancelHeldOrder(order) {
+  if (!order) return;
+  openConfirm({
+    title: 'Cancel Order',
+    message: `Cancel "${order.label || 'this order'}"? This can't be undone — it will be removed, not just closed.`,
+    confirmLabel: 'Yes, cancel it',
+    dismissLabel: 'No, keep it',
+    danger: true,
+    onConfirm: () => {
+      if (order.sentToKitchen) {
+        sendOrderToKitchen(order.label || 'Order', order.items || [], 'cancel', order.id);
+      }
+      saveHeldOrders(loadHeldOrders().filter((o) => o.id !== order.id));
+      updateOrdersBadge();
+      state.ordersViewSelectedId = null;
+      renderOrdersView();
+    }
+  });
+}
+
 function updateOrdersBadge() {
   if (!ordersBadge) return;
-  const count = loadHeldOrders().length;
+  // Active/not-yet-paid orders only — a running total of every sale ever
+  // logged would just grow forever and stop being an actionable count.
+  const count = loadHeldOrders().filter((o) => o.status !== 'paid' && o.status !== 'invoice').length;
   ordersBadge.textContent = String(count);
   ordersBadge.style.display = count ? '' : 'none';
   if (ordersView && !ordersView.classList.contains('hidden')) {
@@ -414,16 +445,20 @@ async function renderOrdersView() {
   } catch (err) {
     kitchenTickets = [];
   }
-  const normalizeLabel = (value) => String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/^table\s*/i, '')
-    .replace(/[^a-z0-9]/g, '');
   let heldChanged = false;
   const rows = held
     .filter((order) => {
       const status = order.status || 'ongoing';
-      if (filter && status !== filter) return false;
+      // "All" (the default) deliberately includes paid orders — Void Sale and
+      // Reprint Receipt both only apply to a paid order, so hiding it here
+      // would just add a filter click before either of those. "Active" covers
+      // both draft (Hold) and ongoing (Save/checkpoint) — anything not yet
+      // paid — as one combined option; Paid/Invoice narrow to completed sales.
+      if (filter === 'active') {
+        if (status === 'paid' || status === 'invoice') return false;
+      } else if (filter && status !== filter) {
+        return false;
+      }
       if (typeFilter && normalizeOrderType(order.orderType) !== typeFilter) return false;
       if (!query) return true;
       return [order.label, order.customerName, order.receiptNumber, status]
@@ -446,6 +481,15 @@ async function renderOrdersView() {
       posOrderAction.disabled = true;
       posOrderAction.onclick = null;
     }
+    // Nothing is selected — Cancel/Void must not stay visible/clickable with a
+    // stale handler still bound to whatever order was last selected before
+    // the list emptied out (e.g. a filter change).
+    const posOrderCancelEmpty = document.getElementById('posOrderCancel');
+    const posOrderCancelNoteEmpty = document.getElementById('posOrderCancelNote');
+    const posOrderVoidEmpty = document.getElementById('posOrderVoid');
+    if (posOrderCancelEmpty) { posOrderCancelEmpty.classList.add('hidden'); posOrderCancelEmpty.onclick = null; }
+    if (posOrderCancelNoteEmpty) posOrderCancelNoteEmpty.classList.add('hidden');
+    if (posOrderVoidEmpty) { posOrderVoidEmpty.classList.add('hidden'); posOrderVoidEmpty.onclick = null; }
     return;
   }
 
@@ -461,18 +505,18 @@ async function renderOrdersView() {
     const timeLabel = createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const orderRef = order.receiptNumber || '-';
     const detailRef = [
+      order.cashierName ? `by ${order.cashierName}` : null,
       order.customerName || null,
       orderRef || null
     ].filter(Boolean).join(' / ');
-    const orderLabel = normalizeLabel(order.label || '');
-    const kitchenTicket = kitchenTickets.find((ticket) => {
-      if (ticket.order_id && ticket.order_id === order.id) return true;
-      if (ticket.table_label && orderLabel) {
-        const tableLabel = normalizeLabel(ticket.table_label);
-        return tableLabel === orderLabel || tableLabel.endsWith(orderLabel) || orderLabel.endsWith(tableLabel);
-      }
-      return false;
-    });
+    // Match by order_ref only — every order created here always has a stable
+    // id that's sent as-is when its kitchen ticket is created (see
+    // sendOrderToKitchen's order_id field, stored server-side as order_ref).
+    // A table_label fallback used to sit here too, but every walk-up sale
+    // shares the same generic "Direct Sale" label, so it was matching orders
+    // to the wrong ticket entirely (the newest "Direct Sale" ticket's status
+    // was bleeding onto every other Direct Sale order in the list).
+    const kitchenTicket = kitchenTickets.find((ticket) => ticket.order_ref === order.id);
     const localKey = getKitchenStatusKey(order.id, order.table_name || order.label);
     const localStatus = localKey ? kitchenStatusMap[localKey] : null;
     const kitchenStatusRaw = String(kitchenTicket?.status || '').toLowerCase();
@@ -530,7 +574,8 @@ function renderOrdersDetail(order) {
 
   if (posOrderTitle) posOrderTitle.textContent = order.label || 'Order';
   if (posOrderMeta) {
-    const meta = [order.customerName, order.receiptNumber].filter(Boolean).join(' • ');
+    const meta = [order.cashierName ? `by ${order.cashierName}` : null, order.customerName, order.receiptNumber]
+      .filter(Boolean).join(' • ');
     posOrderMeta.textContent = meta || '--';
   }
   if (posOrderStatus) {
@@ -560,6 +605,30 @@ function renderOrdersDetail(order) {
         loadOrderIntoRegister(order);
       }
     };
+  }
+  // Cancel is only safe while nothing physical has happened yet: a still-
+  // parked (draft) order, or one sent to the kitchen but not yet Served.
+  // Once the kitchen marks it Served, the food/drink is already out — a
+  // completed sale is handled through Void Sale instead, and a served-but-
+  // unpaid order needs Payment collected, not to be discarded.
+  const posOrderCancel = document.getElementById('posOrderCancel');
+  const posOrderCancelNote = document.getElementById('posOrderCancelNote');
+  const isPaid = order.status === 'paid' || order.status === 'invoice';
+  if (posOrderCancel) {
+    const served = String(order.kitchenStatus || '').toLowerCase() === 'served';
+    posOrderCancel.classList.toggle('hidden', isPaid || served);
+    posOrderCancel.onclick = () => cancelHeldOrder(order);
+    if (posOrderCancelNote) {
+      posOrderCancelNote.classList.toggle('hidden', isPaid || !served);
+      posOrderCancelNote.textContent = 'Already served — cancel isn\'t available. Use Load Order to collect payment instead.';
+    }
+  }
+  // Void only ever applies to a completed sale — a still-parked order isn't
+  // a real transaction yet, so there's nothing to void (Cancel covers that).
+  const posOrderVoid = document.getElementById('posOrderVoid');
+  if (posOrderVoid) {
+    posOrderVoid.classList.toggle('hidden', !isPaid);
+    posOrderVoid.onclick = () => voidFromOrder(order);
   }
 }
 
@@ -591,6 +660,10 @@ function sendOrderToKitchen(label, items, type = 'new', orderId = null) {
       openInfo('Not sent', 'Couldn\'t reach the kitchen screen — check the ticket on /kitchen.html manually.');
     });
   return id;
+}
+
+function esc(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
 }
 
 function formatCurrency(value) {
@@ -853,17 +926,6 @@ function renderOrder() {
   // The action card (Split Bill/Invoice/Void Sale) stays permanently hidden —
   // those actions live only in the footer "⋯" extension sheet, not as buttons
   // docked around the numpad.
-  if (sendOrderBtn) {
-    if (state.sentToKitchen) {
-      sendOrderBtn.textContent = 'New';
-      sendOrderBtn.dataset.action = 'new_order';
-      sendOrderBtn.classList.remove('send');
-    } else {
-      sendOrderBtn.textContent = 'Send to Bar';
-      sendOrderBtn.dataset.action = 'update_kitchen';
-      sendOrderBtn.classList.add('send');
-    }
-  }
 }
 
 function saveCurrentOrderState() {
@@ -1004,6 +1066,10 @@ function resetOrderState() {
   state.orderDiscount = 0;
   if (customerInput) customerInput.value = '';
   if (loyaltyInput) loyaltyInput.value = '';
+  const discountReasonInput = document.getElementById('discountReason');
+  const discountPinInput = document.getElementById('discountManagerPin');
+  if (discountReasonInput) discountReasonInput.value = '';
+  if (discountPinInput) discountPinInput.value = '';
   updatePaymentCustomerLabel();
   setOrderMeta();
   renderOrder();
@@ -1105,6 +1171,24 @@ function renderDiscountView() {
   const amtEl = document.getElementById('payDiscountAmt');
   if (pctEl) pctEl.textContent = String(Math.round(totals.orderDiscountPct || 0));
   if (amtEl) amtEl.textContent = totals.orderDiscountAmt ? '- ' + formatCurrency(totals.orderDiscountAmt) : formatCurrency(0);
+  // Reason + Manager PIN are only required (and only shown) once an actual
+  // discount is entered — an order with no discount needs no authorization.
+  document.getElementById('payDiscountAuth')?.classList.toggle('hidden', !(totals.orderDiscountPct > 0));
+}
+
+// Checks a PIN against every active admin/manager account — server is the
+// authority (POST /api/sales re-checks it before persisting), this call is
+// just for immediate feedback so a wrong PIN doesn't fail the whole checkout.
+async function verifyManagerPin(pin) {
+  const res = await fetch('/api/auth/verify-manager-pin', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Manager PIN check failed.');
+  return data.manager;
 }
 
 function setTendered(v) {
@@ -1193,6 +1277,14 @@ if (ordersBtn) {
   });
 }
 
+// Plain exit from the Orders screen — no load, no cancel, nothing changes.
+const ordersBackBtn = document.getElementById('ordersBackBtn');
+if (ordersBackBtn) {
+  ordersBackBtn.addEventListener('click', () => {
+    navigatePos('/pos/ui/1/register', true);
+  });
+}
+
 if (cashMoveIn) {
   cashMoveIn.addEventListener('click', () => {
     cashMoveModal?.classList.remove('active');
@@ -1236,7 +1328,8 @@ function upsertHeldOrder(orderId, {
   customerName,
   orderType,
   total,
-  items
+  items,
+  saleId
 } = {}) {
   const held = loadHeldOrders();
   const resolvedItems = items || state.order;
@@ -1258,7 +1351,15 @@ function upsertHeldOrder(orderId, {
     receiptNumber: receiptNumber ?? existing?.receiptNumber ?? null,
     isInvoice: isInvoice ?? existing?.isInvoice ?? false,
     customerName: customerName ?? existing?.customerName ?? null,
-    paidAt: existing?.paidAt || null
+    paidAt: existing?.paidAt || null,
+    // The real database transaction id — different from `id` above (a local
+    // UUID used to track this order client-side). Void needs the real one.
+    saleId: saleId ?? existing?.saleId ?? null,
+    // Whoever was logged in when this order was first created — distinct from
+    // customerName (what the customer typed in). Set once, kept on every
+    // later update (a shared till may have a different staff member logged
+    // in by the time the same order is Saved again or paid).
+    cashierName: existing?.cashierName || auth?.name || null
   };
   if (existingIndex >= 0) {
     held[existingIndex] = payload;
@@ -1328,6 +1429,27 @@ function openInfo(title, message) {
 function closeInfo() {
   if (!infoModal) return;
   infoModal.classList.remove('active');
+}
+
+// In-app replacement for window.confirm() — same modal shell as
+// openPrompt/openInfo, but with two explicitly-worded action buttons instead
+// of a browser-native OK/Cancel (which is ambiguous for "cancel this ORDER":
+// does the "Cancel" button confirm the cancellation, or dismiss the dialog?).
+function openConfirm({ title, message, confirmLabel, dismissLabel, danger, onConfirm }) {
+  if (!confirmModal) return;
+  confirmTitle.textContent = title || 'Confirm';
+  confirmMessage.textContent = message || 'Are you sure?';
+  confirmAccept.textContent = confirmLabel || 'Yes';
+  confirmDismiss.textContent = dismissLabel || 'No, go back';
+  confirmAccept.classList.toggle('danger', Boolean(danger));
+  confirmHandler = onConfirm;
+  confirmModal.classList.add('active');
+}
+
+function closeConfirm() {
+  if (!confirmModal) return;
+  confirmModal.classList.remove('active');
+  confirmHandler = null;
 }
 
 async function fetchCustomers() {
@@ -1797,6 +1919,19 @@ promptModal?.addEventListener('click', (event) => {
   if (event.target === promptModal) closePrompt();
 });
 
+if (confirmDismiss) confirmDismiss.addEventListener('click', closeConfirm);
+if (confirmClose) confirmClose.addEventListener('click', closeConfirm);
+if (confirmAccept) {
+  confirmAccept.addEventListener('click', () => {
+    const fn = confirmHandler;
+    closeConfirm();
+    if (fn) fn();
+  });
+}
+confirmModal?.addEventListener('click', (event) => {
+  if (event.target === confirmModal) closeConfirm();
+});
+
 if (closeCustomerModal) {
   closeCustomerModal.addEventListener('click', closeCustomerPicker);
 }
@@ -2172,24 +2307,6 @@ numpadFooter?.addEventListener('click', (event) => {
   const button = event.target.closest('button');
   if (!button) return;
   const action = button.dataset.action;
-  if (action === 'update_kitchen') {
-    if (!state.order.length) {
-      openInfo('No items', 'No items to send.');
-      return;
-    }
-    const orderId = state.currentOrderId || crypto.randomUUID();
-    const payload = upsertHeldOrder(orderId, { sentToKitchen: true, status: 'ongoing' });
-    sendOrderToKitchen(payload.label || 'Direct Sale', state.order, state.sentToKitchen ? 'update' : 'new', orderId);
-    state.currentOrderId = orderId;
-    state.sentToKitchen = true;
-    openInfo('Sent', 'Kitchen updated.');
-    renderOrder();
-    return;
-  }
-  if (action === 'new_order') {
-    resetOrderState();
-    return;
-  }
   if (action === 'payment') {
     openPayModal();
     return;
@@ -2204,6 +2321,14 @@ numpadFooter?.addEventListener('click', (event) => {
   }
   if (action === 'set_tab') {
     handleSetTab();
+  }
+  if (action === 'clear_cart') {
+    cancelCurrentOrder();
+    return;
+  }
+  if (action === 'hold') {
+    holdCurrentOrder();
+    return;
   }
 });
 
@@ -2309,6 +2434,11 @@ confirmPay.addEventListener('click', async () => {
     return;
   }
 
+  // Every completed sale gets logged into the Orders list (not just ones that
+  // went through Save/Hold first) — that's what lets Orders double as the one
+  // place to find and reprint any receipt, instead of a separate picker.
+  if (!state.currentOrderId) state.currentOrderId = crypto.randomUUID();
+
   const totals = calculateTotals();
   const method = paymentType?.value || 'cash';
   const wantsInvoice = Boolean(invoiceCheck?.checked);
@@ -2318,6 +2448,21 @@ confirmPay.addEventListener('click', async () => {
     openInfo('Insufficient cash', 'Tendered amount is less than total.');
     return;
   }
+
+  const discountPct = Math.max(0, Math.min(100, Number(state.orderDiscount || 0)));
+  const discountReason = document.getElementById('discountReason')?.value.trim() || '';
+  const discountPin = document.getElementById('discountManagerPin')?.value.trim() || '';
+  if (discountPct > 0) {
+    if (!discountReason) { openInfo('Reason required', 'Enter a reason for this discount.'); return; }
+    if (!discountPin) { openInfo('Manager PIN required', 'Enter a manager PIN to authorize this discount.'); return; }
+    try {
+      await verifyManagerPin(discountPin);
+    } catch (e) {
+      openInfo('Manager PIN invalid', e.message || 'Could not verify that PIN.');
+      return;
+    }
+  }
+
   // thumbaz's /api/sales has no per-line discount concept, only a flat
   // (currently display-only) discount_amount — so fold each line's % discount
   // into the price/modifier deltas sent, keeping the recorded sale equal to
@@ -2355,7 +2500,9 @@ confirmPay.addEventListener('click', async () => {
     note: transactionNote?.value.trim() || '',
     customer_id: state.customerId || null,
     redeem_points: state.customerId ? Number(state.redeemPoints || 0) : 0,
-    discount_pct: Math.max(0, Math.min(100, Number(state.orderDiscount || 0)))
+    discount_pct: discountPct,
+    discount_reason: discountPct > 0 ? discountReason : '',
+    manager_pin: discountPct > 0 ? discountPin : ''
   };
 
   let saleId = null;
@@ -2395,6 +2542,11 @@ confirmPay.addEventListener('click', async () => {
     openInfo('Payment failed', err.message || 'Failed to save order.');
     return;
   }
+
+  // Only a PAID order goes to the kitchen — Hold never does, so there's no
+  // scenario of the kitchen making something that was never actually
+  // purchased.
+  sendOrderToKitchen(state.orderLabel || 'Direct Sale', state.order, 'new', state.currentOrderId || saleId);
 
   const isInvoice = Boolean(wantsInvoice);
   const ticket = isInvoice
@@ -2522,7 +2674,8 @@ confirmPay.addEventListener('click', async () => {
       customerName: customerInput?.value.trim() || null,
       orderType: getOrderTypeValue(),
       total: totals.total,
-      items: state.order
+      items: state.order,
+      saleId
     });
   }
   state.order = [];
@@ -2543,6 +2696,10 @@ confirmPay.addEventListener('click', async () => {
   state.orderDiscount = 0;
   if (customerInput) customerInput.value = '';
   if (loyaltyInput) loyaltyInput.value = '';
+  const discountReasonInput = document.getElementById('discountReason');
+  const discountPinInput = document.getElementById('discountManagerPin');
+  if (discountReasonInput) discountReasonInput.value = '';
+  if (discountPinInput) discountPinInput.value = '';
   updatePaymentCustomerLabel();
   setOrderMeta();
   renderOrder();
@@ -2995,7 +3152,52 @@ function renderVoidList(sales) {
   });
 }
 
+// Entry point from the Orders detail panel — same void flow as the Void Sale
+// picker, just pre-seeded with the order already selected there instead of
+// making the cashier find it again in a second list.
+function voidFromOrder(order) {
+  if (!voidModal || !order) return;
+  // order.id is a local UUID this order is tracked under client-side — the
+  // void endpoint needs the REAL database transaction id, stored separately
+  // as saleId at payment time. Older records saved before that existed won't
+  // have it (fall back to parsing it out of the receipt number, e.g.
+  // "RCPT-002170" -> 2170).
+  const realId = order.saleId || parseInt(String(order.receiptNumber || '').replace(/\D/g, ''), 10) || null;
+  if (!realId) {
+    openInfo('Can\'t void', 'This order has no linked sale id — try voiding it from the Void Sale list instead.');
+    return;
+  }
+  const itemsPreview = (order.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ');
+  voidModal.classList.add('active');
+  showVoidConfirm({ id: realId, items: itemsPreview, total: order.total || 0, heldOrderId: order.id });
+}
+
+// "Back" from a sub-step: if we arrived via the Void Sale picker list, go
+// back to it; if we arrived from the Orders detail panel (heldOrderId set),
+// there's no list to return to — just close the modal.
+function voidBack(sale) {
+  if (sale.heldOrderId) { voidModal.classList.remove('active'); return; }
+  openVoidModal();
+}
+
 function showVoidConfirm(sale) {
+  voidList.innerHTML = `
+    <div class="void-confirm">
+      <div class="void-confirm-title">Void Sale #${sale.id}</div>
+      <div class="muted">${sale.items || ''} · Total ${formatCurrency(sale.total)}</div>
+      <div class="void-confirm-q">Void the whole sale, or just one menu item?</div>
+      <div class="void-confirm-actions" style="grid-template-columns:1fr;">
+        <button class="pay" data-scope="full" type="button">Whole Transaction<span class="void-choice-sub" style="display:block;font-weight:400;font-size:11px;">Tagged "Dibatalkan" — the whole sale reverses.</span></button>
+        <button class="pay" data-scope="item" type="button">Specific Menu Item<span class="void-choice-sub" style="display:block;font-weight:400;font-size:11px;">Tagged "Batal Sebagian" — just that item cancels, the rest of the sale stays.</span></button>
+      </div>
+      <button class="ghost void-back" type="button">← Back</button>
+    </div>`;
+  voidList.querySelector('.void-back').addEventListener('click', () => voidBack(sale));
+  voidList.querySelector('[data-scope="full"]').addEventListener('click', () => showVoidRestockChoice(sale));
+  voidList.querySelector('[data-scope="item"]').addEventListener('click', () => showVoidItemPicker(sale));
+}
+
+function showVoidRestockChoice(sale) {
   voidList.innerHTML = `
     <div class="void-confirm">
       <div class="void-confirm-title">Void Sale #${sale.id}</div>
@@ -3005,9 +3207,9 @@ function showVoidConfirm(sale) {
         <button class="pay" data-restock="yes" type="button">Yes — not made</button>
         <button class="pay" data-restock="no" type="button">No — already made</button>
       </div>
-      <button class="ghost void-back" type="button">← Back to list</button>
+      <button class="ghost void-back" type="button">← Back</button>
     </div>`;
-  voidList.querySelector('.void-back').addEventListener('click', openVoidModal);
+  voidList.querySelector('.void-back').addEventListener('click', () => showVoidConfirm(sale));
   voidList.querySelectorAll('[data-restock]').forEach((b) => {
     b.addEventListener('click', () => {
       voidModal.classList.remove('active');
@@ -3016,38 +3218,201 @@ function showVoidConfirm(sale) {
   });
 }
 
+// Fetches the sale's live item list (item_id + current quantity — reflects
+// any earlier partial void already applied) so a specific menu item can be
+// picked to cancel without touching the rest of the sale.
+async function showVoidItemPicker(sale) {
+  voidList.innerHTML = '<div class="muted">Loading…</div>';
+  let detail;
+  try {
+    const res = await fetch(`/api/sales/${encodeURIComponent(sale.id)}`, { headers: typeof authHeaders === 'function' ? authHeaders() : {} });
+    if (!res.ok) throw new Error('Could not load this sale\'s items.');
+    detail = await res.json();
+  } catch (e) {
+    voidList.innerHTML = `<div class="err">❌ ${e.message}</div><button class="ghost void-back" type="button">← Back</button>`;
+    voidList.querySelector('.void-back').addEventListener('click', () => showVoidConfirm(sale));
+    return;
+  }
+  const items = detail.items || [];
+  voidList.innerHTML = `
+    <div class="void-confirm">
+      <div class="void-confirm-title">Void Sale #${sale.id} — pick an item</div>
+      ${items.map((it) => `
+        <button class="void-sale-row" data-item-id="${it.item_id}" data-qty="${it.quantity}" data-name="${esc(it.name)}" type="button">
+          <div class="void-sale-main"><strong>${it.quantity}×</strong> ${esc(it.name)}</div>
+          <div class="void-sale-total">${formatCurrency(it.total)}</div>
+        </button>
+      `).join('')}
+      <button class="ghost void-back" type="button">← Back</button>
+    </div>`;
+  voidList.querySelector('.void-back').addEventListener('click', () => showVoidConfirm(sale));
+  voidList.querySelectorAll('[data-item-id]').forEach((row) => {
+    row.addEventListener('click', () => {
+      promptVoidItemQty(sale, {
+        itemId: Number(row.dataset.itemId),
+        qty: Number(row.dataset.qty),
+        name: row.dataset.name
+      });
+    });
+  });
+}
+
+function promptVoidItemQty(sale, item) {
+  openPrompt({
+    title: `Void "${item.name}"`,
+    label: `How many to void? (currently ${item.qty})`,
+    value: String(item.qty),
+    placeholder: 'Quantity',
+    hint: `Voiding fewer than ${item.qty} leaves the rest of this item on the sale.`,
+    onSave: (value) => {
+      const cancelQty = Number(value);
+      if (!Number.isInteger(cancelQty) || cancelQty < 1 || cancelQty > item.qty) {
+        openInfo('Invalid quantity', `Enter a whole number from 1 to ${item.qty}.`);
+        return;
+      }
+      showVoidItemRestockChoice(sale, item, item.qty - cancelQty);
+    }
+  });
+}
+
+function showVoidItemRestockChoice(sale, item, newQty) {
+  voidList.innerHTML = `
+    <div class="void-confirm">
+      <div class="void-confirm-title">Void "${item.name}"</div>
+      <div class="muted">${item.qty} → ${newQty}</div>
+      <div class="void-confirm-q">Return ingredients to stock?</div>
+      <div class="void-confirm-actions">
+        <button class="pay" data-restock="yes" type="button">Yes — not made</button>
+        <button class="pay" data-restock="no" type="button">No — already made</button>
+      </div>
+      <button class="ghost void-back" type="button">← Back</button>
+    </div>`;
+  voidList.querySelector('.void-back').addEventListener('click', () => showVoidItemPicker(sale));
+  voidList.querySelectorAll('[data-restock]').forEach((b) => {
+    b.addEventListener('click', () => {
+      voidModal.classList.remove('active');
+      submitVoidItem(sale, item, newQty, b.dataset.restock === 'yes');
+    });
+  });
+}
+
+function submitVoidItem(sale, item, newQty, restock) {
+  const askReason = (pin) => {
+    openPrompt({
+      title: 'Void Reason',
+      label: 'Reason',
+      placeholder: 'e.g. Wrong item, customer changed mind',
+      hint: `Add a short reason for voiding "${item.name}".`,
+      onSave: async (reason) => {
+        try {
+          const res = await fetch(`/api/sales/${encodeURIComponent(sale.id)}/void-item`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
+            body: JSON.stringify({ item_id: item.itemId, new_qty: newQty, manager_pin: pin || '', reason: reason || '', restock })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'Void failed.');
+          // The held-order cache (if any) still shows the pre-void items/total
+          // — refresh it from the server so a later Reprint isn't stale.
+          if (sale.heldOrderId) await refreshHeldOrderFromServer(sale.heldOrderId, sale.id);
+          openInfo('Voided', data.message || 'Item voided.');
+        } catch (err) {
+          openInfo('Void failed', err.message || 'Void failed.');
+        }
+      }
+    });
+  };
+  if (!auth || auth.role !== 'staff') { askReason(''); return; }
+  openPrompt({
+    title: `Void "${item.name}"`,
+    label: 'Manager PIN',
+    placeholder: 'PIN',
+    hint: 'Enter manager PIN to authorize voiding this item.',
+    onSave: async (pin) => {
+      if (!pin) { openInfo('PIN required', 'Enter the manager PIN to void.'); return; }
+      try {
+        await verifyManagerPin(pin);
+      } catch (e) {
+        openInfo('Manager PIN invalid', e.message || 'Could not verify that PIN.');
+        return;
+      }
+      askReason(pin);
+    }
+  });
+}
+
+async function refreshHeldOrderFromServer(heldOrderId, saleId) {
+  try {
+    const res = await fetch(`/api/sales/${encodeURIComponent(saleId)}`, { headers: typeof authHeaders === 'function' ? authHeaders() : {} });
+    if (!res.ok) return;
+    const detail = await res.json();
+    const total = (detail.items || []).reduce((sum, i) => sum + Number(i.total || 0), 0);
+    upsertHeldOrder(heldOrderId, {
+      total,
+      items: (detail.items || []).map((i) => ({ qty: i.quantity, name: i.name, price: i.price }))
+    });
+  } catch (e) { /* best-effort — a stale cache isn't worth failing the void over */ }
+  if (ordersView && !ordersView.classList.contains('hidden')) renderOrdersView();
+}
+
 function submitVoid(sale, restock) {
+  const askReason = (pin) => {
+    openPrompt({
+      title: 'Void Reason',
+      label: 'Reason',
+      placeholder: 'e.g. Wrong item, customer changed mind',
+      hint: 'Add a short reason for this void.',
+      onSave: async (reason) => {
+        try {
+          const res = await fetch(`/api/sales/${encodeURIComponent(sale.id)}/void`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
+            body: JSON.stringify({ manager_pin: pin || '', reason: reason || '', restock })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'Void failed.');
+          if (String(localStorage.getItem(LAST_SALE_KEY)) === String(sale.id)) {
+            localStorage.removeItem(LAST_SALE_KEY);
+            localStorage.removeItem(LAST_SALE_SUMMARY_KEY);
+          }
+          // Voided from the Orders list — that record no longer points at a
+          // real sale, so drop it rather than leave a stale "Receipt" entry
+          // that can't actually be reprinted anymore.
+          if (sale.heldOrderId) {
+            saveHeldOrders(loadHeldOrders().filter((o) => o.id !== sale.heldOrderId));
+            updateOrdersBadge();
+            if (ordersView && !ordersView.classList.contains('hidden')) {
+              state.ordersViewSelectedId = null;
+              renderOrdersView();
+            }
+          }
+          openInfo('Voided', data.message || 'Sale voided.');
+        } catch (err) {
+          openInfo('Void failed', err.message || 'Void failed.');
+        }
+      }
+    });
+  };
+
+  // A manager/admin voiding from the POS is already the authority — no need
+  // to re-enter a PIN. Staff need an actual manager's PIN, verified for real
+  // (server re-checks it too — see POST /api/sales/:id/void).
+  if (!auth || auth.role !== 'staff') { askReason(''); return; }
+
   openPrompt({
     title: `Void Sale #${sale.id}`,
     label: 'Manager PIN',
     placeholder: 'PIN',
     hint: `${sale.items || ''} · Total ${formatCurrency(sale.total)}. ${restock ? 'Ingredients WILL return to stock (not made).' : 'Inventory stays consumed (already made).'} Enter manager PIN.`,
-    onSave: (pin) => {
+    onSave: async (pin) => {
       if (!pin) { openInfo('PIN required', 'Enter the manager PIN to void.'); return; }
-      openPrompt({
-        title: 'Void Reason',
-        label: 'Reason',
-        placeholder: 'e.g. Wrong item, customer changed mind',
-        hint: 'Add a short reason for this void.',
-        onSave: async (reason) => {
-          try {
-            const res = await fetch(`/api/sales/${encodeURIComponent(sale.id)}/void`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
-              body: JSON.stringify({ manager_pin: pin, reason: reason || '', restock })
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || 'Void failed.');
-            if (String(localStorage.getItem(LAST_SALE_KEY)) === String(sale.id)) {
-              localStorage.removeItem(LAST_SALE_KEY);
-              localStorage.removeItem(LAST_SALE_SUMMARY_KEY);
-            }
-            openInfo('Voided', data.message || 'Sale voided.');
-          } catch (err) {
-            openInfo('Void failed', err.message || 'Void failed.');
-          }
-        }
-      });
+      try {
+        await verifyManagerPin(pin);
+      } catch (e) {
+        openInfo('Manager PIN invalid', e.message || 'Could not verify that PIN.');
+        return;
+      }
+      askReason(pin);
     }
   });
 }
@@ -3055,50 +3420,15 @@ function submitVoid(sale, restock) {
 if (closeVoid) closeVoid.addEventListener('click', () => voidModal.classList.remove('active'));
 voidModal?.addEventListener('click', (event) => { if (event.target === voidModal) voidModal.classList.remove('active'); });
 
-// Reprint a Receipt — reopens a past sale's receipt (same modal/print buttons
-// as a fresh sale) so hardware/print testing doesn't require ringing up a new
-// transaction each time. Read-only: nothing about the sale changes.
-const reprintModal = document.getElementById('reprintModal');
-const reprintList = document.getElementById('reprintList');
-const closeReprint = document.getElementById('closeReprint');
-
-async function openReprintModal() {
-  if (!reprintModal) return;
-  reprintModal.classList.add('active');
-  reprintList.innerHTML = '<div class="muted">Loading…</div>';
-  let sales = [];
-  try {
-    const res = await fetch('/api/sales?scope=all', { headers: typeof authHeaders === 'function' ? authHeaders() : {} });
-    sales = res.ok ? await res.json() : [];
-  } catch (e) { sales = []; }
-  renderReprintList(sales);
-}
-
-function renderReprintList(sales) {
-  if (!sales.length) {
-    reprintList.innerHTML = '<div class="muted">No sales found.</div>';
-    return;
-  }
-  reprintList.innerHTML = '';
-  sales.forEach((s) => {
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'void-sale-row';
-    row.innerHTML = `
-      <div class="void-sale-main"><strong>#${s.id}</strong> <span class="muted">${s.items || ''}</span></div>
-      <div class="void-sale-total">${formatCurrency(s.total)}</div>`;
-    row.addEventListener('click', () => reprintSale(s.id));
-    reprintList.appendChild(row);
-  });
-}
-
+// Reprint a Receipt — the Orders view (View Receipt on any paid order) is now
+// the one place to browse and reprint; this function itself stays for the
+// cross-page entry point (transactions.html's receipt link opens
+// pos-new.html?reprint=<id>, since that page has no receipt modal of its own).
 async function reprintSale(saleId) {
-  reprintList.innerHTML = '<div class="muted">Loading…</div>';
   try {
     const res = await fetch(`/api/sales/${encodeURIComponent(saleId)}`, { headers: typeof authHeaders === 'function' ? authHeaders() : {} });
     if (!res.ok) throw new Error('Sale not found');
     const detail = await res.json();
-    reprintModal.classList.remove('active');
     openReceiptFromHeld({
       id: detail.id,
       receiptNumber: `#${detail.id}`,
@@ -3110,16 +3440,12 @@ async function reprintSale(saleId) {
     });
   } catch (e) {
     openInfo('Reprint failed', e && e.message ? e.message : 'Could not load that sale.');
-    openReprintModal();
   }
 }
-
-if (closeReprint) closeReprint.addEventListener('click', () => reprintModal.classList.remove('active'));
-reprintModal?.addEventListener('click', (event) => { if (event.target === reprintModal) reprintModal.classList.remove('active'); });
-// Always-visible entry point in the top bar — the "⋯ More" sheet only shows
-// once the cart has items, which defeats reprinting for print/hardware
-// testing without ringing up a new sale.
-document.getElementById('reprintBtn')?.addEventListener('click', openReprintModal);
+// Same fix for Void Sale: it voids a PAST sale, so it shouldn't require the
+// current cart to have an item just to reach the button. Staff logging in to
+// void nothing else that shift had no way to open this at all before.
+document.getElementById('voidSaleBtn')?.addEventListener('click', openVoidModal);
 
 // "⋯ More" action sheet — opened from the numpad footer. Routes to the existing
 // (mostly hidden) action-grid buttons so their logic isn't duplicated. Hold is
@@ -3135,7 +3461,6 @@ moreActionsModal?.addEventListener('click', (event) => {
   closeMoreActionsModal();
   switch (btn.dataset.more) {
     case 'void': openVoidModal(); break;
-    case 'reprint': openReprintModal(); break;
     case 'split': if (splitBtn) splitBtn.click(); break;
     case 'invoice': openInfo('Coming soon', 'Invoices aren\'t wired up in this concept yet.'); break;
     case 'set_table': handleSetTable(); break;
@@ -3151,19 +3476,18 @@ moreActionsModal?.addEventListener('click', (event) => {
 const holdBtn = document.getElementById('holdBtn');
 const invoiceBtn = document.getElementById('invoiceBtn');
 const refundBtn = document.getElementById('refundBtn');
-if (holdBtn) {
-  holdBtn.addEventListener('click', () => {
-    if (!state.order.length) {
-      openInfo('No items', 'Add items before putting an order on hold.');
-      return;
-    }
-    const orderId = state.currentOrderId || crypto.randomUUID();
-    upsertHeldOrder(orderId, { status: 'draft' });
-    resetOrderState();
-    updateOrdersBadge();
-    openInfo('Held', 'Order parked — find it under the Orders tab.');
-  });
+function holdCurrentOrder() {
+  if (!state.order.length) {
+    openInfo('No items', 'Add items before putting an order on hold.');
+    return;
+  }
+  const orderId = state.currentOrderId || crypto.randomUUID();
+  upsertHeldOrder(orderId, { status: 'draft' });
+  resetOrderState();
+  updateOrdersBadge();
+  openInfo('Held', 'Order parked — find it under the Orders tab.');
 }
+if (holdBtn) holdBtn.addEventListener('click', holdCurrentOrder);
 if (invoiceBtn) {
   invoiceBtn.addEventListener('click', () => {
     openInfo('Coming soon', 'Invoices aren\'t wired up in this concept yet.');

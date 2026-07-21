@@ -2,8 +2,16 @@ const db = require('../db');
 
 // Reverses a paid sale: restock=true returns ingredients to stock and drops
 // their usage movements (order never actually made); restock=false reverses
-// the money only and leaves inventory consumed (comp/correction). Either way
-// the transaction + items are removed and the void is recorded in void_log.
+// the money only and leaves inventory consumed (comp/correction). The
+// transaction and its items are NOT deleted — each item's quantity/line_total
+// are zeroed (so revenue/report sums net them out automatically, same as
+// every other SUM-based query already does) and tagged status='Dibatalkan',
+// with original_quantity/cancelled_quantity preserved. This is the exact
+// convention the Riwayat import already uses for a cancelled receipt (see
+// server/routes/import.js) — a live void now produces data indistinguishable
+// from an imported cancellation, so Transaction History shows one consistent
+// picture instead of live voids just vanishing while imported ones stay
+// visible. Also recorded in void_log for the who/why/when audit trail.
 // Shared by the manual void endpoint (POST /api/sales/:id/void) and the
 // riwayat import's reconciliation step (auto-voiding orders that disappeared
 // from a re-imported source export).
@@ -12,7 +20,7 @@ function voidSale(id, { restock, reason, reference }) {
   if (!txn) return { ok: false, error: 'Sale not found' };
 
   const lines = db.prepare(`
-    SELECT ti.quantity, ti.line_total, p.name
+    SELECT ti.id, ti.quantity, ti.line_total, ti.original_quantity, ti.cancelled_quantity, p.name
     FROM transaction_items ti JOIN products p ON p.id = ti.product_id
     WHERE ti.transaction_id = ?`).all(id);
   const total = lines.reduce((sum, l) => sum + Number(l.line_total || 0), 0);
@@ -47,32 +55,43 @@ function voidSale(id, { restock, reason, reference }) {
        VALUES (?, ?, ?, ?, ?, ?)`
     ).run(id, total, itemsSummary, reason, restock ? 1 : 0, reference || null);
 
-    db.prepare('DELETE FROM transaction_items WHERE transaction_id = ?').run(id);
-    db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
+    const cancelLine = db.prepare(
+      `UPDATE transaction_items
+       SET original_quantity = COALESCE(original_quantity, quantity),
+           cancelled_quantity = COALESCE(cancelled_quantity, 0) + quantity,
+           quantity = 0,
+           line_total = 0,
+           status = 'Dibatalkan'
+       WHERE id = ?`
+    );
+    for (const l of lines) cancelLine.run(l.id);
   })();
 
   return { ok: true, total, itemsSummary };
 }
 
-// Corrects one line item's quantity downward (e.g. rung up 2, should've been
-// 1) without touching the rest of the transaction. Unlike voidSale, the
-// transaction and its other lines stay exactly as they are — only this one
-// line's quantity/total shrinks (or the line is dropped entirely if the
-// corrected quantity is 0). restock=true adds back the ingredients for just
-// the removed quantity, recomputed from the recipe (stock_movements has no
-// per-line link, so this can't reuse the original deduction rows the way a
-// full void does — it must recompute and log a fresh compensating entry).
-// Logged to void_log same as a full void, so partial corrections show up in
-// the same audit trail, tagged distinctly in the reason.
+// Voids part of one line item (e.g. rung up 3, cancel 1 — or cancel the whole
+// line while the rest of the order stays untouched) — this is "void per menu
+// item" / Fix Qty, the same action under one name now. Unlike voidSale, the
+// transaction and its other lines are untouched; only this one line's
+// quantity/line_total shrink (down to 0 if the whole item is being voided),
+// tagged status='Batal Sebagian' with original_quantity/cancelled_quantity
+// preserved — same soft-cancel convention as a full void and as the Riwayat
+// import's own "Batal Sebagian" rows, so the receipt still shows exactly what
+// was cancelled instead of the line silently vanishing. restock=true adds
+// back the ingredients for just the removed quantity, recomputed from the
+// recipe (stock_movements has no per-line link, so this can't reuse the
+// original deduction rows the way a full void does — it must recompute and
+// log a fresh compensating entry). Logged to void_log same as a full void.
 // Note: does not recompute the transaction's discount_amount or the
 // customer's loyalty points_earned — those stay based on the original total,
-// since a small quantity correction is a data-entry fix, not a cancellation.
+// since a line-item cancellation is scoped to that item, not the whole sale.
 function voidPartialItem(transactionId, { itemId, newQty, reason, restock }) {
   const txn = db.prepare('SELECT id FROM transactions WHERE id = ?').get(transactionId);
   if (!txn) return { ok: false, error: 'Sale not found' };
 
   const item = db.prepare(`
-    SELECT ti.id, ti.product_id, ti.quantity, ti.unit_price, p.name AS product_name
+    SELECT ti.id, ti.product_id, ti.quantity, ti.unit_price, ti.original_quantity, ti.cancelled_quantity, p.name AS product_name
     FROM transaction_items ti JOIN products p ON p.id = ti.product_id
     WHERE ti.id = ? AND ti.transaction_id = ?`).get(itemId, transactionId);
   if (!item) return { ok: false, error: 'Line item not found on this order' };
@@ -106,12 +125,15 @@ function voidPartialItem(transactionId, { itemId, newQty, reason, restock }) {
       }
     }
 
-    if (newQty === 0) {
-      db.prepare('DELETE FROM transaction_items WHERE id = ?').run(item.id);
-    } else {
-      db.prepare('UPDATE transaction_items SET quantity = ?, line_total = ? WHERE id = ?')
-        .run(newQty, newQty * item.unit_price, item.id);
-    }
+    db.prepare(
+      `UPDATE transaction_items
+       SET original_quantity = COALESCE(original_quantity, quantity),
+           cancelled_quantity = COALESCE(cancelled_quantity, 0) + ?,
+           quantity = ?,
+           line_total = ?,
+           status = 'Batal Sebagian'
+       WHERE id = ?`
+    ).run(removedQty, newQty, newQty * item.unit_price, item.id);
 
     db.prepare(
       `INSERT INTO void_log (transaction_id, total, items, reason, restocked)

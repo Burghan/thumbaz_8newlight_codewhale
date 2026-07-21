@@ -17,6 +17,15 @@ function verifyPin(pin, stored) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+// Checks a PIN against every active admin/manager account — used to
+// authorize a discount or void, where the cashier enters SOME manager's PIN,
+// not necessarily their own. Returns the matched { id, name } or null.
+function verifyManagerPin(db, pin) {
+  if (!pin) return null;
+  const managers = db.prepare("SELECT id, name, pin_hash FROM users WHERE role IN ('admin','manager') AND active = 1").all();
+  return managers.find((m) => verifyPin(pin, m.pin_hash)) || null;
+}
+
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const sessions = new Map(); // NOTE: in-memory — cleared on restart. Move to a table/JWT before scaling.
 
@@ -36,4 +45,4 @@ function getSession(id) {
 
 function destroySession(id) { if (id) sessions.delete(id); }
 
-module.exports = { hashPin, verifyPin, createSession, getSession, destroySession, SESSION_TTL_MS };
+module.exports = { hashPin, verifyPin, verifyManagerPin, createSession, getSession, destroySession, SESSION_TTL_MS };

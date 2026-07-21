@@ -31,9 +31,12 @@
     </div>
     <div class="pos-actions">
       <button class="pos-link" id="cashMoveBtn" type="button">Cash In/Out</button>
-      <button class="pos-link" id="reprintBtn" type="button">Reprint Receipt</button>
-      <!-- Hold/Orders (client-side only, not tied to real sales) isn't in use for now — hidden, not deleted. -->
-      <button class="pos-link" id="ordersBtn" type="button" style="display:none;">
+      <button class="pos-link" id="voidSaleBtn" type="button">Void Sale</button>
+      <!-- Every order (Hold/Save AND every completed sale) is logged here —
+           see renderOrdersView()/loadOrderIntoRegister() in pos-new.js. This
+           is also the reprint picker now (View Receipt on any paid order),
+           replacing what used to be a separate Reprint Receipt modal. -->
+      <button class="pos-link" id="ordersBtn" type="button">
         Orders <span class="pos-badge" id="ordersBadge">0</span>
       </button>
     </div>
@@ -202,9 +205,13 @@
             </div>
           </div>
           <div class="numpad-footer hidden" id="numpadFooter">
-            <button class="footer-action send" data-action="update_kitchen" id="sendOrderBtn">Send to Bar</button>
-            <button class="footer-action primary" data-action="payment">Payment</button>
-            <button class="footer-action more" data-action="more_actions" type="button" aria-label="More actions">⋯</button>
+            <button class="footer-action primary" data-action="payment">Pay</button>
+            <button class="footer-action clear-cart" data-action="clear_cart" type="button">Clear Cart</button>
+            <div class="footer-row footer-row-bottom">
+              <button class="footer-action void-action" data-action="void" type="button">Void</button>
+              <button class="footer-action hold-action" data-action="hold" type="button">Hold</button>
+              <button class="footer-action more" data-action="more_actions" type="button" aria-label="More actions">⋯</button>
+            </div>
           </div>
         </div>
       </section>
@@ -230,14 +237,15 @@
 
       <section class="orders-view hidden" id="ordersView">
         <div class="orders-list-panel">
+          <button class="ghost" id="ordersBackBtn" type="button" style="margin-bottom:10px;">← Back to Register</button>
           <div class="orders-list-header">
             <div class="orders-search-bar">
               <span class="search-icon">🔍</span>
               <input id="posOrdersSearch" type="search" placeholder="Search Orders..." />
             </div>
             <select id="posOrdersFilter" class="select">
-              <option value="">Active</option>
-              <option value="ongoing">Ongoing</option>
+              <option value="">All</option>
+              <option value="active">Active</option>
               <option value="paid">Paid</option>
               <option value="invoice">Invoice</option>
             </select>
@@ -276,6 +284,9 @@
             </div>
           </div>
           <button class="pay primary" id="posOrderAction" disabled>Load Order</button>
+          <button class="pay danger hidden" id="posOrderVoid" type="button">Void Sale</button>
+          <button class="pay hidden" id="posOrderCancel" type="button">Cancel Order</button>
+          <div class="muted hidden" id="posOrderCancelNote" style="text-align:center;"></div>
         </div>
       </section>
 
@@ -322,6 +333,10 @@
           <div class="modal-row pay-discount-row" id="payDiscountRow">
             <label>Discount</label>
             <div class="pay-discount-view"><span id="payDiscountPct">0</span>% · <span id="payDiscountAmt">Rp 0</span></div>
+            <div class="pay-discount-auth hidden" id="payDiscountAuth">
+              <input id="discountReason" type="text" placeholder="Discount reason (required)" />
+              <input id="discountManagerPin" type="password" inputmode="numeric" maxlength="6" placeholder="Manager PIN (required)" />
+            </div>
           </div>
           <div class="modal-row pay-change-row">
             <label>Change</label>
@@ -506,19 +521,6 @@
     </div>
   </div>
 
-  <div class="modal" id="reprintModal">
-    <div class="modal-card large">
-      <div class="modal-head">
-        <div>
-          <h3>Reprint a Receipt</h3>
-          <div class="muted">Pick a recent sale to reopen its receipt — no new transaction needed.</div>
-        </div>
-        <button class="ghost" id="closeReprint" type="button">Close</button>
-      </div>
-      <div class="void-list" id="reprintList"></div>
-    </div>
-  </div>
-
   <div class="modal" id="moreActionsModal">
     <div class="modal-card">
       <div class="modal-head">
@@ -531,7 +533,6 @@
       <div class="more-actions-grid">
         <button class="pay" data-more="split" type="button">Split Bill</button>
         <button class="pay" data-more="invoice" type="button">Invoice</button>
-        <button class="pay" data-more="reprint" type="button">Reprint Receipt</button>
         <button class="pay" data-more="void" type="button">Void Sale</button>
         <button class="pay" data-more="set_table" type="button">Set Table</button>
         <button class="pay" data-more="edit_name" type="button">Edit Order Name</button>
@@ -675,6 +676,22 @@
       </div>
       <div class="modal-actions single">
         <button class="pay primary" id="infoOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="confirmModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h3 id="confirmTitle">Confirm</h3>
+          <div class="muted" id="confirmMessage">Are you sure?</div>
+        </div>
+        <button class="ghost" id="confirmClose">Close</button>
+      </div>
+      <div class="modal-actions">
+        <button class="pay" id="confirmDismiss">No, Keep It</button>
+        <button class="pay danger" id="confirmAccept">Yes</button>
       </div>
     </div>
   </div>
