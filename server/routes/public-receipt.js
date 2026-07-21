@@ -15,9 +15,14 @@ router.get('/:id', (req, res) => {
   if (!verify(id, req.query.t)) return res.status(403).json({ error: 'Invalid or missing receipt link' });
 
   const txn = db.prepare(`
-    SELECT id, transacted_at, payment_method, reference, customer_name, cashier_name, order_type, tax
+    SELECT id, transacted_at, payment_method, reference, customer_name, cashier_name, order_type, tax,
+           points_earned, redeem_points, customer_id
     FROM transactions WHERE id = ?`).get(id);
   if (!txn) return res.status(404).json({ error: 'Receipt not found' });
+
+  const customer = txn.customer_id
+    ? db.prepare('SELECT points_balance FROM customers WHERE id = ?').get(txn.customer_id)
+    : null;
 
   const items = db.prepare(`
     SELECT ti.product_id, ti.quantity, ti.unit_price, ti.line_total, p.name
@@ -35,6 +40,9 @@ router.get('/:id', (req, res) => {
     cashier_name: txn.cashier_name,
     order_type: txn.order_type,
     tax: txn.tax || 0,
+    points_earned: txn.points_earned || 0,
+    redeem_points: txn.redeem_points || 0,
+    points_balance: customer ? customer.points_balance : null,
     subtotal,
     total: subtotal + (txn.tax || 0),
     items: items.map((i) => ({ name: i.name, quantity: i.quantity, price: i.unit_price, total: i.line_total }))
