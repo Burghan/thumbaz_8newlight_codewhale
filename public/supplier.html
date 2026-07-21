@@ -120,6 +120,7 @@
   </div>
 
   <script src="/auth.js"></script>
+  <script src="/dialogs.js"></script>
   <script src="/pwa.js"></script>
   <script src="/sidebar.js"></script>
   <script>
@@ -143,11 +144,11 @@
       });
     }
 
-    document.getElementById('rows').addEventListener('click', e => {
+    document.getElementById('rows').addEventListener('click', async e => {
       const btn = e.target.closest('button[data-edit], button[data-archive]'); if(!btn)return;
       const id = btn.getAttribute('data-edit') || btn.getAttribute('data-archive');
       if(btn.hasAttribute('data-archive')) {
-        if(!confirm('Archive this supplier?'))return;
+        if(!(await appConfirm('Archive this supplier?')))return;
         fetch(`/api/suppliers/${id}/archive`,{method:'PATCH',headers:authHeaders()}).then(r=>r.json()).then(()=>loadAll());
         return;
       }

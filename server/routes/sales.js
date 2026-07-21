@@ -77,9 +77,14 @@ router.post('/', (req, res) => {
     const txn = db.prepare(
       // WIB (UTC+7) wall-clock time, matching how Riwayat imports store the
       // source .xls's own local timestamps — see server/lib/time.js.
-      `INSERT INTO transactions (transacted_at, payment_method, notes, customer_note, customer_id)
+      // order_type has its own column (previously this INSERT omitted it
+      // entirely and instead stuffed the order type — plus a discount_amount
+      // that was never even sent by the client — into `notes`, which is
+      // meant for an actual customer note and gets shown as one in
+      // Transaction History's order drawer).
+      `INSERT INTO transactions (transacted_at, payment_method, order_type, customer_note, customer_id)
        VALUES (datetime('now', '+7 hours'), ?, ?, ?, ?)`
-    ).run(payment, `${b.order_type||'dinein'}${b.discount_amount>0?` discount:${b.discount_amount}`:''}`, customerNote, customer ? customer.id : null);
+    ).run(payment, String(b.order_type || 'Dine In').trim(), customerNote, customer ? customer.id : null);
 
     const txnId = txn.lastInsertRowid;
     const insItem = db.prepare(

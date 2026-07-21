@@ -143,6 +143,7 @@
   </div>
 
   <script src="/auth.js"></script>
+  <script src="/dialogs.js"></script>
   <script src="/pwa.js"></script>
   <script src="/sidebar.js"></script>
   <script>
@@ -204,10 +205,10 @@
       }
       if (btn.hasAttribute('data-delete')) {
         const nm = btn.getAttribute('data-name') || 'this user';
-        if (!confirm(`Delete ${nm} permanently? This also removes their payroll and attendance records and cannot be undone.`)) return;
+        if (!(await appConfirm(`Delete ${nm} permanently? This also removes their payroll and attendance records and cannot be undone.`, { danger: true, confirmText: 'Delete' }))) return;
         const r = await fetch(`/api/users/${id}`, { method:'DELETE', headers:h, credentials:'same-origin' });
         const d = await r.json().catch(()=>({}));
-        if (d.error) alert(d.error);
+        if (d.error) await appAlert(d.error);
         loadUsers(); return;
       }
       const users = await fetch('/api/users', opts).then(r=>r.json());

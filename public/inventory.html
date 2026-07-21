@@ -170,6 +170,7 @@
   </div>
 
   <script src="/auth.js"></script>
+  <script src="/dialogs.js"></script>
   <script src="/pwa.js"></script>
   <script src="/sidebar.js"></script>
   <script>
@@ -389,9 +390,9 @@
         const d = await r.json();
         let msg = d.message || d.error || 'Done';
         if (d.unmatched && d.unmatched.length) msg += `\nUnmatched: ${d.unmatched.join(', ')}`;
-        alert(msg);
+        await appAlert(msg);
         loadAll();
-      } catch { alert('Import failed'); }
+      } catch { await appAlert('Import failed'); }
       document.getElementById('importInvFile').value = '';
     });
 

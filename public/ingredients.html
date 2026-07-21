@@ -172,6 +172,7 @@
   </div>
 
   <script src="/auth.js"></script>
+  <script src="/dialogs.js"></script>
   <script src="/pwa.js"></script>
   <script src="/sidebar.js"></script>
   <script>
@@ -253,7 +254,7 @@
       }catch{ingredientRows.innerHTML='<tr><td colspan="9">Failed</td></tr>';}
     }
 
-    ingredientRows.addEventListener('click',(e)=>{
+    ingredientRows.addEventListener('click',async(e)=>{
       const btn=e.target.closest('button[data-action]');if(!btn)return;
       const id=btn.getAttribute('data-id'),action=btn.getAttribute('data-action'),row=btn.closest('tr');
       if(!row)return;const cells=row.querySelectorAll('td');
@@ -272,15 +273,15 @@
         ingredientSave.textContent='Update Ingredient';ingredientStatus.textContent='Editing';
         openModal(`Edit: ${nameEl.value||'Ingredient'}`);nameEl.focus();return;
       }
-      if(action==='archive'){if(!confirm('Archive this ingredient? It stays available to recipes/history but is hidden from the active list.'))return;ingReq(`/api/ingredients/${id}/archive`,'PATCH');}
+      if(action==='archive'){if(!(await appConfirm('Archive this ingredient? It stays available to recipes/history but is hidden from the active list.')))return;ingReq(`/api/ingredients/${id}/archive`,'PATCH');}
       if(action==='restore'){ingReq(`/api/ingredients/${id}/restore`,'PATCH');}
-      if(action==='delete'){if(!confirm('Permanently delete this ingredient? This cannot be undone.'))return;ingReq(`/api/ingredients/${id}`,'DELETE');}
+      if(action==='delete'){if(!(await appConfirm('Permanently delete this ingredient? This cannot be undone.',{danger:true,confirmText:'Delete'})))return;ingReq(`/api/ingredients/${id}`,'DELETE');}
     });
 
     function ingReq(url,method){
       fetch(url,{method,headers:{'Content-Type':'application/json',...authHeaders()}})
         .then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Request failed');ingredientStatus.textContent=d.message||'Done';loadIngredients();})
-        .catch(e=>{ingredientStatus.textContent=e.message;alert(e.message);});
+        .catch(e=>{ingredientStatus.textContent=e.message;appAlert(e.message);});
     }
 
     calcCostBtn.addEventListener('click',()=>{const p=Number(lastPriceEl.value),c=Number(convEl.value);if(!(p>0)||!(c>0)){ingredientStatus.textContent='Enter price+conversion';return;}stdCostEl.value=Number((p/c).toFixed(6));ingredientStatus.textContent=`${p.toLocaleString('id-ID')}/${c}=${(p/c).toFixed(6)}`;setTimeout(()=>{ingredientStatus.textContent='';},2500);});
@@ -327,16 +328,16 @@
         .catch(()=>{catStatus.textContent='Failed';});
     });
 
-    catRows.addEventListener('click',e=>{
+    catRows.addEventListener('click',async e=>{
       const btn=e.target.closest('button[data-cat-action]');if(!btn)return;
       const id=btn.getAttribute('data-id'),action=btn.getAttribute('data-cat-action');
       if(action==='edit'){editingCatId=id;catName.value=btn.getAttribute('data-name')||'';catSaveBtn.textContent='Update';catCancelBtn.style.display='';catName.focus();return;}
-      if(action==='delete'){if(!confirm('Delete empty category?'))return;
+      if(action==='delete'){if(!(await appConfirm('Delete empty category?')))return;
         fetch(`/api/ingredient-categories/${id}`,{method:'DELETE',headers:authHeaders()})
           .then(r=>r.json()).then(d=>{catStatus.textContent=d.message||d.error||'';if(!d.error){loadCategories();populateCategorySelect();}}).catch(()=>{});}
     });
 
-    document.getElementById('exportBtn').addEventListener('click',()=>alert('Export coming soon'));
+    document.getElementById('exportBtn').addEventListener('click',()=>appAlert('Export coming soon'));
     document.getElementById('importBtn').addEventListener('click',()=>document.getElementById('importFile').click());
 
     if(auth){loadIngredients();populateCategorySelect();}

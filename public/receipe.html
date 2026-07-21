@@ -154,6 +154,7 @@
   </div>
 
   <script src="/auth.js"></script>
+  <script src="/dialogs.js"></script>
   <script src="/pwa.js"></script>
   <script src="/sidebar.js"></script>
   <script>
@@ -280,16 +281,16 @@
       const pid=btn.getAttribute('data-pid');
       if(btn.getAttribute('data-action')==='edit'){openModal(pid);return;}
       if(btn.getAttribute('data-action')==='clear'){
-        if(!confirm('Remove ALL ingredients?'))return;
+        if(!(await appConfirm('Remove ALL ingredients?')))return;
         const p=allRecipeData.find(x=>String(x.product_id)===String(pid));if(!p)return;
         for(const ing of p.ingredients)await fetch('/api/recipes',{method:'DELETE',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({product_id:pid,ingredient_id:ing.ingredient_id})});
         loadAllRecipes();
       }
       if(btn.getAttribute('data-action')==='delete'){
-        if(!confirm('Delete this product permanently? This cannot be undone.'))return;
+        if(!(await appConfirm('Delete this product permanently? This cannot be undone.',{danger:true,confirmText:'Delete'})))return;
         const r=await fetch(`/api/products/${pid}`,{method:'DELETE',headers:{'Content-Type':'application/json',...authHeaders()}});
         const d=await r.json().catch(()=>({}));
-        if(!r.ok){alert(d.error||'Failed to delete product');return;}
+        if(!r.ok){await appAlert(d.error||'Failed to delete product');return;}
         loadAllRecipes();
       }
     });
@@ -297,7 +298,7 @@
     document.getElementById('addRecipeBtn').onclick=()=>{const w=allRecipeData.filter(p=>!p.ingredients.length);if(w.length)openModal(w[0].product_id);else if(allRecipeData.length)openModal(allRecipeData[0].product_id);};
     document.getElementById('exportRecipeBtn').onclick=()=>fetch('/api/export/recipes',{headers:authHeaders()}).then(r=>r.blob()).then(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='recipe_export_'+new Date().toISOString().slice(0,10)+'.xlsx';a.click()});
     document.getElementById('importRecipeBtn').onclick=()=>document.getElementById('importRecipeFile').click();
-    document.getElementById('importRecipeFile').addEventListener('change',async()=>{const f=document.getElementById('importRecipeFile').files[0];if(!f)return;const fd=new FormData();fd.append('file',f);try{const r=await fetch('/api/import/recipes',{method:'POST',headers:authHeaders(),body:fd});const d=await r.json();alert(d.message||d.error);loadAllRecipes();}catch{alert('Import failed');}});
+    document.getElementById('importRecipeFile').addEventListener('change',async()=>{const f=document.getElementById('importRecipeFile').files[0];if(!f)return;const fd=new FormData();fd.append('file',f);try{const r=await fetch('/api/import/recipes',{method:'POST',headers:authHeaders(),body:fd});const d=await r.json();await appAlert(d.message||d.error);loadAllRecipes();}catch{await appAlert('Import failed');}});
 
     recipeSearch.oninput=()=>renderRecipeTable(allRecipeData);
     recipeCatFilter.onchange=()=>renderRecipeTable(allRecipeData);

@@ -184,6 +184,7 @@
   </div>
 
   <script src="/auth.js"></script>
+  <script src="/dialogs.js"></script>
   <script src="/pwa.js"></script>
   <script src="/sidebar.js"></script>
   <script>
@@ -342,8 +343,8 @@
       const f=document.getElementById('importPurchasesFile').files[0];if(!f)return;
       const fd=new FormData();fd.append('file',f);
       try{const r=await fetch('/api/import/purchases',{method:'POST',headers:authHeaders(),body:fd});const d=await r.json();
-        alert(d.message||d.error);loadPurchases();loadLowStock();}
-      catch{alert('Import failed');}
+        await appAlert(d.message||d.error);loadPurchases();loadLowStock();}
+      catch{await appAlert('Import failed');}
     });
 
     if(auth){loadPurchases();loadLowStock();}

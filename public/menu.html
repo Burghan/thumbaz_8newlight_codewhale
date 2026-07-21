@@ -571,6 +571,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/auth.js"></script>
+  <script src="/dialogs.js"></script>
   <script src="/pwa.js"></script>
   <script src="/sidebar.js"></script>
   <script>
@@ -810,7 +811,7 @@
     }
 
 
-    rowsEl.addEventListener('click', (e) => {
+    rowsEl.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
       const id = btn.getAttribute('data-id');
@@ -838,7 +839,7 @@
       }
 
       if (action === 'archive') {
-        if (!confirm('Archive this menu item?')) return;
+        if (!(await appConfirm('Archive this menu item?'))) return;
         rowAction(`/api/products/${id}/archive`, 'PATCH', 'Archived');
         return;
       }
@@ -849,7 +850,7 @@
       }
 
       if (action === 'delete') {
-        if (!confirm('Delete this product permanently? This cannot be undone.')) return;
+        if (!(await appConfirm('Delete this product permanently? This cannot be undone.', { danger: true, confirmText: 'Delete' }))) return;
         fetch(`/api/products/${id}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json', ...authHeaders() }
@@ -976,10 +977,10 @@
 
     // ---- import ----
     importBtn.addEventListener('click', () => importFile.click());
-    importFile.addEventListener('change', () => {
+    importFile.addEventListener('change', async () => {
       const file = importFile.files[0];
       if (!file) return;
-      if (!confirm(`Import "${file.name}"? This updates menu items by name.`)) {
+      if (!(await appConfirm(`Import "${file.name}"? This updates menu items by name.`))) {
         importFile.value = '';
         return;
       }
@@ -1075,7 +1076,7 @@
         .catch(() => { catStatus.textContent = 'Failed to save category'; });
     });
 
-    catRows.addEventListener('click', (e) => {
+    catRows.addEventListener('click', async (e) => {
       const btn = e.target.closest('button[data-cat-action]');
       if (!btn) return;
       const id = btn.getAttribute('data-id');
@@ -1091,7 +1092,7 @@
       }
 
       if (action === 'delete') {
-        if (!confirm('Delete this empty category?')) return;
+        if (!(await appConfirm('Delete this empty category?'))) return;
         fetch(`/api/categories/${id}`, { method: 'DELETE', headers: authHeaders() })
           .then(res => res.json())
           .then(data => {

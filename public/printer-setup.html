@@ -126,6 +126,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="/auth.js"></script>
+<script src="/dialogs.js"></script>
 <script src="/pwa.js"></script>
 <script src="/ble-print.js"></script>
 <script src="/sidebar.js"></script>
@@ -225,19 +226,19 @@
       toast(`Paired: ${info.name}`);
       await refresh();
     } catch (e) {
-      if (e && e.name !== 'NotFoundError') alert('Could not pair: ' + (e && e.message ? e.message : e));
+      if (e && e.name !== 'NotFoundError') await appAlert('Could not pair: ' + (e && e.message ? e.message : e));
     } finally { connectBtn.disabled = false; connectBtn.textContent = t; refresh(); }
   });
 
   testBtn.addEventListener('click', async () => {
     testBtn.disabled = true; const t = testBtn.textContent; testBtn.textContent = 'Printing…';
     try { await window.BlePrinter.testPrint(); toast('Test sent to printer'); }
-    catch (e) { alert('Test print failed: ' + (e && e.message ? e.message : e)); }
+    catch (e) { await appAlert('Test print failed: ' + (e && e.message ? e.message : e)); }
     finally { testBtn.disabled = false; testBtn.textContent = t; refresh(); }
   });
 
   forgetBtn.addEventListener('click', async () => {
-    if (!confirm('Forget the saved printer on this device?')) return;
+    if (!(await appConfirm('Forget the saved printer on this device?'))) return;
     window.BlePrinter.forgetPrinter();
     toast('Printer forgotten');
     refresh();

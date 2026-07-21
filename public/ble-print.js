@@ -477,7 +477,8 @@
       setTimeout(function () { btn.textContent = original; btn.disabled = false; }, 1500);
     } catch (e) {
       btn.disabled = false; btn.textContent = original;
-      alert('Bluetooth print failed: ' + (e && e.message ? e.message : e));
+      var msg = 'Bluetooth print failed: ' + (e && e.message ? e.message : e);
+      if (window.appAlert) await window.appAlert(msg); else alert(msg);
     }
   });
 })();

@@ -1046,6 +1046,7 @@
 </div>
 
 <script src="/auth.js"></script>
+  <script src="/dialogs.js"></script>
   <script src="/pwa.js"></script>
 <script>
   let cart = [];
@@ -1931,7 +1932,7 @@
   }
 
   if (modifierList) {
-    modifierList.addEventListener('click', (event) => {
+    modifierList.addEventListener('click', async (event) => {
       const button = event.target.closest('button[data-action]');
       if (!button) return;
       const action = button.dataset.action;
@@ -1962,7 +1963,7 @@
             status.textContent = 'Failed to update modifier';
           });
       } else if (action === 'delete') {
-        if (!confirm('Disable this modifier?')) return;
+        if (!(await appConfirm('Disable this modifier?'))) return;
         fetch(`/api/modifiers/${id}`, {
           method: 'DELETE',
           headers: authHeaders()
@@ -2095,7 +2096,7 @@
     });
   }
 
-  function voidSale() {
+  async function voidSale() {
     const lastSaleId = localStorage.getItem('last_sale_id');
     if (!lastSaleId) {
       status.textContent = 'No sale to void';
@@ -2106,7 +2107,7 @@
       status.textContent = 'Manager PIN required to void';
       return;
     }
-    const reason = prompt('Void reason?') || '';
+    const reason = (await appPrompt('Void reason?', '')) || '';
     fetch(`/api/sales/${lastSaleId}/void`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

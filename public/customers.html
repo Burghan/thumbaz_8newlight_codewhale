@@ -154,6 +154,7 @@
 
   <script src="/sidebar.js?v=20260716-1"></script>
   <script src="/auth.js"></script>
+  <script src="/dialogs.js"></script>
   <script>
   async function api(path, opts = {}) {
     const h = typeof authHeaders === 'function' ? authHeaders() : {};
@@ -250,7 +251,7 @@
   async function saveCustomer() {
     const id = document.getElementById('editId').value;
     const name = document.getElementById('editName').value.trim();
-    if (!name) { alert('Name is required.'); return; }
+    if (!name) { await appAlert('Name is required.'); return; }
     const phone = document.getElementById('editPhone').value.trim();
     const email = document.getElementById('editEmail').value.trim();
     try {
@@ -262,7 +263,7 @@
       document.getElementById('customerModal').setAttribute('hidden', '');
       await loadData();
     } catch (err) {
-      alert(err.message);
+      await appAlert(err.message);
     }
   }
 

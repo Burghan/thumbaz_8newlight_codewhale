@@ -3029,17 +3029,25 @@ if (manageModifierList) {
         openInfo('Failed', err.message || 'Failed to update modifier.');
       }
     } else if (action === 'delete') {
-      if (!confirm('Disable this modifier?')) return;
-      try {
-        const res = await fetch(`/api/modifiers/${id}`, {
-          method: 'DELETE',
-          headers: typeof authHeaders === 'function' ? authHeaders() : {}
-        });
-        if (!res.ok) throw new Error('Failed to disable modifier.');
-        renderManageModifierList(await refreshModifiers());
-      } catch (err) {
-        openInfo('Failed', err.message || 'Failed to disable modifier.');
-      }
+      openConfirm({
+        title: 'Disable Modifier',
+        message: 'Disable this modifier? It will be hidden from the picker but stays on past receipts.',
+        confirmLabel: 'Yes, disable',
+        dismissLabel: 'No, keep it',
+        danger: true,
+        onConfirm: async () => {
+          try {
+            const res = await fetch(`/api/modifiers/${id}`, {
+              method: 'DELETE',
+              headers: typeof authHeaders === 'function' ? authHeaders() : {}
+            });
+            if (!res.ok) throw new Error('Failed to disable modifier.');
+            renderManageModifierList(await refreshModifiers());
+          } catch (err) {
+            openInfo('Failed', err.message || 'Failed to disable modifier.');
+          }
+        }
+      });
     }
   });
 }
@@ -3442,11 +3450,6 @@ async function reprintSale(saleId) {
     openInfo('Reprint failed', e && e.message ? e.message : 'Could not load that sale.');
   }
 }
-// Same fix for Void Sale: it voids a PAST sale, so it shouldn't require the
-// current cart to have an item just to reach the button. Staff logging in to
-// void nothing else that shift had no way to open this at all before.
-document.getElementById('voidSaleBtn')?.addEventListener('click', openVoidModal);
-
 // "⋯ More" action sheet — opened from the numpad footer. Routes to the existing
 // (mostly hidden) action-grid buttons so their logic isn't duplicated. Hold is
 // intentionally omitted (the Orders tab it parks into is hidden).

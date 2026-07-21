@@ -31,11 +31,12 @@
     </div>
     <div class="pos-actions">
       <button class="pos-link" id="cashMoveBtn" type="button">Cash In/Out</button>
-      <button class="pos-link" id="voidSaleBtn" type="button">Void Sale</button>
       <!-- Every order (Hold/Save AND every completed sale) is logged here —
            see renderOrdersView()/loadOrderIntoRegister() in pos-new.js. This
            is also the reprint picker now (View Receipt on any paid order),
-           replacing what used to be a separate Reprint Receipt modal. -->
+           replacing what used to be a separate Reprint Receipt modal), and
+           Void Sale lives there too (detail panel) plus in the checkout
+           footer — no separate top-bar Void Sale entry needed anymore. -->
       <button class="pos-link" id="ordersBtn" type="button">
         Orders <span class="pos-badge" id="ordersBadge">0</span>
       </button>
@@ -814,6 +815,7 @@
   </div>
 
   <script src="/auth.js"></script>
+  <script src="/dialogs.js"></script>
   <script src="/pos-new-data.js"></script>
   <script src="/pos-new-tables.js"></script>
   <script src="/pos-new.js"></script>

@@ -103,10 +103,9 @@ function requireRole(roles) {
   if (!auth) return null;
 
   if (!roles.includes(auth.role)) {
-    alert('Access denied');
     clearAuth();
     const next = encodeURIComponent(window.location.pathname);
-    window.location.href = `/login.html?next=${next}`;
+    window.location.href = `/login.html?next=${next}&denied=1`;
     return null;
   }
   return auth;

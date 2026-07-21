@@ -86,6 +86,7 @@
   .void-trigger { margin-top:16px; background:none; border:1px solid var(--danger); color:var(--danger); border-radius:10px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; }
   .void-trigger:hover { background:rgba(196,60,48,.08); }
   .void-warn { font-size:13px; color:var(--muted); margin-bottom:12px; }
+  .drawer-input { width:100%; box-sizing:border-box; min-height:40px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; background:var(--bg,#fff); color:var(--ink); margin-bottom:12px; }
   .void-choice-row { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
   .void-choice-btn { text-align:left; padding:12px 14px; border:1px solid var(--border); border-radius:10px; background:var(--card); cursor:pointer; font-size:13px; font-weight:600; color:var(--ink); }
   .void-choice-btn:hover { border-color:var(--brand); background:var(--cream-soft); }
@@ -261,9 +262,20 @@
   }
 
   function promptVoidReason(id, o, restock) {
-    const reason = prompt(`Reason for voiding order #${id}${restock ? ' (ingredients will be returned to stock)' : ' (inventory stays consumed)'}:`, '');
-    if (reason === null) { renderVoidChoice(id, o); return; }
-    submitVoid(id, restock, reason.trim());
+    drillTitle.textContent = 'Void Order #' + id; drillSub.textContent = '';
+    drillBody.innerHTML = `
+      <div class="void-warn">Reason for voiding order #${id}${restock ? ' (ingredients will be returned to stock)' : ' (inventory stays consumed)'}:</div>
+      <input type="text" id="voidReasonInput" class="drawer-input" placeholder="e.g. Wrong item, customer changed mind" />
+      <div class="void-choice-row">
+        <button class="void-choice-btn" id="voidReasonSubmit">Confirm Void</button>
+      </div>
+      <button class="void-back" id="voidReasonBack">← Back</button>`;
+    const input = document.getElementById('voidReasonInput');
+    input.focus();
+    document.getElementById('voidReasonBack').addEventListener('click', () => renderVoidChoice(id, o));
+    const submit = () => submitVoid(id, restock, input.value.trim());
+    document.getElementById('voidReasonSubmit').addEventListener('click', submit);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
   }
 
   async function submitVoid(id, restock, reason) {
@@ -278,7 +290,6 @@
       if (!res.ok) throw new Error(data.error || 'Void failed');
       closeDrawer();
       load();
-      alert(`Order #${id} voided.${restock ? ' Ingredients returned to stock.' : ' Inventory kept as used.'}`);
     } catch (e) {
       drillBody.innerHTML = `<div class="err">❌ ${esc(e.message)}</div><button class="void-back" id="voidRetryBack">← Back</button>`;
       document.getElementById('voidRetryBack').addEventListener('click', () => drillOrder(id));
@@ -289,12 +300,27 @@
   // whole order — e.g. rung up 2, should've been 1. Same restock/reason
   // pattern as a full void, scoped to just one line.
   function promptFixQty(id, item) {
-    const input = prompt(`Correct quantity for "${item.name}" (currently ${item.qty}):`, String(Math.max(item.qty - 1, 0)));
-    if (input === null) return;
-    const newQty = Number(input.trim());
-    if (!Number.isInteger(newQty) || newQty < 0) { alert('Enter a whole number, 0 or more.'); return promptFixQty(id, item); }
-    if (newQty >= item.qty) { alert(`Corrected quantity must be less than ${item.qty}.`); return promptFixQty(id, item); }
-    renderFixQtyChoice(id, item, newQty);
+    drillTitle.textContent = 'Fix Quantity'; drillSub.textContent = `${item.name} (currently ${item.qty})`;
+    drillBody.innerHTML = `
+      <div class="void-warn">Correct quantity for "${esc(item.name)}" (currently ${item.qty}):</div>
+      <input type="number" id="fixQtyInput" class="drawer-input" min="0" max="${item.qty - 1}" value="${Math.max(item.qty - 1, 0)}" />
+      <div class="err" id="fixQtyError" style="display:none;margin:8px 0;"></div>
+      <div class="void-choice-row">
+        <button class="void-choice-btn" id="fixQtySubmit">Continue</button>
+      </div>
+      <button class="void-back" id="fixQtyBack">← Back to order</button>`;
+    const input = document.getElementById('fixQtyInput');
+    const errEl = document.getElementById('fixQtyError');
+    input.focus();
+    document.getElementById('fixQtyBack').addEventListener('click', () => drillOrder(id));
+    const submit = () => {
+      const newQty = Number(input.value.trim());
+      if (!Number.isInteger(newQty) || newQty < 0) { errEl.textContent = '❌ Enter a whole number, 0 or more.'; errEl.style.display = ''; return; }
+      if (newQty >= item.qty) { errEl.textContent = `❌ Corrected quantity must be less than ${item.qty}.`; errEl.style.display = ''; return; }
+      renderFixQtyChoice(id, item, newQty);
+    };
+    document.getElementById('fixQtySubmit').addEventListener('click', submit);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
   }
 
   function renderFixQtyChoice(id, item, newQty) {
@@ -313,9 +339,20 @@
   }
 
   function promptFixReason(id, item, newQty, restock) {
-    const reason = prompt(`Reason for correcting "${item.name}" (${item.qty} → ${newQty}):`, '');
-    if (reason === null) { renderFixQtyChoice(id, item, newQty); return; }
-    submitFixQty(id, item, newQty, restock, reason.trim());
+    drillTitle.textContent = 'Fix Quantity'; drillSub.textContent = `${item.name}: ${item.qty} → ${newQty}`;
+    drillBody.innerHTML = `
+      <div class="void-warn">Reason for correcting "${esc(item.name)}" (${item.qty} → ${newQty}):</div>
+      <input type="text" id="fixReasonInput" class="drawer-input" placeholder="e.g. Wrong item, customer changed mind" />
+      <div class="void-choice-row">
+        <button class="void-choice-btn" id="fixReasonSubmit">Confirm Correction</button>
+      </div>
+      <button class="void-back" id="fixReasonBack">← Back</button>`;
+    const input = document.getElementById('fixReasonInput');
+    input.focus();
+    document.getElementById('fixReasonBack').addEventListener('click', () => renderFixQtyChoice(id, item, newQty));
+    const submit = () => submitFixQty(id, item, newQty, restock, input.value.trim());
+    document.getElementById('fixReasonSubmit').addEventListener('click', submit);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
   }
 
   async function submitFixQty(id, item, newQty, restock, reason) {
@@ -330,7 +367,6 @@
       if (!res.ok) throw new Error(data.error || 'Correction failed');
       load();
       drillOrder(id);
-      alert(data.message || 'Quantity corrected.');
     } catch (e) {
       drillBody.innerHTML = `<div class="err">❌ ${esc(e.message)}</div><button class="void-back" id="fixRetryBack">← Back</button>`;
       document.getElementById('fixRetryBack').addEventListener('click', () => drillOrder(id));

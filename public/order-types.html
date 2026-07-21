@@ -88,6 +88,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="/auth.js"></script>
+<script src="/dialogs.js"></script>
 <script src="/pwa.js"></script>
 <script src="/sidebar.js"></script>
 <script>
@@ -151,7 +152,7 @@
         await api('PUT', `/api/order-types/${id}`, { name, per_item_discount: charge, active: !tr.classList.contains('row-inactive') });
         toast('Saved');
       } else if (btn.classList.contains('del')) {
-        if (!confirm(`Disable "${name}"? It will be hidden from the POS but kept on past orders.`)) return;
+        if (!(await appConfirm(`Disable "${name}"? It will be hidden from the POS but kept on past orders.`))) return;
         await api('DELETE', `/api/order-types/${id}`);
         toast('Disabled');
       } else if (btn.classList.contains('restore')) {
@@ -159,20 +160,20 @@
         toast('Restored');
       }
       load();
-    } catch (e) { alert(e.message); }
+    } catch (e) { await appAlert(e.message); }
   });
 
   document.getElementById('addBtn').addEventListener('click', async () => {
     const name = document.getElementById('newName').value.trim();
     const charge = Number(document.getElementById('newCharge').value);
-    if (!name) { alert('Enter a name'); return; }
+    if (!name) { await appAlert('Enter a name'); return; }
     try {
       await api('POST', '/api/order-types', { name, per_item_discount: charge });
       document.getElementById('newName').value = '';
       document.getElementById('newCharge').value = '0';
       toast('Added');
       load();
-    } catch (e) { alert(e.message); }
+    } catch (e) { await appAlert(e.message); }
   });
 
   load();

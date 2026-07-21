@@ -152,6 +152,7 @@
   </div>
 
   <script src="/auth.js"></script>
+  <script src="/dialogs.js"></script>
   <script src="/pwa.js"></script>
   <script src="/sidebar.js"></script>
   <script>
@@ -176,7 +177,7 @@
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
         video.srcObject = stream;
       } catch(e) {
-        alert('Camera not available. Clocking without photo.');
+        await appAlert('Camera not available. Clocking without photo.');
         modal.classList.add('hidden');
         doClock(pendingAction, null);
       }

@@ -145,13 +145,18 @@
     localStorage.removeItem('pos_auth');
   </script>
   <script src="/auth.js"></script>
+  <script src="/dialogs.js"></script>
   <script src="/pwa.js"></script>
   <script>
     const usernameInput = document.getElementById('username');
     const pinInput = document.getElementById('pin');
     const pad = document.getElementById('pad');
     const statusEl = document.getElementById('status');
-    const nextParam = new URLSearchParams(window.location.search).get('next');
+    const searchParams = new URLSearchParams(window.location.search);
+    const nextParam = searchParams.get('next');
+    if (searchParams.get('denied') === '1') {
+      statusEl.textContent = 'Access denied — that page needs a different role. Log in with the right account.';
+    }
 
     function redirectByRole(auth) {
       if (!auth) return;
@@ -217,13 +222,13 @@
           }
           redirectByRole(data);
         })
-        .catch((err) => {
+        .catch(async (err) => {
           const attempts = Number(err?.attempts || 0);
           const remaining = Number(err?.remaining || Math.max(0, 5 - attempts));
           if (err?.status === 429 || err?.error === 'User locked') {
-            alert('User locked. Please wait 5 minutes.');
+            await appAlert('User locked. Please wait 5 minutes.');
           } else if (attempts >= 3) {
-            alert(`Warning: ${attempts} failed attempts. ${remaining} tries left.`);
+            await appAlert(`Warning: ${attempts} failed attempts. ${remaining} tries left.`);
           }
           statusEl.textContent = err?.error || 'Invalid credentials';
         });

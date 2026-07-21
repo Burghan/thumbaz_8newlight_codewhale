@@ -54,6 +54,16 @@
     .btn-cancel:hover { color: var(--danger); border-color: var(--danger) !important; }
 
     .sync-note { flex: 0 0 auto; margin-top: 10px; font-size: 12px; color: var(--muted); text-align: center; }
+
+    .confirm-backdrop { position: fixed; inset: 0; background: rgba(20,28,45,.45); display: none; align-items: center; justify-content: center; z-index: 80; }
+    .confirm-backdrop.open { display: flex; }
+    .confirm-card { background: var(--card); border-radius: 16px; padding: 20px; width: min(340px, 90vw); box-shadow: 0 24px 64px rgba(0,0,0,.28); }
+    .confirm-card h3 { margin: 0 0 8px; font-family: var(--font-brand); color: var(--brand-ink); }
+    .confirm-card p { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+    .confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .confirm-actions button { padding: 10px; border-radius: 10px; border: 1px solid var(--border); font-weight: 700; cursor: pointer; font-size: 14px; }
+    .confirm-actions .confirm-yes { background: var(--danger); border-color: var(--danger); color: #fff; }
+    .confirm-actions .confirm-no { background: var(--card); color: var(--ink); }
   </style>
 </head>
 <body class="theme-cafe">
@@ -90,6 +100,17 @@
       </div>
     </div>
     <div class="sync-note" id="syncNote">Loading…</div>
+  </div>
+
+  <div class="confirm-backdrop" id="confirmBackdrop">
+    <div class="confirm-card">
+      <h3>Cancel this ticket?</h3>
+      <p>It drops off the board and won't be prepared.</p>
+      <div class="confirm-actions">
+        <button class="confirm-no" id="confirmNo" type="button">No, keep it</button>
+        <button class="confirm-yes" id="confirmYes" type="button">Yes, cancel it</button>
+      </div>
+    </div>
   </div>
 
   <script src="/auth.js"></script>
@@ -175,6 +196,26 @@
       }
     }
 
+    const confirmBackdrop = document.getElementById('confirmBackdrop');
+    const confirmYes = document.getElementById('confirmYes');
+    const confirmNo = document.getElementById('confirmNo');
+    let confirmHandler = null;
+    function askConfirm(onYes) {
+      confirmHandler = onYes;
+      confirmBackdrop.classList.add('open');
+    }
+    function closeConfirm() {
+      confirmBackdrop.classList.remove('open');
+      confirmHandler = null;
+    }
+    confirmNo.addEventListener('click', closeConfirm);
+    confirmBackdrop.addEventListener('click', (e) => { if (e.target === confirmBackdrop) closeConfirm(); });
+    confirmYes.addEventListener('click', () => {
+      const fn = confirmHandler;
+      closeConfirm();
+      if (fn) fn();
+    });
+
     document.querySelectorAll('.board').forEach((board) => {
       board.addEventListener('click', async (event) => {
         const button = event.target.closest('button[data-action]');
@@ -189,15 +230,17 @@
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify({ status: next })
           });
+          refresh();
         } else if (button.dataset.action === 'cancel') {
-          if (!confirm('Cancel this ticket?')) return;
-          await fetch(`/api/kitchen/${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', ...authHeaders() },
-            body: JSON.stringify({ status: 'cancelled' })
+          askConfirm(async () => {
+            await fetch(`/api/kitchen/${id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', ...authHeaders() },
+              body: JSON.stringify({ status: 'cancelled' })
+            });
+            refresh();
           });
         }
-        refresh();
       });
     });
 
