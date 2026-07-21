@@ -3469,3 +3469,13 @@ try {
     navigatePos('/pos/ui/1/orders', true);
   }
 } catch (err) {}
+
+// Arrived via "Reprint Receipt" from the Transactions page (?reprint=<id>) —
+// open that sale's receipt directly instead of making the user hunt for it
+// in the Reprint picker. Strip the param so a reload doesn't repeat it.
+(function openReprintFromUrl() {
+  const reprintId = new URLSearchParams(location.search).get('reprint');
+  if (!reprintId) return;
+  history.replaceState(null, '', location.pathname);
+  reprintSale(reprintId);
+})();

@@ -37,6 +37,7 @@ app.use('/api/attendance', posRole, require('./routes/attendance'));
 app.use('/api/inventory', manager, require('./routes/inventory'));
 app.use('/api/receipt', manager, require('./routes/receipt'));
 app.use('/api/transactions', manager, require('./routes/transactions'));
+app.use('/api/pos-transactions', posRole, require('./routes/pos-transactions'));
 app.use('/api/sales', posRole, require('./routes/sales'));
 app.use('/api/modifiers', posRole, require('./routes/modifiers'));
 app.use('/api/kitchen', posRole, require('./routes/kitchen'));

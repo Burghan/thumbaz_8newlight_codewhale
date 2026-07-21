@@ -105,13 +105,37 @@
     if (!auth || !auth.role) return;
 
     if (auth.role === 'staff') {
-    const allowed = new Set(['/pos/ui/1/register', '/kitchen.html', '/customers.html', '/clock.html', '/printer-setup.html', '/logout.html']);
-      sidebar.querySelectorAll('a[href]').forEach(link => {
-        const href = link.getAttribute('href');
-        if (!allowed.has(href)) {
-          link.remove();
-        }
+      const staffLinks = [
+        { href: '/pos/ui/1/register', label: 'Register' },
+        { href: '/kitchen.html', label: 'Kitchen' },
+        { href: '/transactions.html', label: 'Transactions' },
+        { href: '/customers.html', label: 'Customers' },
+        { href: '/clock.html', label: 'Attendance' },
+        { href: '/printer-setup.html', label: 'Printer' },
+      ];
+      // Staff previously got the manager nav filtered down link-by-link, which
+      // left her with fragments of the original groups (a "Management" group
+      // with just Transactions in it, etc). Rebuild from scratch instead: one
+      // dedicated "Staff" group with everything she can use, plus Logout.
+      sidebar.querySelectorAll('.nav-group, a[href]:not([data-home="1"])').forEach(el => el.remove());
+      sidebar.querySelectorAll(':scope > div').forEach(el => { if (!el.className) el.remove(); }); // stray divider bars
+
+      const group = document.createElement('div'); group.className = 'nav-group'; group.dataset.group = 'staff';
+      const btn = document.createElement('button'); btn.className = 'nav-toggle'; btn.type = 'button';
+      btn.innerHTML = '<span>👤  Staff</span><span class="chevron" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>';
+      group.appendChild(btn);
+      const ch = document.createElement('div'); ch.className = 'nav-children';
+      staffLinks.forEach(c => {
+        const a = document.createElement('a'); a.setAttribute('href', c.href); a.className = 'nav-sub'; a.textContent = c.label; ch.appendChild(a);
       });
+      group.appendChild(ch);
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => { group.classList.toggle('open'); });
+      if (staffLinks.some(c => location.pathname === c.href)) group.classList.add('open');
+      sidebar.appendChild(group);
+
+      const logout = document.createElement('a'); logout.href = '/logout.html'; logout.textContent = '🚪  Logout';
+      sidebar.appendChild(logout);
       return;
     }
 

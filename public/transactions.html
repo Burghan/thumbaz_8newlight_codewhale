@@ -185,11 +185,18 @@
 <script src="/pwa.js"></script>
 <script src="/sidebar.js"></script>
 <script>
-  const A = requireRole(['admin','manager']);
+  const A = requireRole(['admin','manager','staff']);
   const statusEl = document.getElementById('status');
   const panelEl = document.getElementById('panel');
   if (!A || !A.id) { statusEl.innerHTML = '<span class="err">❌ Not logged in</span>'; throw Error('no auth'); }
   document.getElementById('who').textContent = `${A.name} · ${A.role}`;
+
+  // Staff see today only (server-enforced via /api/pos-transactions) and
+  // can't Void/Fix Qty from here — those stay admin/manager. Reprint is safe
+  // read-only, so every role gets it.
+  const isStaff = A.role === 'staff';
+  const TX_LIST_URL = isStaff ? '/api/pos-transactions' : '/api/transactions';
+  const ORDER_URL = (id) => isStaff ? `/api/pos-transactions/${id}` : `/api/reports/order/${id}`;
 
   const Rp = v => 'Rp ' + Math.round(v || 0).toLocaleString('id-ID');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -212,23 +219,26 @@
     openDrawer();
     drillTitle.textContent = 'Order #' + id; drillSub.textContent = ''; drillBody.innerHTML = '<div class="foot">Loading…</div>';
     try {
-      const o = await jget('/api/reports/order/' + id);
+      const o = await jget(ORDER_URL(id));
       drillSub.textContent = `${o.date} · ${(o.payment_method||'—')} · ${o.items.length} items`;
       drillBody.innerHTML = `
         <h3>Items</h3>
-        <table><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th><th></th></tr></thead><tbody>${
-          o.items.map(it=>`<tr><td><a href="/menu.html?q=${encodeURIComponent(it.product_name||'')}">${esc(it.product_name||'?')}</a></td><td class="num">${it.quantity}×</td><td class="num">${Rp(it.unit_price)}</td><td class="num">${Rp(it.line_total)}</td><td><button class="fix-qty-btn" data-item-id="${it.item_id}" data-qty="${it.quantity}" data-name="${esc(it.product_name||'?')}">✎ Fix qty</button></td></tr>`).join('')
+        <table><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th>${isStaff ? '' : '<th></th>'}</tr></thead><tbody>${
+          o.items.map(it=>`<tr><td><a href="/menu.html?q=${encodeURIComponent(it.product_name||'')}">${esc(it.product_name||'?')}</a></td><td class="num">${it.quantity}×</td><td class="num">${Rp(it.unit_price)}</td><td class="num">${Rp(it.line_total)}</td>${isStaff ? '' : `<td><button class="fix-qty-btn" data-item-id="${it.item_id}" data-qty="${it.quantity}" data-name="${esc(it.product_name||'?')}">✎ Fix qty</button></td>`}</tr>`).join('')
         }</tbody></table>
         <div class="cost-tot"><span>Order total</span><span>${Rp(o.total)}</span></div>
         ${o.notes?`<h3>Notes</h3><div class="foot">${esc(o.notes)}</div>`:''}
         <div class="foot" style="margin-top:14px">Reference: ${esc(o.reference||'—')}</div>
-        <button class="void-trigger" id="voidTrigger">🗑️ Void this transaction</button>`;
-      document.getElementById('voidTrigger').addEventListener('click', () => renderVoidChoice(id, o));
-      drillBody.querySelectorAll('.fix-qty-btn').forEach(btn => {
-        btn.addEventListener('click', () => promptFixQty(id, {
-          itemId: Number(btn.dataset.itemId), qty: Number(btn.dataset.qty), name: btn.dataset.name
-        }));
-      });
+        <a class="void-trigger" style="display:inline-block;text-decoration:none;border-color:var(--brand);color:var(--brand-ink)" href="/pos-new.html?reprint=${id}" target="_blank">🖨️ Reprint Receipt</a>
+        ${isStaff ? '' : '<button class="void-trigger" id="voidTrigger">🗑️ Void this transaction</button>'}`;
+      if (!isStaff) {
+        document.getElementById('voidTrigger').addEventListener('click', () => renderVoidChoice(id, o));
+        drillBody.querySelectorAll('.fix-qty-btn').forEach(btn => {
+          btn.addEventListener('click', () => promptFixQty(id, {
+            itemId: Number(btn.dataset.itemId), qty: Number(btn.dataset.qty), name: btn.dataset.name
+          }));
+        });
+      }
     } catch(e) { drillBody.innerHTML = '<div class="err">❌ ' + esc(e.message) + '</div>'; }
   }
 
@@ -350,6 +360,16 @@
     if (urlParams.get('product_id')) state.product_id = urlParams.get('product_id');
   })();
 
+  // Staff: lock to today — /api/pos-transactions ignores from/to server-side
+  // anyway, but disabling the inputs makes that visible instead of confusing.
+  if (isStaff) {
+    const today = fmtLocalDate(new Date());
+    state.from = fFrom.value = today;
+    state.to = fTo.value = today;
+    fFrom.disabled = true;
+    fTo.disabled = true;
+  }
+
   let productsById = new Map(), productsByName = new Map();
   async function loadProducts() {
     try {
@@ -413,7 +433,7 @@
     params.set('page', state.page); params.set('pageSize', state.pageSize);
 
     try {
-      const d = await jget('/api/transactions?' + params.toString());
+      const d = await jget(TX_LIST_URL + '?' + params.toString());
       statusEl.style.display = 'none'; panelEl.style.display = '';
 
       document.getElementById('kRevenue').textContent = Rp(d.kpi.revenue);
