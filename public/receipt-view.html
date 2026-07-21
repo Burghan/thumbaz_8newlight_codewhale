@@ -72,7 +72,6 @@
     content.innerHTML = `
       <h1>Receipt #${o.id}</h1>
       <div class="meta">${esc(date)}</div>
-      ${o.cashier_name ? `<div class="meta">Served by: ${esc(o.cashier_name)}</div>` : ''}
       ${o.order_type ? `<div class="meta">Order Type: ${esc(o.order_type)}</div>` : ''}
       ${o.customer_name ? `<div class="meta">${esc(o.customer_name)}</div>` : ''}
       <div class="items">
@@ -185,7 +184,6 @@
     y += 56 + 10; // logo + name
     y += 20; // "Receipt #N"
     y += 18; // date
-    if (o.cashier_name) y += 16;
     if (o.order_type) y += 16;
     if (o.customer_name) y += 16;
     y += 10; // top rule
@@ -216,7 +214,6 @@
     ctx.font = '12px sans-serif';
     ctx.fillStyle = '#8a93a3';
     ctx.fillText(dateStr, width / 2, y); y += 18;
-    if (o.cashier_name) { ctx.fillText(`Served by: ${o.cashier_name}`, width / 2, y); y += 16; }
     if (o.order_type) { ctx.fillText(`Order Type: ${o.order_type}`, width / 2, y); y += 16; }
     if (o.customer_name) { ctx.fillText(o.customer_name, width / 2, y); y += 16; }
 

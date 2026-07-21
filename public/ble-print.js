@@ -2,8 +2,10 @@
 //
 // Prints the receipt to an ESC/POS BLE printer so the result matches the
 // on-screen / browser-printed receipt: the receipt is drawn to a canvas (logo,
-// items, totals, QR, footer) and sent as an ESC/POS RASTER bitmap. That keeps
-// it portrait and crisp, with the logo and QR the plain-text approach can't do.
+// items, totals, footer) and sent as an ESC/POS RASTER bitmap. That keeps
+// it portrait and crisp, with the logo the plain-text approach can't do. The
+// digital-receipt QR stays screen-only (view/share there) — no need to spend
+// paper on a code meant to be scanned off a phone, not off itself.
 //
 // Web Bluetooth constraints: Chrome/Edge on Android or desktop, over HTTPS (or
 // localhost). Classic-Bluetooth (SPP)-only printers can't be reached; iOS/Safari
@@ -69,7 +71,6 @@
 
   async function renderCanvas() {
     var logoImg = await loadImage((document.getElementById('receiptLogoImg') || {}).src);
-    var qrImg = await loadImage((document.getElementById('receiptQr') || {}).src);
 
     var canvas = document.createElement('canvas');
     canvas.width = WIDTH; canvas.height = 2400;
@@ -124,9 +125,6 @@
     if (changeVisible()) { var ch = visibleText('receiptChange'); if (ch) { row('Change', ch, '16px sans-serif', false); y += 22; } }
 
     y += 8;
-    if (qrImg && qrImg.width) {
-      var q = 110; ctx.drawImage(qrImg, (WIDTH - q) / 2, y, q, q); y += q + 6;
-    }
     center(visibleText('receiptFooterText') || 'Thank you!', '16px sans-serif', 22);
     y += 20;
 

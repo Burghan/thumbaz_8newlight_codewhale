@@ -221,7 +221,6 @@ const receiptChange = document.getElementById('receiptChange');
 const receiptTitle = document.getElementById('receiptTitle');
 const receiptTicket = document.getElementById('receiptTicket');
 const receiptTime = document.getElementById('receiptTime');
-const receiptCashier = document.getElementById('receiptCashier');
 const receiptOrderType = document.getElementById('receiptOrderType');
 const receiptCustomer = document.getElementById('receiptCustomer');
 const receiptNote = document.getElementById('receiptNote');
@@ -540,7 +539,9 @@ async function renderOrdersView() {
     const orderRef = order.receiptNumber || '-';
     const detailRef = [
       order.cashierName ? `by ${order.cashierName}` : null,
-      order.customerName || null,
+      // Skip repeating the customer name here if it's already the row's own
+      // title (Orders now uses it as the label instead of a generic "Tab N").
+      (order.customerName && order.customerName !== order.label) ? order.customerName : null,
       orderRef || null
     ].filter(Boolean).join(' / ');
     // Match by order_ref only — every order created here always has a stable
@@ -608,8 +609,11 @@ function renderOrdersDetail(order) {
 
   if (posOrderTitle) posOrderTitle.textContent = order.label || 'Order';
   if (posOrderMeta) {
-    const meta = [order.cashierName ? `by ${order.cashierName}` : null, order.customerName, order.receiptNumber]
-      .filter(Boolean).join(' • ');
+    const meta = [
+      order.cashierName ? `by ${order.cashierName}` : null,
+      (order.customerName && order.customerName !== order.label) ? order.customerName : null,
+      order.receiptNumber
+    ].filter(Boolean).join(' • ');
     posOrderMeta.textContent = meta || '--';
   }
   if (posOrderStatus) {
@@ -1154,11 +1158,10 @@ function openReceiptFromHeld(order) {
     const time = order.paidAt || order.updatedAt || order.createdAt;
     receiptTime.textContent = time ? new Date(time).toLocaleString('id-ID') : '--';
   }
-  if (receiptCashier) receiptCashier.textContent = `Served by: ${auth?.name || 'Cashier'}`;
   if (receiptFooterText) receiptFooterText.textContent = settings.receiptFooter || 'Thank you!';
   if (receiptQr) receiptQr.src = qrImageUrl;
   if (receiptCustomer) {
-    if (isInvoice && order.customerName) {
+    if (order.customerName) {
       receiptCustomer.textContent = `Customer: ${order.customerName}`;
       receiptCustomer.classList.remove('hidden');
     } else {
@@ -1361,9 +1364,12 @@ function upsertHeldOrder(orderId, {
   const resolvedItems = items || state.order;
   const totals = typeof total === 'number' ? { total } : calculateTotalsForItems(resolvedItems);
   const resolvedTotal = typeof total === 'number' ? total : totals.total;
-  const resolvedLabel = label || state.orderLabel || `Tab ${held.length + 1}`;
   const existingIndex = held.findIndex((item) => item.id === orderId);
   const existing = existingIndex >= 0 ? held[existingIndex] : null;
+  const resolvedCustomerName = customerName ?? existing?.customerName ?? null;
+  // A customer name is more useful in the Orders list than a generic "Tab N"
+  // — only fall back to auto-numbering when no name was actually entered.
+  const resolvedLabel = label || state.orderLabel || resolvedCustomerName || `Tab ${held.length + 1}`;
   const payload = {
     id: orderId,
     label: resolvedLabel,
@@ -1376,7 +1382,7 @@ function upsertHeldOrder(orderId, {
     orderType: orderType || existing?.orderType || getOrderTypeValue(),
     receiptNumber: receiptNumber ?? existing?.receiptNumber ?? null,
     isInvoice: isInvoice ?? existing?.isInvoice ?? false,
-    customerName: customerName ?? existing?.customerName ?? null,
+    customerName: resolvedCustomerName,
     paidAt: existing?.paidAt || null,
     // The real database transaction id — different from `id` above (a local
     // UUID used to track this order client-side). Void needs the real one.
@@ -2126,7 +2132,6 @@ if (sendReceipt) {
       receipt: {
         ticket: receiptTicket?.textContent || '',
         time: receiptTime?.textContent || '',
-        cashier: receiptCashier?.textContent || '',
         orderType: receiptOrderType?.textContent || '',
         subtotal: receiptSubtotal?.textContent || '',
         tax: receiptTax?.textContent || '',
@@ -2658,7 +2663,7 @@ confirmPay.addEventListener('click', async () => {
   }
   if (receiptCustomer) {
     const customerName = customerInput?.value.trim();
-    if (wantsInvoice && customerName) {
+    if (customerName) {
       receiptCustomer.textContent = `Customer: ${customerName}`;
       receiptCustomer.classList.remove('hidden');
     } else {
@@ -2687,7 +2692,6 @@ confirmPay.addEventListener('click', async () => {
     }
   }
   if (receiptTime) receiptTime.textContent = time;
-  if (receiptCashier) receiptCashier.textContent = `Served by: ${auth?.name || 'Cashier'}`;
   if (receiptFooterText) receiptFooterText.textContent = settings.receiptFooter || 'Thank you!';
   if (receiptLogoImg && receiptLogoText) {
     // Always show the 8 NewLight logo (custom logoUrl if configured, else the
@@ -3553,7 +3557,7 @@ function holdCurrentOrder() {
     return;
   }
   const orderId = state.currentOrderId || crypto.randomUUID();
-  upsertHeldOrder(orderId, { status: 'draft' });
+  upsertHeldOrder(orderId, { status: 'draft', customerName: customerInput?.value.trim() || null });
   resetOrderState();
   updateOrdersBadge();
   openInfo('Held', 'Order parked — find it under the Orders tab.');
