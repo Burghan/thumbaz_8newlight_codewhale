@@ -25,6 +25,8 @@
   .share-btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; margin-top:16px; padding:12px; border:none; border-radius:12px; background:#25d366; color:#fff; font-weight:700; font-size:14px; cursor:pointer; font-family:inherit; }
   .share-btn:hover { background:#1ebe5b; }
   .share-btn svg { width:18px; height:18px; flex:0 0 auto; }
+  .share-btn:disabled { opacity:.6; cursor:default; }
+  .share-note { text-align:center; font-size:11px; color:var(--muted); margin-top:8px; }
 </style>
 </head>
 <body>
@@ -36,8 +38,9 @@
     <div id="content" class="status">Loading receipt…</div>
     <button id="shareWa" class="share-btn" style="display:none;" type="button">
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.7-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.5-2.4-1.5-.9-.8-1.5-1.8-1.6-2.1-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.1.2-.3.3-.4.1-.2 0-.4 0-.5s-.7-1.7-1-2.3c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1.1 2.8 1.2 3c.1.2 2.2 3.4 5.4 4.7.7.3 1.3.5 1.8.7.7.2 1.4.2 1.9.1.6-.1 1.7-.7 2-1.4.2-.7.2-1.2.2-1.4-.1-.1-.3-.2-.6-.3z"/><path d="M12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.6 1.4 5.1L2 22l5-1.3c1.4.8 3.1 1.2 4.9 1.2 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18.3c-1.6 0-3.2-.4-4.5-1.2l-.3-.2-3 .8.8-2.9-.2-.3C4.1 15 3.6 13.5 3.6 12 3.6 7.4 7.4 3.6 12 3.6S20.4 7.4 20.4 12 16.6 20.3 12 20.3z"/></svg>
-      Share via WhatsApp
+      Share Receipt Image
     </button>
+    <div id="shareNote" class="share-note" style="display:none;"></div>
   </div>
 <script>
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (m) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
@@ -85,11 +88,133 @@
     `;
 
     const shareBtn = document.getElementById('shareWa');
+    const shareNote = document.getElementById('shareNote');
     shareBtn.style.display = '';
-    shareBtn.onclick = () => {
-      const text = `My receipt from 8 NewLight Coffee — ${Rp(o.total)}\n${location.href}`;
-      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+    shareBtn.onclick = () => shareReceiptImage(o, date, shareBtn, shareNote);
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  // Draws the receipt onto a canvas so it can be shared as an actual image —
+  // a wa.me link can only pre-fill text, it can't attach a file, so getting a
+  // real image into WhatsApp needs the Web Share API's file support instead.
+  async function renderReceiptCanvas(o, dateStr) {
+    const width = 380;
+    const margin = 20;
+    const logo = await loadImage('/newlight-logo.jpeg');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.font = '13px sans-serif';
+
+    // Measure total height first (dry pass over the same layout logic).
+    let y = 24;
+    y += 56 + 10; // logo + name
+    y += 20; // "Receipt #N"
+    y += 18; // date/order type
+    if (o.customer_name) y += 16;
+    y += 10; // top rule
+    y += o.items.length * 22;
+    y += 10; // bottom rule
+    y += 22; // subtotal
+    if (o.tax) y += 22;
+    y += 28; // total
+    y += 30; // footer
+    canvas.width = width;
+    canvas.height = y + margin;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textBaseline = 'top';
+
+    y = 24;
+    if (logo) { ctx.drawImage(logo, (width - 56) / 2, y, 56, 56); y += 62; }
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#2e4864';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText('8 NewLight Coffee', width / 2, y); y += 24;
+
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText(`Receipt #${o.id}`, width / 2, y); y += 20;
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#8a93a3';
+    ctx.fillText(dateStr + (o.order_type ? ' · ' + o.order_type : ''), width / 2, y); y += 18;
+    if (o.customer_name) { ctx.fillText(o.customer_name, width / 2, y); y += 16; }
+
+    y += 6;
+    ctx.strokeStyle = '#e7e1d4';
+    ctx.beginPath(); ctx.moveTo(margin, y); ctx.lineTo(width - margin, y); ctx.stroke();
+    y += 10;
+
+    ctx.font = '13px sans-serif';
+    o.items.forEach((it) => {
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#2e4864';
+      ctx.fillText(`${it.quantity}× ${it.name}`, margin, y);
+      ctx.textAlign = 'right';
+      ctx.fillText(Rp(it.total), width - margin, y);
+      y += 22;
+    });
+
+    ctx.beginPath(); ctx.moveTo(margin, y); ctx.lineTo(width - margin, y); ctx.stroke();
+    y += 10;
+
+    const row = (label, value, bold) => {
+      ctx.font = (bold ? 'bold 16px' : '13px') + ' sans-serif';
+      ctx.fillStyle = bold ? '#2e4864' : '#2e4864';
+      ctx.textAlign = 'left'; ctx.fillText(label, margin, y);
+      ctx.textAlign = 'right'; ctx.fillText(value, width - margin, y);
+      y += bold ? 28 : 22;
     };
+    row('Subtotal', Rp(o.subtotal), false);
+    if (o.tax) row('Tax', Rp(o.tax), false);
+    row('Total', Rp(o.total), true);
+
+    ctx.textAlign = 'center';
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#8a93a3';
+    ctx.fillText('Thank you for visiting 8 NewLight Coffee!', width / 2, y);
+
+    return canvas;
+  }
+
+  async function shareReceiptImage(o, dateStr, btn, note) {
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = 'Preparing image…';
+    note.style.display = 'none';
+    try {
+      const canvas = await renderReceiptCanvas(o, dateStr);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      const file = new File([blob], `receipt-${o.id}.png`, { type: 'image/png' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text: `My receipt from 8 NewLight Coffee — ${Rp(o.total)}` });
+      } else {
+        // No file-sharing support (older/desktop browsers) — download the
+        // image instead so it can still be attached to WhatsApp manually.
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `receipt-${o.id}.png`;
+        a.click();
+        note.style.display = '';
+        note.textContent = 'Image downloaded — attach it to WhatsApp manually (this browser can\'t share files directly).';
+      }
+    } catch (e) {
+      if (e && e.name !== 'AbortError') {
+        note.style.display = '';
+        note.textContent = 'Could not prepare the image: ' + (e.message || 'unknown error');
+      }
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = original;
+    }
   }
 
   load();
