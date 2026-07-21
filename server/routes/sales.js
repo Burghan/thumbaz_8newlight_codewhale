@@ -82,10 +82,13 @@ router.post('/', (req, res) => {
       // entirely and instead stuffed the order type — plus a discount_amount
       // that was never even sent by the client — into `notes`, which is
       // meant for an actual customer note and gets shown as one in
-      // Transaction History's order drawer).
-      `INSERT INTO transactions (transacted_at, payment_method, order_type, customer_note, customer_id)
-       VALUES (datetime('now', '+7 hours'), ?, ?, ?, ?)`
-    ).run(payment, String(b.order_type || 'Dine In').trim(), customerNote, customer ? customer.id : null);
+      // Transaction History's order drawer). cashier_name was ALSO never
+      // written for a live sale (only imported Riwayat rows had it) — taken
+      // from the authenticated session, not the client body, since the
+      // server already knows who's logged in.
+      `INSERT INTO transactions (transacted_at, payment_method, order_type, customer_note, customer_id, cashier_name)
+       VALUES (datetime('now', '+7 hours'), ?, ?, ?, ?, ?)`
+    ).run(payment, String(b.order_type || 'Dine In').trim(), customerNote, customer ? customer.id : null, req.user?.name || null);
 
     const txnId = txn.lastInsertRowid;
     const insItem = db.prepare(

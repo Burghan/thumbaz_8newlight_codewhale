@@ -71,7 +71,9 @@
     content.className = '';
     content.innerHTML = `
       <h1>Receipt #${o.id}</h1>
-      <div class="meta">${esc(date)}${o.order_type ? ' · ' + esc(o.order_type) : ''}</div>
+      <div class="meta">${esc(date)}</div>
+      ${o.cashier_name ? `<div class="meta">Served by: ${esc(o.cashier_name)}</div>` : ''}
+      ${o.order_type ? `<div class="meta">Order Type: ${esc(o.order_type)}</div>` : ''}
       ${o.customer_name ? `<div class="meta">${esc(o.customer_name)}</div>` : ''}
       <div class="items">
         ${o.items.map((it) => `
@@ -102,12 +104,77 @@
     });
   }
 
-  // Draws the receipt onto a canvas so it can be shared as an actual image —
-  // a wa.me link can only pre-fill text, it can't attach a file, so getting a
-  // real image into WhatsApp needs the Web Share API's file support instead.
+  // Captures the ACTUAL rendered card (real CSS text rendering, not a
+  // hand-drawn copy) by embedding a clone of it inside an SVG <foreignObject>
+  // and drawing that to a canvas — the browser renders the HTML/CSS exactly
+  // as it does on screen, so the result looks identical to the page instead
+  // of a redrawn approximation (a plain <canvas> fillText() call can never
+  // match real font rendering, no matter how high its resolution is).
+  async function domToImageCanvas(el, scale) {
+    const rect = el.getBoundingClientRect();
+    const width = Math.ceil(rect.width);
+    const height = Math.ceil(rect.height);
+
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll('#shareWa, #shareNote').forEach((n) => n.remove());
+    clone.querySelectorAll('img').forEach((img) => {
+      img.setAttribute('src', new URL(img.getAttribute('src'), location.href).href);
+    });
+
+    let css = '';
+    for (const sheet of document.styleSheets) {
+      try {
+        for (const rule of sheet.cssRules) css += rule.cssText + '\n';
+      } catch (e) { /* cross-origin sheet — skip, none expected here */ }
+    }
+
+    // A real <html>/<body> (not a bare <div>) so :root custom properties
+    // (--brand-ink etc., defined in theme.css) actually resolve inside this
+    // embedded sub-document.
+    const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+      <foreignObject width="100%" height="100%">
+        <html xmlns="http://www.w3.org/1999/xhtml">
+          <head><style>${css}</style></head>
+          <body style="margin:0;">
+            <div style="width:${width}px;">${clone.outerHTML}</div>
+          </body>
+        </html>
+      </foreignObject>
+    </svg>`;
+
+    const svgBlob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    try {
+      const img = await loadImage(url);
+      if (!img || !img.width) throw new Error('Could not rasterize the receipt card');
+      const canvas = document.createElement('canvas');
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(scale, scale);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      return canvas;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  // Fallback only — used if the browser can't rasterize the SVG capture
+  // above (older/unusual browsers). Draws the receipt onto a canvas by hand
+  // so sharing still produces *something*, just not a pixel-perfect copy.
   async function renderReceiptCanvas(o, dateStr) {
     const width = 380;
     const margin = 20;
+    // Rendered well above 1:1 CSS pixels for two stacked reasons: a plain
+    // 380px canvas looks blurry on a 2x/3x-density phone screen to begin
+    // with, AND WhatsApp itself re-compresses images sent as a "photo"
+    // attachment (its own lossy step we can't opt out of via the Web Share
+    // API) — oversupplying resolution is the only lever against both. All
+    // the drawing math below stays in the original logical (1x) coordinate
+    // space; ctx.scale() does the work.
+    const scale = 4;
     const logo = await loadImage('/newlight-logo.jpeg');
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -117,7 +184,9 @@
     let y = 24;
     y += 56 + 10; // logo + name
     y += 20; // "Receipt #N"
-    y += 18; // date/order type
+    y += 18; // date
+    if (o.cashier_name) y += 16;
+    if (o.order_type) y += 16;
     if (o.customer_name) y += 16;
     y += 10; // top rule
     y += o.items.length * 22;
@@ -126,11 +195,13 @@
     if (o.tax) y += 22;
     y += 28; // total
     y += 30; // footer
-    canvas.width = width;
-    canvas.height = y + margin;
+    const height = y + margin;
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    ctx.scale(scale, scale);
 
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, width, height);
     ctx.textBaseline = 'top';
 
     y = 24;
@@ -144,7 +215,9 @@
     ctx.fillText(`Receipt #${o.id}`, width / 2, y); y += 20;
     ctx.font = '12px sans-serif';
     ctx.fillStyle = '#8a93a3';
-    ctx.fillText(dateStr + (o.order_type ? ' · ' + o.order_type : ''), width / 2, y); y += 18;
+    ctx.fillText(dateStr, width / 2, y); y += 18;
+    if (o.cashier_name) { ctx.fillText(`Served by: ${o.cashier_name}`, width / 2, y); y += 16; }
+    if (o.order_type) { ctx.fillText(`Order Type: ${o.order_type}`, width / 2, y); y += 16; }
     if (o.customer_name) { ctx.fillText(o.customer_name, width / 2, y); y += 16; }
 
     y += 6;
@@ -190,8 +263,18 @@
     btn.textContent = 'Preparing image…';
     note.style.display = 'none';
     try {
-      const canvas = await renderReceiptCanvas(o, dateStr);
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      let canvas;
+      try {
+        // 3x on top of the card's real CSS size — real text at that scale,
+        // not a redrawn approximation, so this should look identical to the
+        // on-screen receipt instead of just "less blurry."
+        canvas = await domToImageCanvas(document.querySelector('.card'), 3);
+      } catch (domErr) {
+        canvas = await renderReceiptCanvas(o, dateStr); // hand-drawn fallback
+      }
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Image export failed'))), 'image/png');
+      });
       const file = new File([blob], `receipt-${o.id}.png`, { type: 'image/png' });
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
