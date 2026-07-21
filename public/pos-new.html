@@ -31,6 +31,7 @@
     </div>
     <div class="pos-actions">
       <button class="pos-link" id="cashMoveBtn" type="button">Cash In/Out</button>
+      <button class="pos-link" id="reprintBtn" type="button">Reprint Receipt</button>
       <!-- Hold/Orders (client-side only, not tied to real sales) isn't in use for now — hidden, not deleted. -->
       <button class="pos-link" id="ordersBtn" type="button" style="display:none;">
         Orders <span class="pos-badge" id="ordersBadge">0</span>
@@ -505,6 +506,19 @@
     </div>
   </div>
 
+  <div class="modal" id="reprintModal">
+    <div class="modal-card large">
+      <div class="modal-head">
+        <div>
+          <h3>Reprint a Receipt</h3>
+          <div class="muted">Pick a recent sale to reopen its receipt — no new transaction needed.</div>
+        </div>
+        <button class="ghost" id="closeReprint" type="button">Close</button>
+      </div>
+      <div class="void-list" id="reprintList"></div>
+    </div>
+  </div>
+
   <div class="modal" id="moreActionsModal">
     <div class="modal-card">
       <div class="modal-head">
@@ -517,6 +531,7 @@
       <div class="more-actions-grid">
         <button class="pay" data-more="split" type="button">Split Bill</button>
         <button class="pay" data-more="invoice" type="button">Invoice</button>
+        <button class="pay" data-more="reprint" type="button">Reprint Receipt</button>
         <button class="pay" data-more="void" type="button">Void Sale</button>
         <button class="pay" data-more="set_table" type="button">Set Table</button>
         <button class="pay" data-more="edit_name" type="button">Edit Order Name</button>

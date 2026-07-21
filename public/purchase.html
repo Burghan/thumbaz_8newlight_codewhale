@@ -25,7 +25,7 @@
     /* PRIMARY focus: the actual purchasing action, plus the Low Stock list
        that feeds it (click an item there to pick it here). This is what the
        page is for — everything else is reference. */
-    .focus-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 20px; align-items: start; }
+    .focus-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 20px; align-items: stretch; }
     @media(max-width:900px){ .focus-row { grid-template-columns: 1fr; } }
 
     .card { background: var(--card); padding: 16px; border-radius: 12px; box-shadow: 0 8px 20px rgba(41,26,18,0.16); border: 1px solid var(--border); }
@@ -41,13 +41,17 @@
     th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
     th { position: sticky; top: 0; background: var(--card); color: var(--accent); font-size: 11px; text-transform: uppercase; z-index: 1; }
     .num { text-align: right; }
-    .low-row { background: rgba(176,0,32,0.06); cursor: pointer; }
+    .low-row { background: rgba(176,0,32,0.06); cursor: pointer; border-left: 3px solid transparent; transition: background .12s ease; }
     .low-row:hover { background: rgba(176,0,32,0.13); }
+    .low-row.selected { background: rgba(92,125,166,0.14); border-left-color: var(--brand); }
+    .low-row.selected .low { color: var(--brand-ink); }
     .low { color: var(--danger); font-weight: 600; }
 
-    /* Low Stock is a reference list, not a data table to pore over — a
-       bounded height keeps it from growing past the form beside it. */
-    #lowStockCard .list-scroll { max-height: 360px; overflow-y: auto; }
+    /* Low Stock is a reference list beside the form, not a data table to pore
+       over — it stretches to match the form's height (.focus-row's
+       align-items:stretch) and scrolls internally within that. */
+    #lowStockCard { display: flex; flex-direction: column; }
+    #lowStockCard .list-scroll { flex: 1 1 auto; min-height: 160px; max-height: 480px; overflow-y: auto; }
 
     /* SECONDARY: Purchase History, for browsing past records. Full width,
        bounded height with its own scroll so it doesn't dominate the page. */
@@ -227,11 +231,18 @@
       filtered.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=`${i.name} (${i.purchase_unit||i.base_unit||''})`;ingredientSelect.appendChild(o);});
     }
 
+    function syncSelectedLowStockRow() {
+      document.querySelectorAll('#lowStockRows tr.low-row').forEach(tr => {
+        tr.classList.toggle('selected', tr.dataset.ingredientId === ingredientSelect.value);
+      });
+    }
+
     function updateHint() {
       const ing = ingredientsById[ingredientSelect.value]; if(!ing){unitHint.textContent='';return;}
       const bu=ing.base_unit||ing.unit||'unit', pu=ing.purchase_unit||bu;
       const conv=Number(ing.conv_purchase_to_base)>0?Number(ing.conv_purchase_to_base):1;
       unitHint.textContent=conv!==1?`1 ${pu} = ${conv} ${bu}`:`Enter in ${bu}`;
+      syncSelectedLowStockRow();
     }
     ingredientSelect.onchange=updateHint;
 
@@ -305,6 +316,7 @@
             tr.innerHTML=`<td class="low" data-label="Ingredient">${item.name}</td><td class="num" data-label="On Hand">${item.qty.toFixed(2)}</td><td data-label="Unit">${item.unit||''}</td><td class="num" data-label="Shortfall">${sf.toFixed(2)}</td>`;
             lb.appendChild(tr);
           });
+          syncSelectedLowStockRow();
         });
       }).catch(()=>{lb.innerHTML='<tr><td colspan="4">Failed</td></tr>';});
     }

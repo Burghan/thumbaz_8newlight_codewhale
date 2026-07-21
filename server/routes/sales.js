@@ -244,7 +244,11 @@ router.post('/:id/void-item', (req, res) => {
 });
 
 // GET /api/sales — today's sales (this shift), for the POS void picker.
+// GET /api/sales?scope=all — most recent sales regardless of date, for the
+// read-only reprint picker (voiding stays shift-restricted on purpose; reprint
+// doesn't change anything, so there's no reason to hide older sales from it).
 router.get('/', (req, res) => {
+  const scopeToday = req.query.scope !== 'all';
   const rows = db.prepare(`
     SELECT t.id, t.transacted_at, t.payment_method,
            SUM(ti.line_total) AS total,
@@ -252,10 +256,41 @@ router.get('/', (req, res) => {
     FROM transactions t
     JOIN transaction_items ti ON ti.transaction_id = t.id
     JOIN products p ON p.id = ti.product_id
-     WHERE date(t.transacted_at) = date('now', '+7 hours')
+    ${scopeToday ? "WHERE date(t.transacted_at) = date('now', '+7 hours')" : ''}
     GROUP BY t.id ORDER BY t.id DESC LIMIT 50
   `).all();
   res.json(rows);
+});
+
+// GET /api/sales/:id — full detail for one sale, for reprinting its receipt.
+router.get('/:id', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid sale id' });
+
+  const txn = db.prepare(`
+    SELECT id, transacted_at, payment_method, reference, customer_name,
+           customer_note, cashier_name, order_type, tax, service_fee
+    FROM transactions WHERE id = ?`).get(id);
+  if (!txn) return res.status(404).json({ error: 'Sale not found' });
+
+  const items = db.prepare(`
+    SELECT ti.product_id, ti.quantity, ti.unit_price, ti.line_total, p.name
+    FROM transaction_items ti JOIN products p ON p.id = ti.product_id
+    WHERE ti.transaction_id = ?`).all(id);
+
+  res.json({
+    id: txn.id,
+    transacted_at: txn.transacted_at,
+    payment_method: txn.payment_method,
+    reference: txn.reference,
+    customer_name: txn.customer_name,
+    customer_note: txn.customer_note,
+    cashier_name: txn.cashier_name,
+    order_type: txn.order_type,
+    tax: txn.tax,
+    service_fee: txn.service_fee,
+    items: items.map(i => ({ product_id: i.product_id, name: i.name, quantity: i.quantity, price: i.unit_price, total: i.line_total }))
+  });
 });
 
 module.exports = router;

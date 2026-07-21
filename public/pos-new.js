@@ -3055,6 +3055,72 @@ function submitVoid(sale, restock) {
 if (closeVoid) closeVoid.addEventListener('click', () => voidModal.classList.remove('active'));
 voidModal?.addEventListener('click', (event) => { if (event.target === voidModal) voidModal.classList.remove('active'); });
 
+// Reprint a Receipt — reopens a past sale's receipt (same modal/print buttons
+// as a fresh sale) so hardware/print testing doesn't require ringing up a new
+// transaction each time. Read-only: nothing about the sale changes.
+const reprintModal = document.getElementById('reprintModal');
+const reprintList = document.getElementById('reprintList');
+const closeReprint = document.getElementById('closeReprint');
+
+async function openReprintModal() {
+  if (!reprintModal) return;
+  reprintModal.classList.add('active');
+  reprintList.innerHTML = '<div class="muted">Loading…</div>';
+  let sales = [];
+  try {
+    const res = await fetch('/api/sales?scope=all', { headers: typeof authHeaders === 'function' ? authHeaders() : {} });
+    sales = res.ok ? await res.json() : [];
+  } catch (e) { sales = []; }
+  renderReprintList(sales);
+}
+
+function renderReprintList(sales) {
+  if (!sales.length) {
+    reprintList.innerHTML = '<div class="muted">No sales found.</div>';
+    return;
+  }
+  reprintList.innerHTML = '';
+  sales.forEach((s) => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'void-sale-row';
+    row.innerHTML = `
+      <div class="void-sale-main"><strong>#${s.id}</strong> <span class="muted">${s.items || ''}</span></div>
+      <div class="void-sale-total">${formatCurrency(s.total)}</div>`;
+    row.addEventListener('click', () => reprintSale(s.id));
+    reprintList.appendChild(row);
+  });
+}
+
+async function reprintSale(saleId) {
+  reprintList.innerHTML = '<div class="muted">Loading…</div>';
+  try {
+    const res = await fetch(`/api/sales/${encodeURIComponent(saleId)}`, { headers: typeof authHeaders === 'function' ? authHeaders() : {} });
+    if (!res.ok) throw new Error('Sale not found');
+    const detail = await res.json();
+    reprintModal.classList.remove('active');
+    openReceiptFromHeld({
+      id: detail.id,
+      receiptNumber: `#${detail.id}`,
+      status: 'paid',
+      orderType: detail.order_type || 'dine_in',
+      customerName: detail.customer_name || '',
+      paidAt: detail.transacted_at,
+      items: (detail.items || []).map((i) => ({ qty: i.quantity, name: i.name, price: i.price }))
+    });
+  } catch (e) {
+    openInfo('Reprint failed', e && e.message ? e.message : 'Could not load that sale.');
+    openReprintModal();
+  }
+}
+
+if (closeReprint) closeReprint.addEventListener('click', () => reprintModal.classList.remove('active'));
+reprintModal?.addEventListener('click', (event) => { if (event.target === reprintModal) reprintModal.classList.remove('active'); });
+// Always-visible entry point in the top bar — the "⋯ More" sheet only shows
+// once the cart has items, which defeats reprinting for print/hardware
+// testing without ringing up a new sale.
+document.getElementById('reprintBtn')?.addEventListener('click', openReprintModal);
+
 // "⋯ More" action sheet — opened from the numpad footer. Routes to the existing
 // (mostly hidden) action-grid buttons so their logic isn't duplicated. Hold is
 // intentionally omitted (the Orders tab it parks into is hidden).
@@ -3069,6 +3135,7 @@ moreActionsModal?.addEventListener('click', (event) => {
   closeMoreActionsModal();
   switch (btn.dataset.more) {
     case 'void': openVoidModal(); break;
+    case 'reprint': openReprintModal(); break;
     case 'split': if (splitBtn) splitBtn.click(); break;
     case 'invoice': openInfo('Coming soon', 'Invoices aren\'t wired up in this concept yet.'); break;
     case 'set_table': handleSetTable(); break;

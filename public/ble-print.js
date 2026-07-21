@@ -441,6 +441,30 @@
     supported: !!(navigator.bluetooth)
   };
 
+  // ---- proactive reconnect: keep the GATT link warm so the first print after
+  // the tablet wakes/resumes isn't slowed by openConnection's advertisement
+  // wait. Silent no-op if unconfigured, already connected, or method isn't
+  // webble — never opens the device chooser.
+  var warming = false;
+  async function warmConnection() {
+    if (warming || printMethod() !== 'webble') return;
+    warming = true;
+    try {
+      var device = await savedDevice();
+      if (device) {
+        var already = !!(conn.char && device.gatt && device.gatt.connected);
+        await connectDevice(device);
+        console.debug('[ble-print] warmConnection: ' + (already ? 'already connected' : 'reconnected') + ' (' + device.name + ')');
+      }
+    } catch (e) { console.debug('[ble-print] warmConnection failed (will retry on next real print):', e && e.message); }
+    warming = false;
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') warmConnection();
+  });
+  window.addEventListener('focus', warmConnection);
+  warmConnection();
+
   // ---- wire the receipt-modal button -------------------------------------
   document.addEventListener('click', async function (ev) {
     var btn = ev.target.closest && ev.target.closest('#btPrintReceipt');
