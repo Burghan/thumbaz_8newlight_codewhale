@@ -7,12 +7,6 @@ if (auth && userChip) {
 if (auth && posUser) {
   posUser.textContent = auth.name || 'User';
 }
-// The "POS ▾" switcher (Current POS / New Concept) is a developer/testing
-// toggle between two POS builds — admin-only, not something staff OR
-// managers should be flipping between mid-shift.
-if (auth && auth.role !== 'admin') {
-  document.querySelector('.pos-menu')?.classList.add('hidden');
-}
 
 // Live connection indicator — was a static 📶 that always showed full signal
 // regardless of actual connectivity. navigator.onLine only reflects whether
