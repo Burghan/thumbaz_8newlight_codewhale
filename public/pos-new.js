@@ -2662,7 +2662,7 @@ confirmPay.addEventListener('click', async () => {
     receiptOrderType.textContent = `Order Type: ${formatOrderType(getOrderTypeValue())}`;
   }
   if (receiptCustomer) {
-    const customerName = customerInput?.value.trim();
+    const customerName = customerInput?.value.trim() || customerAfter?.name || '';
     if (customerName) {
       receiptCustomer.textContent = `Customer: ${customerName}`;
       receiptCustomer.classList.remove('hidden');

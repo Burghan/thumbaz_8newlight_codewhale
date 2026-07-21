@@ -21,7 +21,7 @@ router.get('/:id', (req, res) => {
   if (!txn) return res.status(404).json({ error: 'Receipt not found' });
 
   const customer = txn.customer_id
-    ? db.prepare('SELECT points_balance FROM customers WHERE id = ?').get(txn.customer_id)
+    ? db.prepare('SELECT name, points_balance FROM customers WHERE id = ?').get(txn.customer_id)
     : null;
 
   const items = db.prepare(`
@@ -36,7 +36,7 @@ router.get('/:id', (req, res) => {
     transacted_at: txn.transacted_at,
     payment_method: txn.payment_method,
     reference: txn.reference,
-    customer_name: txn.customer_name,
+    customer_name: txn.customer_name || (customer ? customer.name : null),
     cashier_name: txn.cashier_name,
     order_type: txn.order_type,
     tax: txn.tax || 0,

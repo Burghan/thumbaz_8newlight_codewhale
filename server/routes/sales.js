@@ -301,9 +301,13 @@ router.get('/:id', (req, res) => {
 
   const txn = db.prepare(`
     SELECT id, transacted_at, payment_method, reference, customer_name,
-           customer_note, cashier_name, order_type, tax, service_fee
+           customer_note, cashier_name, order_type, tax, service_fee, customer_id
     FROM transactions WHERE id = ?`).get(id);
   if (!txn) return res.status(404).json({ error: 'Sale not found' });
+
+  const customer = txn.customer_id
+    ? db.prepare('SELECT name FROM customers WHERE id = ?').get(txn.customer_id)
+    : null;
 
   // Only still-live lines — a fully voided item (quantity zeroed, tagged
   // Dibatalkan/Batal Sebagian) shouldn't show up on a reprinted receipt or be
@@ -318,7 +322,7 @@ router.get('/:id', (req, res) => {
     transacted_at: txn.transacted_at,
     payment_method: txn.payment_method,
     reference: txn.reference,
-    customer_name: txn.customer_name,
+    customer_name: txn.customer_name || (customer ? customer.name : null),
     customer_note: txn.customer_note,
     cashier_name: txn.cashier_name,
     order_type: txn.order_type,
