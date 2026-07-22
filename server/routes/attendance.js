@@ -61,9 +61,19 @@ router.get('/:id', managerOnly, (req, res) => {
   res.json(row);
 });
 
+// Clamp to a valid coordinate range, else null — never trust the client blindly.
+// Number(null) is 0, not NaN, so a missing value must be caught before the
+// cast or "no location" silently became (0,0) — a real spot in the Gulf of
+// Guinea that Google Maps happily linked to.
+function toCoord(v, max) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) && Math.abs(n) <= max ? n : null;
+}
+
 // Clock-in with photo
 router.post('/clock-in', (req, res) => {
-  const { user_id, photo } = req.body || {};
+  const { user_id, photo, lat, lng } = req.body || {};
   const user = user_id ? db.prepare('SELECT name FROM users WHERE id=? AND active=1').get(user_id) : null;
   if (!user) return res.status(400).json({ error: 'Valid employee required' });
 
@@ -78,20 +88,21 @@ router.post('/clock-in', (req, res) => {
     photoPath = `/data/photos/${filename}`;
   }
 
-  const info = db.prepare(`INSERT INTO attendances (employee_name, clock_in, photo_in, user_id) VALUES (?, ?, ?, ?)`)
-    .run(user.name, now, photoPath, user_id);
+  const info = db.prepare(`INSERT INTO attendances (employee_name, clock_in, photo_in, user_id, lat_in, lng_in) VALUES (?, ?, ?, ?, ?, ?)`)
+    .run(user.name, now, photoPath, user_id, toCoord(lat, 90), toCoord(lng, 180));
 
   res.json({ message: 'Clocked in', id: info.lastInsertRowid, time: now, photo: photoPath });
 });
 
 // Clock-out with photo
 router.post('/clock-out', (req, res) => {
-  const { user_id, photo } = req.body || {};
+  const { user_id, photo, lat, lng } = req.body || {};
   const user = user_id ? db.prepare('SELECT name FROM users WHERE id=? AND active=1').get(user_id) : null;
   if (!user) return res.status(400).json({ error: 'Valid employee required' });
 
   const now = wibNowIso();
   let photoPath = null;
+  const latOut = toCoord(lat, 90), lngOut = toCoord(lng, 180);
 
   if (photo) {
     const filename = `clockout_${Date.now()}.jpg`;
@@ -107,12 +118,12 @@ router.post('/clock-out', (req, res) => {
     .get(user_id, today);
 
   if (row) {
-    db.prepare(`UPDATE attendances SET clock_out = ?, photo_out = ? WHERE id = ?`).run(now, photoPath, row.id);
+    db.prepare(`UPDATE attendances SET clock_out = ?, photo_out = ?, lat_out = ?, lng_out = ? WHERE id = ?`).run(now, photoPath, latOut, lngOut, row.id);
     res.json({ message: 'Clocked out', id: row.id, time: now, photo: photoPath });
   } else {
     // No open clock-in found — create a new record with just clock-out
-    const info = db.prepare(`INSERT INTO attendances (employee_name, clock_out, photo_out, user_id) VALUES (?, ?, ?, ?)`)
-      .run(user.name, now, photoPath, user_id);
+    const info = db.prepare(`INSERT INTO attendances (employee_name, clock_out, photo_out, user_id, lat_out, lng_out) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(user.name, now, photoPath, user_id, latOut, lngOut);
     res.json({ message: 'Clocked out (no prior clock-in)', id: info.lastInsertRowid, time: now, photo: photoPath });
   }
 });

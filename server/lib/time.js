@@ -18,8 +18,19 @@ const WIB_SQL_OFFSET = '+7 hours';
 function wibNow() {
   return new Date(Date.now() + WIB_OFFSET_MS);
 }
+// Plain "YYYY-MM-DD HH:MM:SS" (matching the datetime('now', '+7 hours') SQL
+// format used everywhere else) — NOT .toISOString(), which appends a literal
+// 'Z'. That 'Z' claims these WIB wall-clock digits are UTC, so a client doing
+// new Date(iso).toLocaleString() would apply a SECOND timezone conversion on
+// top of the shift already baked in here (a real bug this shipped with —
+// attendance times displayed hours off on any browser not set to UTC+0).
+// Read this value back with new Date(v.replace(' ', 'T')) + local getters,
+// same as every other formatDate() in this app — never toLocaleString() on
+// the raw string.
 function wibNowIso() {
-  return wibNow().toISOString();
+  const d = wibNow();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 }
 function wibToday() {
   return wibNowIso().slice(0, 10);

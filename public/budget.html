@@ -100,7 +100,12 @@
     function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2400); }
 
     const monthSel = document.getElementById('month');
-    (function(){ const now=new Date(); for(let i=0;i<6;i++){ const d=new Date(now.getFullYear(),now.getMonth()-i,1); const v=d.toISOString().slice(0,7); const o=document.createElement('option'); o.value=v; o.textContent=d.toLocaleDateString('en',{month:'long',year:'numeric'}); monthSel.appendChild(o);} })();
+    // Local calendar month, not .toISOString() (UTC) — on a WIB (UTC+7)
+    // browser, midnight on the 1st converts to 17:00 the previous day in
+    // UTC, so the option's value silently landed one month behind its own
+    // label (label said "July", value sent was "2026-06").
+    const ymLocal = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    (function(){ const now=new Date(); for(let i=0;i<6;i++){ const d=new Date(now.getFullYear(),now.getMonth()-i,1); const v=ymLocal(d); const o=document.createElement('option'); o.value=v; o.textContent=d.toLocaleDateString('en',{month:'long',year:'numeric'}); monthSel.appendChild(o);} })();
 
     let data = null;
 
@@ -168,8 +173,8 @@
     }
 
     async function copyLast(){
-      const cur = monthSel.value; const d = new Date(cur+'-01'); d.setMonth(d.getMonth()-1);
-      const from = d.toISOString().slice(0,7);
+      const cur = monthSel.value; const d = new Date(cur+'-01T00:00:00'); d.setMonth(d.getMonth()-1);
+      const from = ymLocal(d);
       if(!(await appConfirm(`Copy budget amounts from ${from} into ${cur}?`))) return;
       const r = await fetch('/api/budget/copy', { method:'POST', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ month: cur, from }) });
       const dd = await r.json().catch(()=>({})); toast(dd.message||dd.error||'Copied'); load();
