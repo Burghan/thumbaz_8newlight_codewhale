@@ -100,7 +100,7 @@
       <button class="icon-btn" id="menuToggle" style="background:var(--card);color:var(--brand-ink);border:1px solid var(--border);width:32px;height:32px;border-radius:8px;font-size:18px;min-height:auto;margin:0;padding:0;">☰</button>
       <h1>⏰ Clock In/Out</h1>
       <div style="flex:1;"></div>
-      <div class="time-display" id="liveClock" style="font-size:24px;margin:0;">--:--</div>
+      <div class="time-display" id="liveClock" style="font-size:16px;margin:0;white-space:nowrap;">--:--</div>
     </div>
 
     <div class="kpis" id="attKpis" style="display:none;">
@@ -160,8 +160,19 @@
     document.getElementById('whoIn').textContent = `👤 ${auth.name}`;
     document.getElementById('whoOut').textContent = `👤 ${auth.name}`;
 
-    // Live clock
-    function updateClock() { document.getElementById('liveClock').textContent = new Date().toLocaleTimeString('id-ID'); }
+    // Live clock — forced to WIB (Asia/Jakarta) via Intl's timeZone option,
+    // not the device's own timezone, so this reads correctly no matter what
+    // clock a staff tablet is actually set to. "Day, DD-MM-YYYY HH:MM:SS",
+    // same format used everywhere else in the app.
+    function wibClockString(d) {
+      const p = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Jakarta', day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+      }).formatToParts(d).reduce((acc, x) => { acc[x.type] = x.value; return acc; }, {});
+      const weekday = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long' }).format(d);
+      return `${weekday}, ${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}:${p.second}`;
+    }
+    function updateClock() { document.getElementById('liveClock').textContent = wibClockString(new Date()); }
     setInterval(updateClock, 1000); updateClock();
 
     // Camera + location logic

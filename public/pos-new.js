@@ -8,40 +8,6 @@ if (auth && posUser) {
   posUser.textContent = auth.name || 'User';
 }
 
-// Live connection indicator — was a static 📶 that always showed full signal
-// regardless of actual connectivity. navigator.onLine only reflects whether
-// the network interface is up (wifi connected but server down still reads
-// "online"), so this also polls /api/health to catch that case.
-(function setupConnectionIndicator() {
-  const icon = document.getElementById('posConnIcon');
-  if (!icon) return;
-  let serverReachable = true;
-
-  function render() {
-    const online = navigator.onLine && serverReachable;
-    icon.textContent = online ? '📶' : '📴';
-    icon.classList.toggle('offline', !online);
-    icon.title = online ? 'Online' : 'Offline — sales may not save';
-  }
-
-  async function checkServer() {
-    if (!navigator.onLine) { serverReachable = false; render(); return; }
-    try {
-      const res = await fetch('/api/health', { cache: 'no-store' });
-      serverReachable = res.ok;
-    } catch (e) {
-      serverReachable = false;
-    }
-    render();
-  }
-
-  window.addEventListener('online', checkServer);
-  window.addEventListener('offline', render);
-  render();
-  checkServer();
-  setInterval(checkServer, 15000);
-})();
-
 const settings = loadSettings();
 let products = [];
 let categories = ['All'];
@@ -750,10 +716,17 @@ function setOrderType(value) {
   target.classList.add('active');
 }
 
+// Forced to WIB (Asia/Jakarta) via Intl's timeZone option, not the device's
+// own timezone, so this register clock is correct no matter what timezone
+// the tablet itself is set to.
 function setClock() {
   const now = new Date();
-  const time = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-  clock.textContent = time;
+  const p = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Jakarta', day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  }).formatToParts(now).reduce((acc, x) => { acc[x.type] = x.value; return acc; }, {});
+  const weekday = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long' }).format(now);
+  clock.textContent = `${weekday}, ${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}:${p.second}`;
 }
 
 function renderCategories() {
@@ -3770,7 +3743,7 @@ if (mobileCartToggle && orderPanelEl) {
 }
 
 setClock();
-setInterval(setClock, 1000 * 30);
+setInterval(setClock, 1000);
 if (orderTypeSelect) {
   orderTypeSelect.value = normalizeOrderType(settings.orderType);
   orderTypeSelect.addEventListener('change', () => {
