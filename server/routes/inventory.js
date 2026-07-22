@@ -58,6 +58,9 @@ const MOVE_TYPE_CLAUSES = {
   sale: `sm.type = 'usage'`,
   purchase: `sm.type = 'purchase'`,
   manual: `sm.type IN ('adjustment', 'opening', 'transfer_in', 'transfer_out')`,
+  // Everything a person actually did (purchases + manual changes) minus the
+  // per-sale usage deductions, which are automatic and would drown this out.
+  activity: `sm.type IN ('adjustment', 'opening', 'purchase', 'transfer_in', 'transfer_out')`,
 };
 router.get('/adjustments', (req, res) => {
   const typeClause = MOVE_TYPE_CLAUSES[req.query.type] || `sm.type IN ('adjustment', 'opening')`;

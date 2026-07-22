@@ -142,6 +142,13 @@
   .dl-row .amt { font-variant-numeric:tabular-nums; font-weight:600; white-space:nowrap; }
   .dl-stat { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:4px; }
   .dl-stat .b { border:1px solid var(--border); border-radius:10px; padding:8px 10px; }
+  .activity-table { width:100%; border-collapse:collapse; font-size:13px; margin-top:4px; }
+  .activity-table th, .activity-table td { padding:8px 10px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
+  .activity-table th { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); font-weight:600; }
+  .activity-table td.num, .activity-table th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .activity-table td.neg { color:var(--danger); font-weight:600; }
+  .activity-table td.pos-amt { color:var(--positive); font-weight:600; }
+  .activity-table .src { white-space:normal; color:var(--muted); font-size:12px; }
   .dl-stat .b .l { font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); font-weight:700; }
   .dl-stat .b .n { font-family:var(--font-brand); font-size:17px; font-weight:700; }
   .cost-tot { display:flex; justify-content:space-between; padding:8px 0; font-weight:700; border-top:2px solid var(--border); margin-top:2px; }
@@ -242,6 +249,13 @@
 
   // ---- helpers ----
   const Rp = v => 'Rp ' + Math.round(v || 0).toLocaleString('id-ID');
+  function fmtMoveDate(v) {
+    if (!v) return '';
+    const d = new Date(v.replace(' ', 'T'));
+    if (isNaN(d)) return '';
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
   const RpShort = v => {
     const n = Math.abs(v || 0);
     const s = v < 0 ? '-' : '';
@@ -335,7 +349,7 @@
     try {
       const [stock, moves, criticalMap] = await Promise.all([
         jget('/api/inventory/on-hand'),
-        jget('/api/inventory/adjustments'),
+        jget('/api/inventory/adjustments?type=activity&limit=8'),
         jget('/api/reports/critical-ingredients').catch(() => ({}))
       ]);
       const classified = (stock||[]).map(item => {
@@ -363,17 +377,26 @@
         : `<div class="alert good" style="margin:0"><span class="ico">✅</span><span class="msg">All ingredients well stocked.</span></div>`;
       const alertsHTML = heatmapHTML + (alerts.some(x=>x.isCritical) ? '<div class="foot" style="margin-top:6px">🔥 = used in a top-10 selling product this month</div>' : '');
 
-      const recent = (moves||[]).slice(0,6);
-      const moveTypeLabel = m => m.type === 'opening' ? '📋 Opening' : (m.qty_base >= 0 ? '➕ Added' : '➖ Removed');
-      const movesHTML = recent.length ? recent.map(m=>`
-        <div class="dl-row"><span class="nm">${esc(m.ingredient_name||'')} <span class="foot">${moveTypeLabel(m)}</span></span>
-        <span class="amt ${m.qty_base<0?'neg':'pos'}">${m.qty_base>0?'+':''}${m.qty_base}</span></div>`
-      ).join('') : '<div class="foot">No recent adjustments.</div>';
+      const recent = (moves||[]).slice(0,8);
+      const moveTypeLabel = m => m.type === 'opening' ? '📋 Opening' : m.type === 'purchase' ? '📥 Purchase' : (m.qty_base >= 0 ? '➕ Added' : '➖ Removed');
+      const movesHTML = recent.length ? `
+        <table class="activity-table">
+          <thead><tr><th>Date</th><th>Ingredient</th><th>Type</th><th class="num">Qty</th></tr></thead>
+          <tbody>
+            ${recent.map(m => `
+              <tr>
+                <td>${esc(fmtMoveDate(m.created_at))}</td>
+                <td>${esc(m.ingredient_name||'')}</td>
+                <td>${moveTypeLabel(m)}</td>
+                <td class="num ${m.qty_base<0?'neg':'pos-amt'}">${m.qty_base>0?'+':''}${m.qty_base}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>` : '<div class="foot">No recent activity.</div>';
 
       panel.innerHTML = `
         <h2>📦 Stock Alerts <span class="h-note">${alerts.length} ingredient(s) need attention</span></h2>
         ${alertsHTML}
-        <h2 style="margin-top:16px;font-size:13px;">Recent stock activity</h2>
+        <h2 style="margin-top:16px;font-size:13px;">Recent activity (purchases &amp; inventory changes)</h2>
         ${movesHTML}
         <a class="go" href="/inventory.html" style="display:inline-block;margin-top:10px;">→ Open Inventory</a>`;
       panel.style.display = '';

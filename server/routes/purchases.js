@@ -23,11 +23,12 @@ router.get('/', (_req, res) => {
   // Merge line items into their parent purchase (one purchase = one row in this simple UI).
   const result = rows.map(r => ({
     id: r.id,
-    date: r.date ? r.date.slice(0, 10) : '',
+    date: r.date || '',
     category: r.ingredient_id ? 'ingredient' : 'other',
     ingredient_name: r.ingredient_name,
     item_name: r.ingredient_name || r.reference,
     quantity: r.quantity,
+    purchase_unit: r.purchase_unit || '',
     total_cost: r.total_cost || 0,
     notes: r.notes || '',
     supplier_name: r.supplier_name || ''

@@ -41,6 +41,12 @@
     th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
     th { position: sticky; top: 0; background: var(--card); color: var(--accent); font-size: 11px; text-transform: uppercase; z-index: 1; }
     .num { text-align: right; }
+    th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+    th.sortable:hover { color: var(--brand); }
+    th.sortable::after { content: ''; display: inline-block; width: 0; height: 0; margin-left: 5px; vertical-align: middle; border-left: 4px solid transparent; border-right: 4px solid transparent; opacity: .35; }
+    th.sortable.sort-asc::after { border-bottom: 5px solid currentColor; }
+    th.sortable.sort-desc::after { border-top: 5px solid currentColor; }
+    th.sortable.sort-asc::after, th.sortable.sort-desc::after { opacity: 1; }
     .low-row { background: rgba(176,0,32,0.06); cursor: pointer; border-left: 3px solid transparent; transition: background .12s ease; }
     .low-row:hover { background: rgba(176,0,32,0.13); }
     .low-row.selected { background: rgba(92,125,166,0.14); border-left-color: var(--brand); }
@@ -177,7 +183,14 @@
     <div class="card" id="purchaseHistoryCard">
       <div class="card-head"><strong>Purchase History</strong></div>
       <div class="list-scroll">
-        <table id="purchaseHistoryTable"><thead><tr><th>Date</th><th>Category</th><th>Item</th><th class="num">Qty</th><th>Unit</th><th class="num">Total Cost</th></tr></thead>
+        <table id="purchaseHistoryTable"><thead><tr>
+          <th class="sortable" data-sort="date">Date</th>
+          <th class="sortable" data-sort="item">Item</th>
+          <th class="num sortable" data-sort="quantity">Qty</th>
+          <th class="sortable" data-sort="purchase_unit">Unit</th>
+          <th class="num sortable" data-sort="total_cost">Total Cost</th>
+          <th>Notes</th>
+        </tr></thead>
         <tbody id="rows"><tr><td colspan="6">Loading…</td></tr></tbody></table>
       </div>
     </div>
@@ -197,6 +210,14 @@
     const status = document.getElementById('status');
 
     function formatRp(v) { if(v===null||v===undefined)return'—'; return 'Rp '+Math.round(Number(v||0)).toLocaleString('id-ID'); }
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    function formatDate(v) {
+      if (!v) return '—';
+      const d = new Date(v.replace(' ', 'T'));
+      if (isNaN(d)) return v;
+      const pad = n => String(n).padStart(2, '0');
+      return `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
 
     // Load categories for filter + all ingredients
     let allIngredients = [];
@@ -265,20 +286,56 @@
         .then(r=>r.json()).then(d=>{status.textContent=d.message||d.error;if(!d.error){loadPurchases();loadLowStock();document.getElementById('cost').value='';document.getElementById('quantity').value='';}});
     });
 
+    let allPurchases = [];
+    let sortState = { key: 'date', dir: 'desc' };
+
     function loadPurchases() {
       if(!auth)return;
       fetch('/api/purchases',{headers:authHeaders()}).then(r=>r.json()).then(data=>{
-        const tbody=document.getElementById('rows');tbody.innerHTML='';
-        if(!data||!data.length){tbody.innerHTML='<tr><td colspan="6">No purchases yet</td></tr>';updateStats(data||[]);return;}
-        [...data].reverse().forEach(p=>{
-          const item=p.category==='ingredient'?p.ingredient_name:p.item_name||'';
-          const tr=document.createElement('tr');
-          tr.innerHTML=`<td data-label="Date">${p.date}</td><td data-label="Category">${p.category}</td><td data-label="Item">${item}</td><td class="num" data-label="Qty">${p.quantity||''}</td><td data-label="Unit">${p.purchase_unit||''}</td><td class="num" data-label="Total Cost">${formatRp(p.total_cost)}</td>`;
-          tbody.appendChild(tr);
-        });
-        updateStats(data);
+        allPurchases = data || [];
+        renderPurchases();
+        updateStats(allPurchases);
       });
     }
+
+    function sortValue(p, key) {
+      switch (key) {
+        case 'item': return (p.category==='ingredient'?p.ingredient_name:p.item_name||'').toLowerCase();
+        case 'quantity': return Number(p.quantity)||0;
+        case 'purchase_unit': return (p.purchase_unit||'').toLowerCase();
+        case 'total_cost': return Number(p.total_cost)||0;
+        default: return p.date || '';
+      }
+    }
+
+    function renderPurchases() {
+      const tbody=document.getElementById('rows');tbody.innerHTML='';
+      if(!allPurchases.length){tbody.innerHTML='<tr><td colspan="6">No purchases yet</td></tr>';return;}
+      const sorted=[...allPurchases].sort((a,b)=>{
+        const av=sortValue(a,sortState.key), bv=sortValue(b,sortState.key);
+        const cmp = av<bv?-1:av>bv?1:0;
+        return sortState.dir==='asc'?cmp:-cmp;
+      });
+      sorted.forEach(p=>{
+        const item=p.category==='ingredient'?p.ingredient_name:p.item_name||'';
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td data-label="Date">${formatDate(p.date)}</td><td data-label="Item">${item}</td><td class="num" data-label="Qty">${p.quantity||''}</td><td data-label="Unit">${p.purchase_unit||''}</td><td class="num" data-label="Total Cost">${formatRp(p.total_cost)}</td><td data-label="Notes">${esc(p.notes||'')}</td>`;
+        tbody.appendChild(tr);
+      });
+      document.querySelectorAll('#purchaseHistoryTable th[data-sort]').forEach(th=>{
+        th.classList.toggle('sort-asc', th.dataset.sort===sortState.key && sortState.dir==='asc');
+        th.classList.toggle('sort-desc', th.dataset.sort===sortState.key && sortState.dir==='desc');
+      });
+    }
+
+    document.querySelectorAll('#purchaseHistoryTable th[data-sort]').forEach(th=>{
+      th.addEventListener('click', ()=>{
+        const key = th.dataset.sort;
+        if (sortState.key===key) sortState.dir = sortState.dir==='asc'?'desc':'asc';
+        else sortState = { key, dir: (key==='item'||key==='purchase_unit') ? 'asc' : 'desc' };
+        renderPurchases();
+      });
+    });
 
     function updateStats(data) {
       const total=data.length;

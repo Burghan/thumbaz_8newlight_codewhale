@@ -42,6 +42,25 @@ function computeExpected(session) {
   return { payments, cash_in: cashIn, cash_out: cashOut, expected: { cash: expectedCash, card: payments.card, qris: payments.qris } };
 }
 
+// GET /api/sessions — shift history (admin/manager only; exposes every
+// cashier's counted cash and variance, not staff-safe like the rest of this
+// router). Newest first, optional ?month=YYYY-MM filter.
+router.get('/', (req, res) => {
+  if (req.user?.role === 'staff') return res.status(403).json({ message: 'Manager access required' });
+  const month = req.query.month;
+  const rows = db.prepare(`
+    SELECT id, opened_at, opened_by, opening_cash, status,
+           closed_at, closed_by, counted_cash, counted_card, counted_qris,
+           expected_cash, expected_card, expected_qris,
+           variance_cash, variance_card, variance_qris, notes
+    FROM pos_sessions
+    ${month ? "WHERE strftime('%Y-%m', opened_at) = ?" : ''}
+    ORDER BY opened_at DESC, id DESC
+    LIMIT 200
+  `).all(...(month ? [month] : []));
+  res.json(rows);
+});
+
 // GET /api/sessions/open — is there an open session right now?
 router.get('/open', (req, res) => {
   const session = currentOpenSession();

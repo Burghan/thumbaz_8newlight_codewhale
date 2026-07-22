@@ -59,6 +59,9 @@
   table.tx.hide-status th[data-col="status"], table.tx.hide-status td[data-col="status"] { display:none; }
   table.tx.hide-discount th[data-col="discount"], table.tx.hide-discount td[data-col="discount"] { display:none; }
   table.tx.hide-tax th[data-col="tax"], table.tx.hide-tax td[data-col="tax"] { display:none; }
+  tr.day-group-row { cursor:default; }
+  tr.day-group-row td { background:var(--cream-soft); color:var(--brand-ink); font-weight:700; border-bottom:1px solid var(--border); }
+  tr.day-group-row:hover td { background:var(--cream-soft); }
 
   .pager { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 16px; border-top:1px solid var(--border); font-size:13px; color:var(--muted); flex-wrap:wrap; }
   .pager button { padding:8px 14px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--ink); cursor:pointer; font-size:13px; min-height:38px; }
@@ -155,6 +158,7 @@
           <th>Items</th>
           <th data-col="order_type">Order Type</th>
           <th data-col="status">Status</th>
+          <th data-col="payment">Payment</th>
           <th class="num" data-sort="items">Qty</th>
           <th class="num" data-col="discount">Discount</th>
           <th class="num" data-col="tax">Tax</th>
@@ -201,6 +205,23 @@
 
   const Rp = v => 'Rp ' + Math.round(v || 0).toLocaleString('id-ID');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  function dayLabel(v) {
+    if (!v) return '—';
+    const d = new Date(v.replace(' ', 'T'));
+    if (isNaN(d)) return v;
+    return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  function formatPayment(m) {
+    if (!m) return '—';
+    return m.toLowerCase() === 'qris' ? 'QRIS' : m.charAt(0).toUpperCase() + m.slice(1);
+  }
+  function formatDate(v) {
+    if (!v) return '—';
+    const d = new Date(v.replace(' ', 'T'));
+    if (isNaN(d)) return v;
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
   const jget = url => fetch(url, { headers: authHeaders(), credentials: 'same-origin' })
     .then(r => r.ok ? r.json() : Promise.reject(new Error(`${url} → ${r.status}`)));
 
@@ -221,7 +242,7 @@
     drillTitle.textContent = 'Order #' + id; drillSub.textContent = ''; drillBody.innerHTML = '<div class="foot">Loading…</div>';
     try {
       const o = await jget(ORDER_URL(id));
-      drillSub.textContent = `${o.date} · ${(o.payment_method||'—')} · ${o.items.length} items`;
+      drillSub.textContent = `${formatDate(o.date)} · ${(o.payment_method||'—')} · ${o.items.length} items`;
       drillBody.innerHTML = `
         <h3>Items</h3>
         <table><thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Total</th>${isStaff ? '' : '<th></th>'}</tr></thead><tbody>${
@@ -484,27 +505,55 @@
       }
 
       const rows = document.getElementById('rows');
-      rows.innerHTML = d.orders.length ? d.orders.map(o => `
+      const orderRow = o => `
         <tr data-id="${o.id}">
-          <td>${esc(o.date)}</td>
+          <td>${esc(formatDate(o.date))}</td>
           <td>#${o.id}</td>
           <td class="items-preview" title="${esc(o.items_preview||'')}">${esc(o.items_preview||'—')}</td>
           <td data-col="order_type">${esc(o.order_type||'—')}</td>
-          <td data-col="status">${o.status ? `<span class="pill${/dibatalkan/i.test(o.status) ? ' negative' : ''}">${esc(o.status)}</span>` : '—'}</td>
+          <td data-col="status">${o.status ? `<span class="pill${/dibatalkan/i.test(o.status) ? ' negative' : ''}">${esc(o.status)}</span>` : `<span class="pill positive">Lunas</span>`}</td>
+          <td data-col="payment">${esc(formatPayment(o.payment_method))}</td>
           <td class="num">${o.item_count}</td>
           <td class="num" data-col="discount">${o.discount ? Rp(o.discount) : '—'}</td>
           <td class="num" data-col="tax">${o.tax ? Rp(o.tax) : '—'}</td>
           <td class="num">${Rp(o.total)}</td>
-        </tr>`).join('') : '<tr><td colspan="9" class="foot" style="text-align:center;padding:30px">No transactions match these filters</td></tr>';
+        </tr>`;
+
+      // Group consecutive rows sharing the same calendar day under a divider
+      // row (day name + date, that day's revenue total) — mirrors the old
+      // POS's daily-grouped report. Groups only stay contiguous when sorted
+      // by date (the default); other sort orders may split a day into
+      // several bands, which is expected since the grouping just reflects
+      // whatever order is currently on screen.
+      let rowsHtml;
+      if (d.orders.length) {
+        const groups = [];
+        d.orders.forEach(o => {
+          const key = (o.date || '').slice(0, 10);
+          let g = groups[groups.length - 1];
+          if (!g || g.key !== key) { g = { key, label: dayLabel(o.date), total: 0, orders: [] }; groups.push(g); }
+          g.total += o.total;
+          g.orders.push(o);
+        });
+        rowsHtml = groups.map(g => `
+          <tr class="day-group-row">
+            <td colspan="9" class="day-group-label">${esc(g.label)}</td>
+            <td class="num day-group-total">${Rp(g.total)}</td>
+          </tr>
+          ${g.orders.map(orderRow).join('')}`).join('');
+      } else {
+        rowsHtml = '<tr><td colspan="10" class="foot" style="text-align:center;padding:30px">No transactions match these filters</td></tr>';
+      }
+      rows.innerHTML = rowsHtml;
       rows.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => drillOrder(tr.dataset.id)));
 
-      // Order Type / Status / Discount / Tax only earn a column when this
-      // result set actually has data for it — most rows are plain cash sales
-      // with none of these, and an all-dash column just adds noise.
+      // Order Type / Discount / Tax only earn a column when this result set
+      // actually has data for it — most rows are plain cash sales with none
+      // of these, and an all-dash column just adds noise. Status and Payment
+      // always show now: every row has one (Lunas by default) or the other.
       const txTable = document.getElementById('txTable');
       const anyOf = (test) => d.orders.some(test);
       txTable.classList.toggle('hide-order_type', !anyOf(o => o.order_type));
-      txTable.classList.toggle('hide-status', !anyOf(o => o.status));
       txTable.classList.toggle('hide-discount', !anyOf(o => o.discount > 0));
       txTable.classList.toggle('hide-tax', !anyOf(o => o.tax > 0));
 

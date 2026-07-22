@@ -9,6 +9,7 @@
       { href: '/dashboard.html', label: 'Overview' },
       { href: '/system-report.html', label: 'Analytics' },
       { href: '/transactions.html', label: 'Transactions' },
+      { href: '/shifts.html', label: 'Shifts' },
       { href: '/budget.html', label: 'Budget' },
     ]},
     { type: 'group', label: '🛒  POS', children: [

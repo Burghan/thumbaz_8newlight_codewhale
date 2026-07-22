@@ -24,9 +24,20 @@ function cogsActuals(month) {
 }
 
 function opexActuals(month) {
-  return db.prepare(`
+  const expenseRows = db.prepare(`
     SELECT COALESCE(category,'Uncategorized') AS category, ROUND(SUM(amount)) AS actual
     FROM expenses WHERE strftime('%Y-%m', date) = ? GROUP BY category`).all(month);
+
+  // Cash Out from a POS shift (Cash In/Out) is real money leaving the till,
+  // just recorded during a shift instead of the separate Expenses log —
+  // counts toward OPEX actual too. Bucketed under one category since a
+  // cash-out only has a freeform reason, not a budget category to match.
+  const cashOut = db.prepare(`
+    SELECT ROUND(SUM(amount)) AS actual FROM cash_movements
+    WHERE type = 'out' AND strftime('%Y-%m', created_at) = ?`).get(month);
+
+  if (cashOut.actual > 0) expenseRows.push({ category: 'Cash Out (POS)', actual: cashOut.actual });
+  return expenseRows;
 }
 
 // Merge budget rows (of a kind) with computed actuals into unified lines.

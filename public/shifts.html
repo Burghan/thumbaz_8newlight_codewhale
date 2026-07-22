@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shift History – 8 NewLight Coffee</title>
+  <link rel="stylesheet" href="/sidebar.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <style>
+    body { font-family: inherit; margin: 0; color: var(--ink); }
+    .content { display: flex; flex-direction: column; height: 100vh; overflow: hidden; box-sizing: border-box; padding: 16px; }
+    .topbar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+    .topbar h1 { margin: 0; flex: 1; font-size: 22px; }
+    .topbar select { width: auto; margin: 0; min-height: 38px; font-size: 14px; padding: 8px 14px; border-radius: 10px; }
+    .sub { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+    .main-scroll { flex: 1 1 auto; overflow: auto; }
+    .status { padding: 30px; text-align: center; color: var(--muted); }
+    .err { color: var(--danger); font-weight: 600; }
+
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+    @media(max-width:760px){ .kpis { grid-template-columns: repeat(2,1fr); } }
+    .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow-sm); }
+    .kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+    .kpi .value { font-family: var(--font-brand); font-size: 22px; font-weight: 700; color: var(--brand-ink); margin-top: 6px; font-variant-numeric: tabular-nums; }
+    .kpi .value.neg { color: var(--danger); }
+    .kpi .foot { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+    .card { background: var(--card); border-radius: 16px; border: 1px solid var(--border); box-shadow: var(--shadow-sm); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 8px 14px; text-align: left; border-bottom: 1px solid var(--border-soft); white-space: nowrap; }
+    th { position: sticky; top: 0; background: var(--cream-soft); color: var(--brand-ink); font-size: 11px; text-transform: uppercase; letter-spacing: .03em; z-index: 1; }
+    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .pill.open { background: var(--positive-bg); color: #2f5a45; }
+    .pill.closed { background: var(--cream-soft); color: var(--muted); }
+    .pos { color: var(--positive); font-weight: 600; }
+    .neg { color: var(--danger); font-weight: 600; }
+  </style>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#5c7da6" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="8 NewLight" />
+</head>
+<body class="theme-cafe">
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><span class="brand-logo" aria-hidden="true"><img src="/newlight-logo.jpeg" alt="8 NewLight Coffee" /></span><div class="brand-text"><div class="brand-title">8 NewLight Coffee</div><div class="brand-subtitle">Back Office</div></div></div>
+    <a href="/dashboard.html">Dashboard</a><a href="/pos.html">POS</a><a href="/inventory.html">Inventory</a>
+    <a href="/shifts.html">Shifts</a>
+    <a href="/budget.html">Budget</a><a href="/system-report.html">System Report</a><a href="/import-center.html">Import Center</a><a href="/logout.html">Logout</a>
+  </aside>
+
+  <div class="content">
+    <div class="topbar">
+      <button id="menuToggle" class="icon-btn">☰</button>
+      <h1>🗄️ Shift History</h1>
+      <select id="month"></select>
+    </div>
+    <p class="sub">Every opened/closed shift: opening cash, counted closing cash vs. expected, and the variance.</p>
+
+    <div class="main-scroll">
+      <div class="status" id="status">⏳ Loading…</div>
+      <div id="view" style="display:none">
+        <div class="kpis" id="kpis"></div>
+        <div class="card">
+          <table id="tbl">
+            <thead><tr>
+              <th>Shift</th>
+              <th>Opened</th>
+              <th>Opened By</th>
+              <th class="num">Opening Cash</th>
+              <th>Closed</th>
+              <th>Closed By</th>
+              <th class="num">Closing Cash (Counted)</th>
+              <th class="num">Expected Cash</th>
+              <th class="num">Variance</th>
+              <th>Status</th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/dialogs.js"></script>
+  <script src="/pwa.js"></script>
+  <script src="/sidebar.js"></script>
+  <script>
+    const auth = requireRole(['admin','manager']);
+    if (!auth) throw new Error('Unauthorized');
+    const opts = { headers: authHeaders(), credentials: 'same-origin' };
+    const statusEl = document.getElementById('status'), viewEl = document.getElementById('view');
+    const Rp = v => 'Rp ' + Math.round(v||0).toLocaleString('id-ID');
+    const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const jget = u => fetch(u,opts).then(r=>r.ok?r.json():Promise.reject(new Error(u+' → '+r.status)));
+
+    function formatDate(v) {
+      if (!v) return '—';
+      const d = new Date(v.replace(' ', 'T'));
+      if (isNaN(d)) return v;
+      const pad = n => String(n).padStart(2, '0');
+      return `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    const monthSel = document.getElementById('month');
+    (function(){
+      const now = new Date();
+      const allOpt = document.createElement('option'); allOpt.value = ''; allOpt.textContent = 'All shifts';
+      monthSel.appendChild(allOpt);
+      for (let i=0;i<12;i++) {
+        const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+        const v = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        const o = document.createElement('option'); o.value = v; o.textContent = d.toLocaleDateString('en',{month:'long',year:'numeric'});
+        monthSel.appendChild(o);
+      }
+      monthSel.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    })();
+
+    function varClass(v) { if (!v) return ''; return v < 0 ? 'neg' : 'pos'; }
+
+    function render(rows) {
+      const closedRows = rows.filter(r => r.status === 'closed');
+      const totalVariance = closedRows.reduce((s,r) => s + (r.variance_cash||0), 0);
+      const shortages = closedRows.filter(r => (r.variance_cash||0) < 0).length;
+
+      document.getElementById('kpis').innerHTML = `
+        <div class="kpi"><div class="label">Shifts</div><div class="value">${rows.length}</div><div class="foot">${closedRows.length} closed</div></div>
+        <div class="kpi"><div class="label">Total Cash Variance</div><div class="value ${totalVariance<0?'neg':''}">${Rp(totalVariance)}</div><div class="foot">across closed shifts</div></div>
+        <div class="kpi"><div class="label">Shifts With Shortage</div><div class="value ${shortages?'neg':''}">${shortages}</div><div class="foot">counted cash below expected</div></div>
+        <div class="kpi"><div class="label">Currently Open</div><div class="value">${rows.filter(r=>r.status==='open').length}</div><div class="foot">right now</div></div>`;
+
+      const tbody = document.getElementById('rows');
+      tbody.innerHTML = rows.length ? rows.map(r => `
+        <tr>
+          <td>#${r.id}</td>
+          <td>${formatDate(r.opened_at)}</td>
+          <td>${esc(r.opened_by||'—')}</td>
+          <td class="num">${Rp(r.opening_cash)}</td>
+          <td>${r.status==='closed' ? formatDate(r.closed_at) : '—'}</td>
+          <td>${esc(r.closed_by||'—')}</td>
+          <td class="num">${r.status==='closed' ? Rp(r.counted_cash) : '—'}</td>
+          <td class="num">${r.status==='closed' ? Rp(r.expected_cash) : '—'}</td>
+          <td class="num ${r.status==='closed' ? varClass(r.variance_cash) : ''}">${r.status==='closed' ? (r.variance_cash>0?'+':'')+Rp(r.variance_cash) : '—'}</td>
+          <td><span class="pill ${r.status}">${r.status==='open' ? 'Open' : 'Closed'}</span></td>
+        </tr>`).join('') : '<tr><td colspan="10" class="status">No shifts recorded yet</td></tr>';
+    }
+
+    async function load() {
+      statusEl.style.display=''; viewEl.style.display='none'; statusEl.textContent='⏳ Loading…';
+      try {
+        const url = monthSel.value ? `/api/sessions?month=${monthSel.value}` : '/api/sessions';
+        const rows = await jget(url);
+        render(rows);
+        statusEl.style.display='none'; viewEl.style.display='';
+      } catch(e) {
+        statusEl.innerHTML = '<span class="err">❌ ' + esc(e.message) + '</span>';
+      }
+    }
+    monthSel.addEventListener('change', load);
+    load();
+  </script>
+</body>
+</html>
