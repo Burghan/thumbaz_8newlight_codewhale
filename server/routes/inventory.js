@@ -100,11 +100,12 @@ router.post('/adjustments', (req, res) => {
     const ing = db.prepare('SELECT id FROM ingredients WHERE id = ?').get(ingredientId);
     if (!ing) throw new Error('Ingredient not found');
 
-    // Create stock movement.
+    // Create stock movement. created_at set explicitly (WIB) — the column's
+    // own DEFAULT is bare datetime('now'), i.e. UTC.
     const type = qtyBase > 0 ? 'adjustment' : 'adjustment';
     db.prepare(
-      `INSERT INTO stock_movements (ingredient_id, type, qty_base, unit_cost_micro, note)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO stock_movements (ingredient_id, type, qty_base, unit_cost_micro, note, created_at)
+       VALUES (?, ?, ?, ?, ?, datetime('now', '+7 hours'))`
     ).run(ingredientId, type, qtyBase, 0, (b.note || '').trim() || null);
 
     // Update inventory quantity.

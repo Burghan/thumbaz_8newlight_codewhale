@@ -154,13 +154,16 @@
       return `Rp. ${whole}.${parts[1]}`;
     }
 
+    // Local calendar month, not .toISOString() (UTC) — on a WIB (UTC+7)
+    // browser this silently landed on the wrong month.
+    const ymLocal = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     function buildMenuFilters() {
       menuMonth.innerHTML = '';
       menuYear.innerHTML = '';
       const now = new Date();
       for (let i = -1; i < 11; i++) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const value = d.toISOString().slice(0, 7);
+        const value = ymLocal(d);
         const opt = document.createElement('option');
         opt.value = value;
         opt.textContent = value;

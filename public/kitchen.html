@@ -177,7 +177,10 @@
         const tickets = Array.isArray(data.tickets) ? data.tickets : [];
         const byStatus = { new: [], preparing: [], ready: [] };
         let servedToday = 0;
-        const todayStr = new Date().toISOString().slice(0, 10);
+        // Local calendar date, not .toISOString() (UTC) — updated_at is
+        // stored as WIB wall-clock time, so this must compare on the same basis.
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
         tickets.forEach((t) => {
           if (byStatus[t.status]) byStatus[t.status].push(t);
           if (t.status === 'served' && String(t.updated_at || '').slice(0, 10) === todayStr) servedToday += 1;

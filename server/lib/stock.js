@@ -17,9 +17,11 @@ function deductStockForSale(transactionId, items) {
       updated_at = datetime('now') WHERE ingredient_id = ?
   `);
 
+  // created_at set explicitly (WIB) — the column's own DEFAULT is bare
+  // datetime('now'), i.e. UTC, 7 hours behind the sale this belongs to.
   const addMovement = db.prepare(`
-    INSERT INTO stock_movements (ingredient_id, type, qty_base, ref_type, ref_id, note)
-    VALUES (?, 'usage', ?, 'sale', ?, ?)
+    INSERT INTO stock_movements (ingredient_id, type, qty_base, ref_type, ref_id, note, created_at)
+    VALUES (?, 'usage', ?, 'sale', ?, ?, datetime('now', '+7 hours'))
   `);
 
   const checkStock = db.prepare(`
@@ -79,8 +81,8 @@ function deductIngredientsForSale(transactionId, ingredientLines) {
       updated_at = datetime('now') WHERE ingredient_id = ?
   `);
   const addMovement = db.prepare(`
-    INSERT INTO stock_movements (ingredient_id, type, qty_base, ref_type, ref_id, note)
-    VALUES (?, 'usage', ?, 'sale', ?, ?)
+    INSERT INTO stock_movements (ingredient_id, type, qty_base, ref_type, ref_id, note, created_at)
+    VALUES (?, 'usage', ?, 'sale', ?, ?, datetime('now', '+7 hours'))
   `);
 
   for (const line of (ingredientLines || [])) {

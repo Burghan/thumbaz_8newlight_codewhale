@@ -106,7 +106,8 @@
     let usersCache = [];
 
     async function loadPayroll() {
-      const month = document.getElementById('payrollMonth').value || new Date().toISOString().slice(0,7);
+      const now = new Date();
+      const month = document.getElementById('payrollMonth').value || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
       const users = await fetch('/api/users', opts).then(r=>r.json());
       usersCache = users;
       const [attData, payrollRows] = await Promise.all([

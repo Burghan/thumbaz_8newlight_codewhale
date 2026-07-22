@@ -84,10 +84,12 @@ router.post('/', (req, res) => {
        ON CONFLICT(ingredient_id) DO UPDATE SET quantity_base = ?, avg_cost_micro = ?, updated_at = datetime('now')`
     ).run(ingredientId, newQty, newAvgMicro, newQty, newAvgMicro);
 
-    // Record stock movement.
+    // Record stock movement. created_at set explicitly (WIB) — the column's
+    // own DEFAULT is bare datetime('now'), i.e. UTC, which would show this
+    // movement 7 hours behind the purchase it belongs to everywhere else.
     db.prepare(
-      `INSERT INTO stock_movements (ingredient_id, type, qty_base, unit_cost_micro, ref_type, ref_id, note)
-       VALUES (?, 'purchase', ?, ?, 'purchase', ?, ?)`
+      `INSERT INTO stock_movements (ingredient_id, type, qty_base, unit_cost_micro, ref_type, ref_id, note, created_at)
+       VALUES (?, 'purchase', ?, ?, 'purchase', ?, ?, datetime('now', '+7 hours'))`
     ).run(ingredientId, baseQty, costPerBaseMicro, purchaseId, `Purchase #${purchaseId}: +${quantity} ${ing.purchase_unit || ing.base_unit}`);
 
     // Update ingredient's last_purchase_price for the latest-price COGS model.

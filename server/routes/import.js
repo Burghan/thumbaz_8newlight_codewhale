@@ -467,8 +467,8 @@ router.post('/inventory', upload.single('file'), async (req, res) => {
 
     const getInv = db.prepare('SELECT quantity_base FROM inventory WHERE ingredient_id=?');
     const setInv = db.prepare("UPDATE inventory SET quantity_base=?, updated_at=datetime('now') WHERE ingredient_id=?");
-    const addMove = db.prepare(`INSERT INTO stock_movements (ingredient_id, type, qty_base, unit_cost_micro, note)
-      VALUES (?, 'adjustment', ?, 0, ?)`);
+    const addMove = db.prepare(`INSERT INTO stock_movements (ingredient_id, type, qty_base, unit_cost_micro, note, created_at)
+      VALUES (?, 'adjustment', ?, 0, ?, datetime('now', '+7 hours'))`);
 
     let reconciled = 0, unchanged = 0, unmatched = [];
     db.transaction(() => {
@@ -649,7 +649,7 @@ router.post('/purchases', upload.single('file'), async (req, res) => {
       .forEach(i => ingMap.set(normName(i.name), i));
 
     let imported = 0, skipped = 0;
-    const insTxn = db.prepare("INSERT INTO purchases (purchased_at) VALUES (date('now'))");
+    const insTxn = db.prepare("INSERT INTO purchases (purchased_at) VALUES (date('now', '+7 hours'))");
     const insItem = db.prepare("INSERT INTO purchase_items (purchase_id, ingredient_id, purchase_qty, purchase_unit, base_qty, unit_price, line_total) VALUES (?,?,?,?,?,?,?)");
 
     db.transaction(() => {

@@ -123,11 +123,15 @@
   <script>
     const auth = requireRole(['admin','manager']);
     function formatRp(v){ return 'Rp '+Math.round(Number(v||0)).toLocaleString('id-ID'); }
+    // Local calendar date/month, not .toISOString() (UTC) — on a WIB (UTC+7)
+    // browser this silently shifted to the wrong day/month for part of the day.
+    const ymLocal = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const ymdLocal = (d) => `${ymLocal(d)}-${String(d.getDate()).padStart(2,'0')}`;
 
     async function loadAll(){
       if(!auth)return;
       const h=authHeaders();const opts={headers:h,credentials:'same-origin'};
-      const exp=await fetch('/api/expenses?month='+new Date().toISOString().slice(0,7),opts).then(r=>r.json());
+      const exp=await fetch('/api/expenses?month='+ymLocal(new Date()),opts).then(r=>r.json());
       const tb=document.getElementById('rows');tb.innerHTML='';
       if(!exp.length){tb.innerHTML='<tr><td colspan="4">No expenses this month</td></tr>';}
       let total=0;
@@ -148,7 +152,7 @@
       document.getElementById('status').textContent=d.message||d.error||'Saved';
       if(!d.error){document.getElementById('expDesc').value='';document.getElementById('expAmt').value='';loadAll();}
     });
-    document.getElementById('expDate').value=new Date().toISOString().slice(0,10);
+    document.getElementById('expDate').value=ymdLocal(new Date());
     document.getElementById('refreshBtn').addEventListener('click',loadAll);
     if(auth)loadAll();
   </script>

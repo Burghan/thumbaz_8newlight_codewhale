@@ -32,16 +32,18 @@ router.get('/', (req, res) => {
   res.json({ tickets: serializeTickets(tickets) });
 });
 
+// created_at/updated_at set explicitly (WIB) — the columns' own DEFAULT is
+// bare datetime('now'), i.e. UTC (same class of bug as stock_movements had).
 const insertTicket = db.prepare(
-  `INSERT INTO kitchen_tickets (order_ref, table_label, order_type, status)
-   VALUES (?, ?, ?, 'new')`
+  `INSERT INTO kitchen_tickets (order_ref, table_label, order_type, status, created_at, updated_at)
+   VALUES (?, ?, ?, 'new', datetime('now', '+7 hours'), datetime('now', '+7 hours'))`
 );
 const insertItem = db.prepare(
   `INSERT INTO kitchen_items (ticket_id, product_id, name, qty, note) VALUES (?, ?, ?, ?, ?)`
 );
 const deleteItemsForTicket = db.prepare('DELETE FROM kitchen_items WHERE ticket_id = ?');
 const touchTicket = db.prepare(
-  `UPDATE kitchen_tickets SET status = 'new', table_label = ?, order_type = ?, updated_at = datetime('now') WHERE id = ?`
+  `UPDATE kitchen_tickets SET status = 'new', table_label = ?, order_type = ?, updated_at = datetime('now', '+7 hours') WHERE id = ?`
 );
 const findOpenTicketByRef = db.prepare(
   `SELECT * FROM kitchen_tickets WHERE order_ref = ? AND status NOT IN ('served', 'cancelled') ORDER BY id DESC LIMIT 1`
@@ -73,7 +75,7 @@ router.post('/', (req, res) => {
   if (type === 'cancel') {
     const existing = orderRef ? findOpenTicketByRef.get(orderRef) : null;
     if (existing) {
-      db.prepare(`UPDATE kitchen_tickets SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?`).run(existing.id);
+      db.prepare(`UPDATE kitchen_tickets SET status = 'cancelled', updated_at = datetime('now', '+7 hours') WHERE id = ?`).run(existing.id);
     }
     return res.json({ success: true, cancelled: Boolean(existing) });
   }
@@ -109,7 +111,7 @@ router.patch('/:id', (req, res) => {
   }
   const existing = getTicket.get(id);
   if (!existing) return res.status(404).json({ error: 'Ticket not found' });
-  db.prepare(`UPDATE kitchen_tickets SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(status, id);
+  db.prepare(`UPDATE kitchen_tickets SET status = ?, updated_at = datetime('now', '+7 hours') WHERE id = ?`).run(status, id);
   res.json({ success: true });
 });
 

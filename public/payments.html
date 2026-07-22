@@ -128,15 +128,18 @@
     document.getElementById('greeting').textContent = h<12?'☀️ Good morning':h<17?'🌤 Good afternoon':'🌙 Good evening';
     document.getElementById('liveDate').textContent = new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
-    // Sales date dropdown: last 7 days
+    // Sales date dropdown: last 7 days. Local calendar date, not
+    // .toISOString() (UTC) — on a WIB (UTC+7) browser this could shift the
+    // whole list (and the selected default) a day off from the real date.
+    const ymdLocal = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     (function(){
       const sel = document.getElementById('salesDate');
       for(let i=0;i<7;i++){
         const d=new Date(); d.setDate(d.getDate()-i);
-        const v=d.toISOString().slice(0,10);
+        const v=ymdLocal(d);
         sel.innerHTML+='<option value="'+v+'">'+v+'</option>';
       }
-      sel.value = new Date().toISOString().slice(0,10);
+      sel.value = ymdLocal(new Date());
     })();
 
     async function loadDashboard(){
@@ -157,11 +160,6 @@
       const todayRev = sales.reduce((s,t)=>s+(t.total||0),0);
       document.getElementById('kToday').textContent = Rp(todayRev);
       document.getElementById('sToday').textContent = sales.length+' transactions';
-
-      // Restock
-      const lowItems = stock.filter(s=>s.below).length;
-      
-      2e7d32';#2e7d32';
 
       // Month
       document.getElementById('kMonthRev').textContent = Rp(monthly.revenue||0);

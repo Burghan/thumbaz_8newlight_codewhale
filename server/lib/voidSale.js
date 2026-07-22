@@ -112,8 +112,8 @@ function voidPartialItem(transactionId, { itemId, newQty, reason, restock }) {
          WHERE ingredient_id = ?`
       );
       const addMovement = db.prepare(`
-        INSERT INTO stock_movements (ingredient_id, type, qty_base, ref_type, ref_id, note)
-        VALUES (?, 'adjustment', ?, 'sale', ?, ?)
+        INSERT INTO stock_movements (ingredient_id, type, qty_base, ref_type, ref_id, note, created_at)
+        VALUES (?, 'adjustment', ?, 'sale', ?, ?, datetime('now', '+7 hours'))
       `);
       for (const r of recipeLines) {
         const amount = r.recipe_qty * removedQty;
