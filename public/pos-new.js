@@ -1115,7 +1115,6 @@ function openReceiptFromHeld(order) {
   }
   if (receiptFooterText) receiptFooterText.textContent = settings.receiptFooter || 'Thank you!';
   if (receiptQr) receiptQr.src = qrImageUrl;
-  if (sendWhatsappReceipt) sendWhatsappReceipt.dataset.link = receiptLink;
   if (receiptCustomer) {
     if (order.customerName) {
       receiptCustomer.textContent = `Customer: ${order.customerName}`;
@@ -2086,12 +2085,14 @@ async function domToImageCanvas(el, scale) {
   }
 }
 
-// Shares the receipt as a real image (native share sheet, WhatsApp among the
-// options) instead of just a text link — falls back to a wa.me text link only
-// if this browser can't share files at all.
+// Sends the receipt as a real image, never just a text link. Web Share with
+// a file is the only way a web page can hand WhatsApp an actual image (its
+// wa.me links only ever pre-fill text, there's no "attach a file" URL
+// scheme) — where that's unsupported (most desktop browsers), download the
+// image and ask the cashier to attach it manually rather than silently
+// degrading to a link-only message.
 if (sendWhatsappReceipt) {
   sendWhatsappReceipt.addEventListener('click', async () => {
-    const link = sendWhatsappReceipt.dataset.link || '';
     const paper = document.querySelector('#receiptPreview .receipt-paper');
     const original = sendWhatsappReceipt.textContent;
     sendWhatsappReceipt.disabled = true;
@@ -2104,23 +2105,17 @@ if (sendWhatsappReceipt) {
       });
       const file = new File([blob], 'receipt.png', { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], text: link ? `Terima kasih! Struk Anda: ${link}` : undefined });
+        await navigator.share({ files: [file] });
       } else {
-        throw new Error('no-share');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'receipt.png';
+        a.click();
+        openInfo('Image downloaded', 'This browser can\'t send images directly to WhatsApp — the receipt image was downloaded, attach it to the chat manually.');
       }
     } catch (e) {
       if (e && e.name === 'AbortError') { /* user cancelled the share sheet — not an error */ }
-      else if (link) {
-        // This browser can't share files at all — fall back to a text link.
-        const phoneDigits = String(state.customer?.phone || '').replace(/\D/g, '');
-        const message = `Terima kasih sudah berbelanja! Berikut struk Anda:\n${link}`;
-        const waUrl = phoneDigits
-          ? `https://wa.me/${phoneDigits}?text=${encodeURIComponent(message)}`
-          : `https://wa.me/?text=${encodeURIComponent(message)}`;
-        window.open(waUrl, '_blank');
-      } else {
-        openInfo('Send failed', 'Could not prepare the receipt image or link for this sale.');
-      }
+      else openInfo('Send failed', 'Could not prepare the receipt image for this sale.');
     } finally {
       sendWhatsappReceipt.disabled = false;
       sendWhatsappReceipt.textContent = original;
@@ -2644,9 +2639,6 @@ confirmPay.addEventListener('click', async () => {
   }
   if (receiptQr) {
     receiptQr.src = qrImageUrl;
-  }
-  if (sendWhatsappReceipt) {
-    sendWhatsappReceipt.dataset.link = receiptLink;
   }
 
   payModal.classList.remove('active');
