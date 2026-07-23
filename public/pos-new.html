@@ -107,19 +107,6 @@
             </div>
           </div>
 
-          <div class="order-redeem" id="orderRedeem" style="display:none;">
-            <div class="order-redeem-header">
-              <span class="label">Redeem Points</span>
-              <span class="order-redeem-balance" id="orderRedeemBalance">0 pts</span>
-            </div>
-            <div class="order-redeem-controls">
-              <input id="orderRedeemInput" type="number" min="0" step="1" placeholder="Points" />
-              <button class="pay" id="orderRedeemMax" type="button">Max</button>
-              <button class="pay" id="orderRedeemClear" type="button">Clear</button>
-              <span class="order-redeem-preview" id="orderRedeemPreview">—</span>
-            </div>
-          </div>
-
           <div class="order-list" id="orderList"></div>
 
           <div class="order-summary">
@@ -138,10 +125,6 @@
             <div class="summary-row" id="deliveryChargeRow" style="display:none;">
               <span id="deliveryChargeLabel">Delivery charge</span>
               <strong id="deliveryCharge">Rp 0</strong>
-            </div>
-            <div class="summary-row" id="redeemedRow" style="display:none;">
-              <span>Points Redeemed</span>
-              <strong id="redeemedValue">Rp 0</strong>
             </div>
             <div class="summary-row">
               <span>Loyalty Points</span>
@@ -441,27 +424,22 @@
             <div class="loyalty-setup-example" id="loyaltyEarnExample"></div>
           </div>
 
-          <div class="loyalty-setup-card" id="loyaltyRedeemCard">
-            <div class="loyalty-setup-card-head">
-              <span class="loyalty-setup-icon">🎁</span>
-              <span>Redemption</span>
-            </div>
-            <div class="loyalty-setup-field-row">
-              <div class="loyalty-setup-field">
-                <label for="loyaltyRedeemRate">Rupiah off</label>
-                <input type="number" id="loyaltyRedeemRate" min="0" step="10" />
-              </div>
-              <span class="loyalty-setup-per">per</span>
-              <div class="loyalty-setup-field loyalty-setup-field-static">
-                <label>&nbsp;</label>
-                <div class="loyalty-setup-static-value">1 point</div>
-              </div>
-            </div>
-            <div class="loyalty-setup-example" id="loyaltyRedeemExample"></div>
-          </div>
         </div>
 
-        <div class="loyalty-setup-preview" id="loyaltySetupPreview"></div>
+        <div class="loyalty-setup-card loyalty-rewards-card">
+          <div class="loyalty-setup-card-head">
+            <span class="loyalty-setup-icon">🎁</span>
+            <span>Reward Catalog</span>
+          </div>
+          <div class="muted" style="font-size:11px;">Points are spent on these instead of a rupiah discount.</div>
+          <div id="loyaltyRewardsList" class="loyalty-rewards-list"><div class="muted">Loading…</div></div>
+          <div class="loyalty-reward-form">
+            <input type="text" id="newRewardName" placeholder="Reward name" />
+            <input type="text" id="newRewardDesc" placeholder="Description (optional)" />
+            <input type="number" id="newRewardPoints" min="1" step="1" placeholder="Points" />
+            <button class="pay" id="addRewardBtn" type="button">+ Add</button>
+          </div>
+        </div>
       </div>
       <div class="modal-foot loyalty-setup-foot">
         <button class="ghost" id="resetLoyaltySetup" type="button">Reset to Defaults</button>
@@ -538,7 +516,7 @@
       <div class="modal-head">
         <div>
           <h3>Loyalty</h3>
-          <div class="muted" id="loyaltySubhead">Redeem points on this order.</div>
+          <div class="muted" id="loyaltySubhead">Redeem points for a reward.</div>
         </div>
         <button class="ghost" id="closeLoyalty" type="button">Close</button>
       </div>
@@ -756,19 +734,8 @@
   <div class="modal" id="receiptModal">
     <div class="modal-card receipt">
       <div class="receipt-left">
-          <div class="receipt-success">
-            <div class="receipt-check">✓</div>
-            <div>
-            <div class="receipt-title" id="receiptTitle">Payment Successful</div>
-            <div class="receipt-amount" id="receiptTotal">Rp 0</div>
-          </div>
-        </div>
-        <button class="pay" id="printReceipt">Print Full Receipt</button>
-        <button class="pay" id="btPrintReceipt">🖨 Print via Bluetooth</button>
-        <div class="receipt-email">
-          <input id="receiptEmail" type="email" placeholder="e.g. customer@mail.com" />
-          <button class="pay primary" id="sendReceipt">Send</button>
-        </div>
+        <button class="pay primary" id="btPrintReceipt" type="button">🖨 Print Receipt</button>
+        <button class="pay primary" id="sendWhatsappReceipt" type="button">💬 Send via WhatsApp</button>
         <button class="pay primary" id="newOrder">New Order</button>
       </div>
       <div class="receipt-right" id="receiptPreview">

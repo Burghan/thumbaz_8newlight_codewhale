@@ -48,6 +48,7 @@ app.use('/api/pos-ingredients', posRole, require('./routes/pos-ingredients'));
 app.use('/api/pos-category-sales', posRole, require('./routes/pos-category-sales'));
 app.use('/api/customers', posRole, require('./routes/customers'));
 app.use('/api/loyalty-config', posRole, require('./routes/loyalty-config'));
+app.use('/api/loyalty-rewards', posRole, require('./routes/loyalty-rewards'));
 app.use('/api/order-types', posRole, require('./routes/order-types'));
 app.use('/api/qr', posRole, require('./routes/qr'));
 app.get('/api/clock/status', (req, res) => res.json({active:false,employee:null}));

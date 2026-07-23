@@ -334,24 +334,28 @@
     }
   }
 
-  // ---- print method: native Android bridge vs RawBT vs direct Web Bluetooth -
-  // 'native' talks to Android's own Bluetooth stack directly (see BlePrinter.kt
-  // in the Android wrapper, exposed as window.AndroidPrinter) — no external app,
-  // no Chrome Web Bluetooth flakiness. RawBT (free Android app, package
-  // ru.a402d.rawbtprinter) is a fallback that owns the printer via its own native
-  // Bluetooth stack, handed the job through its intent URL scheme. Web Bluetooth
-  // stays as the direct/desktop option.
-  var METHOD_KEY = 'print_method'; // 'native' | 'rawbt' | 'webble'
+  // ---- print method: native Android bridge vs RawBT vs direct Web Bluetooth
+  // vs a regular (non-Bluetooth) printer through the browser's own print
+  // dialog. 'native' talks to Android's own Bluetooth stack directly (see
+  // BlePrinter.kt in the Android wrapper, exposed as window.AndroidPrinter) —
+  // no external app, no Chrome Web Bluetooth flakiness. RawBT (free Android
+  // app, package ru.a402d.rawbtprinter) is a fallback that owns the printer
+  // via its own native Bluetooth stack, handed the job through its intent URL
+  // scheme — this is also what a *classic* (non-BLE) Bluetooth thermal
+  // printer needs, since Web Bluetooth can only see BLE devices. 'browser'
+  // is for shops using any other printer (USB/WiFi/AirPrint/etc.) already
+  // set up at the OS level — just defers to window.print().
+  var METHOD_KEY = 'print_method'; // 'native' | 'rawbt' | 'webble' | 'browser'
   function nativeAvailable() {
     return !!(window.AndroidPrinter && window.AndroidPrinter.isAvailable && window.AndroidPrinter.isAvailable());
   }
   function printMethod() {
     var m = lsGet(METHOD_KEY);
-    if (m === 'native' || m === 'rawbt' || m === 'webble') return m;
+    if (m === 'native' || m === 'rawbt' || m === 'webble' || m === 'browser') return m;
     return nativeAvailable() ? 'native' : 'webble'; // default to native when running inside the wrapper app
   }
   function setPrintMethod(m) {
-    lsSet(METHOD_KEY, (m === 'native' || m === 'rawbt') ? m : 'webble');
+    lsSet(METHOD_KEY, (m === 'native' || m === 'rawbt' || m === 'browser') ? m : 'webble');
   }
 
   function bytesToBase64(bytes) {
@@ -390,9 +394,12 @@
   }
 
   async function printReceipt() {
+    var m = printMethod();
+    // Regular printer (USB/WiFi/AirPrint/etc.) — no ESC/POS rendering, just
+    // the browser's own print dialog against whatever's set up at the OS level.
+    if (m === 'browser') { window.print(); return; }
     var rendered = await renderCanvas();
     var bytes = toEscPos(rendered.ctx, rendered.height);
-    var m = printMethod();
     if (m === 'native') { await nativePrint(bytes); return; }
     if (m === 'rawbt') { rawbtPrint(bytes); return; }
     var device = await resolveDevice();
@@ -402,6 +409,10 @@
 
   // Small text test slip, for the setup screen's "Test print" button.
   async function testPrint() {
+    var m = printMethod();
+    // No ESC/POS device to talk to for a regular printer — just open the
+    // browser's own print dialog so they can confirm it's listed there.
+    if (m === 'browser') { window.print(); return; }
     var e = [0x1B, 0x40, 0x1B, 0x61, 0x01]; // init + centre
     var line = function (s) { for (var i = 0; i < s.length; i++) { var c = s.charCodeAt(i); e.push(c < 256 ? c : 63); } e.push(0x0A); };
     e.push(0x1D, 0x21, 0x11); line('8 NewLight'); e.push(0x1D, 0x21, 0x00);
@@ -410,7 +421,6 @@
     line(new Date().toLocaleString('id-ID'));
     e.push(0x0A, 0x0A, 0x0A, 0x1D, 0x56, 0x42, 0x00);
     var bytes = new Uint8Array(e);
-    var m = printMethod();
     if (m === 'native') { await nativePrint(bytes); return; }
     if (m === 'rawbt') { rawbtPrint(bytes); return; }
     var device = await resolveDevice();

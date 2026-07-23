@@ -5,7 +5,7 @@ if (auth && userChip) {
   userChip.textContent = `Cashier: ${auth.name || 'User'}`;
 }
 if (auth && posUser) {
-  posUser.textContent = auth.name || 'User';
+  posUser.textContent = `User: ${auth.name || 'User'}`;
 }
 
 const settings = loadSettings();
@@ -31,8 +31,6 @@ const state = {
   currentTableName: null,
   customerId: null,
   customer: null,
-  redeemPoints: 0,
-  redeemValue: 0,
   orderDiscount: 0,
   ordersViewSelectedId: null,
   ordersTypeFilter: ''
@@ -41,7 +39,7 @@ const state = {
 // the Loyalty Setup screen). These are only for previews; the server recomputes
 // authoritatively at checkout. Seeded with the historical defaults so the UI is
 // sane before the fetch resolves.
-let loyaltyConfig = { earn_base: 10000, earn_points: 1, redeem_rate: 100, enabled: 1 };
+let loyaltyConfig = { earn_base: 10000, earn_points: 1, redeem_rate: 0, enabled: 1 };
 async function loadLoyaltyConfig() {
   try {
     const res = await fetch('/api/loyalty-config', { credentials: 'same-origin' });
@@ -100,8 +98,6 @@ const subtotalEl = document.getElementById('subtotal');
 const taxEl = document.getElementById('tax');
 const discountEl = document.getElementById('discount');
 const loyaltyPointsEl = document.getElementById('loyaltyPoints');
-const redeemedRow = document.getElementById('redeemedRow');
-const redeemedValueEl = document.getElementById('redeemedValue');
 const totalEl = document.getElementById('total');
 const searchInput = document.getElementById('searchInput');
 const clearOrder = document.getElementById('clearOrder');
@@ -196,10 +192,8 @@ const receiptFooterText = document.getElementById('receiptFooterText');
 const receiptLogoImg = document.getElementById('receiptLogoImg');
 const receiptLogoText = document.getElementById('receiptLogoText');
 const receiptQr = document.getElementById('receiptQr');
-const printReceipt = document.getElementById('printReceipt');
-const sendReceipt = document.getElementById('sendReceipt');
-const receiptEmail = document.getElementById('receiptEmail');
 const newOrder = document.getElementById('newOrder');
+const sendWhatsappReceipt = document.getElementById('sendWhatsappReceipt');
 const payTile = document.getElementById('payTile');
 const cashMoveBtn = document.getElementById('cashMoveBtn');
 const ordersBtn = document.getElementById('ordersBtn');
@@ -723,10 +717,10 @@ function setClock() {
   const now = new Date();
   const p = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Jakarta', day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    hour: '2-digit', minute: '2-digit', hour12: false
   }).formatToParts(now).reduce((acc, x) => { acc[x.type] = x.value; return acc; }, {});
   const weekday = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long' }).format(now);
-  clock.textContent = `${weekday}, ${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}:${p.second}`;
+  clock.textContent = `${weekday}, ${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}`;
 }
 
 function renderCategories() {
@@ -987,10 +981,8 @@ function calculateTotals() {
   const taxable = Math.max(0, subtotal - totalDiscount);
   const tax = taxable * (taxRate / 100);
   const gross = taxable + tax;
-  // Loyalty redemption applied to the whole order, capped at the bill.
-  const redeemValue = Math.min(Number(state.redeemValue || 0), gross);
-  const total = gross - redeemValue;
-  return { subtotal, discount: totalDiscount, orderDiscountPct, orderDiscountAmt, deliveryDiscount, perItem, tax, redeemValue, total };
+  const total = gross;
+  return { subtotal, discount: totalDiscount, orderDiscountPct, orderDiscountAmt, deliveryDiscount, perItem, tax, total };
 }
 
 function calculateTotalsForItems(items) {
@@ -1011,7 +1003,7 @@ function calculateTotalsForItems(items) {
 
 function updateTotals() {
   const totals = calculateTotals();
-  const { subtotal, discount, deliveryDiscount, tax, redeemValue, total } = totals;
+  const { subtotal, discount, deliveryDiscount, tax, total } = totals;
   subtotalEl.textContent = formatCurrency(subtotal);
   // Discount line shows manual/line discounts; the delivery-platform charge gets
   // its own labelled row so it's clear where it comes from (both are in `total`).
@@ -1028,14 +1020,6 @@ function updateTotals() {
     }
   }
   if (taxEl) taxEl.textContent = formatCurrency(tax);
-  if (redeemedRow && redeemedValueEl) {
-    if (redeemValue > 0) {
-      redeemedValueEl.textContent = `- ${formatCurrency(redeemValue)}`;
-      redeemedRow.style.display = '';
-    } else {
-      redeemedRow.style.display = 'none';
-    }
-  }
   totalEl.textContent = formatCurrency(total);
   modalTotal.textContent = formatCurrency(total);
   if (loyaltyPointsEl) {
@@ -1077,8 +1061,6 @@ function resetOrderState() {
   // loyalty link — their points would be awarded to whoever ordered next.
   state.customerId = null;
   state.customer = null;
-  state.redeemPoints = 0;
-  state.redeemValue = 0;
   state.orderDiscount = 0;
   if (customerInput) customerInput.value = '';
   if (loyaltyInput) loyaltyInput.value = '';
@@ -1133,6 +1115,7 @@ function openReceiptFromHeld(order) {
   }
   if (receiptFooterText) receiptFooterText.textContent = settings.receiptFooter || 'Thank you!';
   if (receiptQr) receiptQr.src = qrImageUrl;
+  if (sendWhatsappReceipt) sendWhatsappReceipt.dataset.link = receiptLink;
   if (receiptCustomer) {
     if (order.customerName) {
       receiptCustomer.textContent = `Customer: ${order.customerName}`;
@@ -1237,11 +1220,10 @@ function renderPaymentLoyalty(customer) {
   }
   const c = customer || state.customer || {};
   const balance = Number(c.points_balance || 0);
-  const applied = Number(state.redeemPoints || 0);
   // Same formula updateTotals() uses for the cart sidebar's "Loyalty Points"
   // row — kept identical so the two never show contradicting numbers.
   const pointsWon = earnBase > 0 ? Math.floor(calculateTotals().total / earnBase) * earnPoints : 0;
-  const newTotal = balance + pointsWon - applied;
+  const newTotal = balance + pointsWon;
   body.innerHTML = `
     <div class="pay-loyalty-tiles">
       <div class="pay-loyalty-tile"><div class="tile-label">Points Won</div><div class="tile-value">${pointsWon}</div></div>
@@ -1553,67 +1535,14 @@ function setSelectedCustomer(row) {
   state.customer = row || null;
   if (customerInput) customerInput.value = row?.name || '';
   if (loyaltyInput) loyaltyInput.value = row?.member_id || '';
-  clearRedemption();
   updatePaymentCustomerLabel();
-  // Refresh the inline order redeem controls if the customer was picked from
-  // the order panel, or the payment modal's loyalty panel if inside Pay.
-  updateOrderRedeem();
   if (payModal?.classList.contains('active')) refreshPaymentLoyalty();
 }
 
-function clearRedemption() {
-  state.redeemPoints = 0;
-  state.redeemValue = 0;
-  updateTotals();
-  const input = document.getElementById('orderRedeemInput');
-  if (input) input.value = '';
-}
-
-// Show/hide the inline redeem controls in the order panel when a customer with
-// loyalty is selected (pre-transaction).
-function updateOrderRedeem() {
-  const row = document.getElementById('orderRedeem');
-  if (!row) return;
-  const c = state.customer;
-  if (c && c.id && Number(c.points_balance) > 0 && Number(loyaltyConfig.redeem_rate || 0) > 0) {
-    row.style.display = '';
-    document.getElementById('orderRedeemBalance').textContent = `${Number(c.points_balance)} pts`;
-    renderOrderRedeemPreview();
-  } else {
-    row.style.display = 'none';
-  }
-}
-
-function renderOrderRedeemPreview() {
-  const rate = Number(loyaltyConfig.redeem_rate || 0);
-  const preview = document.getElementById('orderRedeemPreview');
-  if (preview) {
-    preview.textContent = state.redeemPoints > 0 ? '- ' + formatCurrency(state.redeemPoints * rate) : '—';
-  }
-}
-
-// Apply order-redeem input and wire up max/clear buttons for the inline panel.
-function applyOrderRedeem() {
-  const input = document.getElementById('orderRedeemInput');
-  if (!input) return;
-  const c = state.customer;
-  const rate = Number(loyaltyConfig.redeem_rate || 0);
-  if (rate <= 0) return;
-  const balance = Number(c?.points_balance || 0);
-  const orderTotalGross = calculateTotals().total + Number(state.redeemValue || 0);
-  const maxByBill = Math.ceil(orderTotalGross / rate);
-  const maxRedeem = Math.max(0, Math.min(balance, maxByBill));
-  let p = Math.max(0, Math.floor(Number(input.value) || 0));
-  if (p > maxRedeem) { p = maxRedeem; input.value = String(p); }
-  state.redeemPoints = p;
-  state.redeemValue = p * rate;
-  updateTotals();
-  updateChangeDisplay();
-  renderOrderRedeemPreview();
-}
-
-// Loyalty redemption panel — open from the Loyalty chip. Needs a member and an
-// order to discount; redemption is validated/settled server-side at checkout.
+// Loyalty redemption panel — open from the Loyalty chip. Spends points on a
+// named reward from the catalog (server/routes/loyalty-rewards.js);
+// independent of any order/sale, so it can be opened any time a member is
+// selected, not just at checkout.
 async function openLoyaltyModal() {
   if (!loyaltyModal) return;
   if (!state.customerId) {
@@ -1633,55 +1562,60 @@ async function openLoyaltyModal() {
     });
     if (res.ok) { customer = (await res.json()).customer; state.customer = customer; }
   } catch (e) { /* fall back to cached */ }
-  renderLoyaltyBody(customer);
+  let rewards = [];
+  try {
+    const res = await fetch('/api/loyalty-rewards', { headers: typeof authHeaders === 'function' ? authHeaders() : {}, cache: 'no-store' });
+    if (res.ok) rewards = (await res.json()).rewards || [];
+  } catch (e) { /* show whatever we have */ }
+  renderLoyaltyBody(customer, rewards);
 }
 
-function renderLoyaltyBody(customer) {
+function renderLoyaltyBody(customer, rewards) {
   const balance = Number(customer?.points_balance || 0);
-  const orderTotalGross = calculateTotals().total + Number(state.redeemValue || 0); // total before this redemption
-  const REDEEM_RATE = Number(loyaltyConfig.redeem_rate || 0);
-  // Can't redeem more than the customer has, nor more than the bill is worth.
-  const maxByBill = REDEEM_RATE > 0 ? Math.ceil(orderTotalGross / REDEEM_RATE) : 0;
-  const maxRedeem = Math.max(0, Math.min(balance, maxByBill));
-  const applied = Number(state.redeemPoints || 0);
   loyaltyBody.innerHTML = `
     <div class="loyalty-summary">
       <div><strong>${customer?.name || 'Customer'}</strong>${customer?.member_id ? ` · ${customer.member_id}` : ''}</div>
       <div class="loyalty-balance">${balance} pts available</div>
-      <div class="muted">1 pt = ${formatCurrency(REDEEM_RATE)} · order ${formatCurrency(orderTotalGross)}</div>
     </div>
-    <div class="loyalty-redeem-row">
-      <input id="loyaltyPointsInput" type="number" min="0" step="1" max="${maxRedeem}" value="${applied || ''}" placeholder="Points to redeem" />
-      <span id="loyaltyRedeemPreview" class="loyalty-preview">${applied ? '- ' + formatCurrency(applied * REDEEM_RATE) : '—'}</span>
+    <div class="loyalty-rewards-list" id="loyaltyRewardsRedeemList">
+      ${rewards.length ? rewards.map((r) => {
+        const affordable = balance >= r.points_cost;
+        return `
+        <div class="loyalty-reward-row${affordable ? '' : ' is-inactive'}">
+          <div class="reward-info">
+            <div class="reward-name">${r.name}</div>
+            ${r.description ? `<div class="reward-desc">${r.description}</div>` : ''}
+          </div>
+          <div class="reward-cost">${r.points_cost} pts</div>
+          <button type="button" class="pay${affordable ? ' primary' : ''}" data-redeem-id="${r.id}" ${affordable ? '' : 'disabled'}>Redeem</button>
+        </div>`;
+      }).join('') : '<div class="muted">No rewards set up yet — add some in Loyalty Setup.</div>'}
     </div>
-    <div class="loyalty-actions">
-      <button class="pay" id="loyaltyMaxBtn" type="button">Use max (${maxRedeem})</button>
-      ${applied ? '<button class="pay" id="loyaltyClearBtn" type="button">Clear</button>' : ''}
-      <button class="pay primary" id="loyaltyApplyBtn" type="button">Apply</button>
-    </div>
-    ${maxRedeem === 0 ? '<div class="muted">Nothing to redeem — no points or empty order.</div>' : ''}
   `;
-  const input = loyaltyBody.querySelector('#loyaltyPointsInput');
-  const preview = loyaltyBody.querySelector('#loyaltyRedeemPreview');
-  const clampPts = () => {
-    let p = Math.max(0, Math.floor(Number(input.value) || 0));
-    if (p > maxRedeem) { p = maxRedeem; input.value = String(p); }
-    preview.textContent = p > 0 ? `- ${formatCurrency(p * REDEEM_RATE)}` : '—';
-    return p;
-  };
-  input.addEventListener('input', clampPts);
-  loyaltyBody.querySelector('#loyaltyMaxBtn')?.addEventListener('click', () => { input.value = String(maxRedeem); clampPts(); });
-  loyaltyBody.querySelector('#loyaltyClearBtn')?.addEventListener('click', () => {
-    clearRedemption();
-    closeLoyaltyModal();
-    openInfo('Redemption cleared', 'Loyalty discount removed from this order.');
-  });
-  loyaltyBody.querySelector('#loyaltyApplyBtn')?.addEventListener('click', () => {
-    const p = clampPts();
-    state.redeemPoints = p;
-    state.redeemValue = p * REDEEM_RATE;
-    updateTotals();
-    closeLoyaltyModal();
+  loyaltyBody.querySelectorAll('[data-redeem-id]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const rewardId = btn.getAttribute('data-redeem-id');
+      const reward = rewards.find((r) => String(r.id) === rewardId);
+      if (!reward) return;
+      const ok = await appConfirm(`Redeem ${reward.points_cost} points for "${reward.name}"?`);
+      if (!ok) return;
+      btn.disabled = true; btn.textContent = 'Redeeming…';
+      try {
+        const res = await fetch(`/api/loyalty-rewards/${rewardId}/redeem`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
+          body: JSON.stringify({ customer_id: state.customerId })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Redemption failed');
+        state.customer = data.customer;
+        openInfo('Redeemed', `"${reward.name}" redeemed — ${data.customer.points_balance} pts remaining.`);
+        renderLoyaltyBody(data.customer, rewards);
+      } catch (err) {
+        openInfo('Redemption failed', err.message || 'Could not redeem this reward.');
+        btn.disabled = false; btn.textContent = 'Redeem';
+      }
+    });
   });
 }
 
@@ -2087,52 +2021,110 @@ receiptModal?.addEventListener('click', (event) => {
   if (event.target === receiptModal) receiptModal.classList.remove('active');
 });
 
-if (printReceipt) {
-  printReceipt.addEventListener('click', () => {
-    window.print();
+// The single "Print Receipt" button (#btPrintReceipt) is wired up by
+// ble-print.js's own delegated listener — it already dispatches to
+// native/rawbt/webble/browser based on whatever this device's Printer Setup
+// picked, so there's nothing to bind here.
+
+// Captures the ACTUAL rendered receipt (real CSS text rendering, not a
+// hand-drawn copy) by embedding a clone of it inside an SVG <foreignObject>
+// and drawing that to a canvas — same technique as receipt-view.html's own
+// "Share Receipt Image", so what gets sent from the POS looks identical to
+// what a customer would generate themselves from the digital receipt link.
+function loadImageEl(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
   });
 }
+async function domToImageCanvas(el, scale) {
+  const rect = el.getBoundingClientRect();
+  const width = Math.ceil(rect.width);
+  const height = Math.ceil(rect.height);
 
-if (sendReceipt) {
-  sendReceipt.addEventListener('click', () => {
-    const email = receiptEmail?.value.trim();
-    if (!email) {
-      openInfo('Email required', 'Please enter an email address.');
-      return;
-    }
-    const payload = {
-      toEmail: email,
-      receipt: {
-        ticket: receiptTicket?.textContent || '',
-        time: receiptTime?.textContent || '',
-        orderType: receiptOrderType?.textContent || '',
-        subtotal: receiptSubtotal?.textContent || '',
-        tax: receiptTax?.textContent || '',
-        total: receiptTotal2?.textContent || '',
-        footer: receiptFooterText?.textContent || '',
-        link: sendReceipt.dataset.link || '',
-        qrUrl: sendReceipt.dataset.qr || ''
-      }
-    };
-    fetch('/api/receipt/email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.message || 'Failed to send');
-        }
-        return res.json().catch(() => ({}));
-      })
-      .then(() => {
-        openInfo('Sent', 'Receipt sent.');
-        if (receiptEmail) receiptEmail.value = '';
-      })
-      .catch((err) => {
-        openInfo('Email failed', err.message || 'Failed to send receipt.');
+  const clone = el.cloneNode(true);
+  clone.querySelectorAll('img').forEach((img) => {
+    img.setAttribute('src', new URL(img.getAttribute('src'), location.href).href);
+  });
+
+  let css = '';
+  for (const sheet of document.styleSheets) {
+    try {
+      for (const rule of sheet.cssRules) css += rule.cssText + '\n';
+    } catch (e) { /* cross-origin sheet — skip */ }
+  }
+
+  const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+    <foreignObject width="100%" height="100%">
+      <html xmlns="http://www.w3.org/1999/xhtml">
+        <head><style>${css}</style></head>
+        <body style="margin:0;">
+          <div style="width:${width}px;">${clone.outerHTML}</div>
+        </body>
+      </html>
+    </foreignObject>
+  </svg>`;
+
+  const svgBlob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(svgBlob);
+  try {
+    const img = await loadImageEl(url);
+    if (!img || !img.width) throw new Error('Could not rasterize the receipt');
+    const canvas = document.createElement('canvas');
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
+    return canvas;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+// Shares the receipt as a real image (native share sheet, WhatsApp among the
+// options) instead of just a text link — falls back to a wa.me text link only
+// if this browser can't share files at all.
+if (sendWhatsappReceipt) {
+  sendWhatsappReceipt.addEventListener('click', async () => {
+    const link = sendWhatsappReceipt.dataset.link || '';
+    const paper = document.querySelector('#receiptPreview .receipt-paper');
+    const original = sendWhatsappReceipt.textContent;
+    sendWhatsappReceipt.disabled = true;
+    sendWhatsappReceipt.textContent = 'Preparing image…';
+    try {
+      if (!paper) throw new Error('Receipt not available to capture');
+      const canvas = await domToImageCanvas(paper, 3);
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Image export failed'))), 'image/png');
       });
+      const file = new File([blob], 'receipt.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text: link ? `Terima kasih! Struk Anda: ${link}` : undefined });
+      } else {
+        throw new Error('no-share');
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') { /* user cancelled the share sheet — not an error */ }
+      else if (link) {
+        // This browser can't share files at all — fall back to a text link.
+        const phoneDigits = String(state.customer?.phone || '').replace(/\D/g, '');
+        const message = `Terima kasih sudah berbelanja! Berikut struk Anda:\n${link}`;
+        const waUrl = phoneDigits
+          ? `https://wa.me/${phoneDigits}?text=${encodeURIComponent(message)}`
+          : `https://wa.me/?text=${encodeURIComponent(message)}`;
+        window.open(waUrl, '_blank');
+      } else {
+        openInfo('Send failed', 'Could not prepare the receipt image or link for this sale.');
+      }
+    } finally {
+      sendWhatsappReceipt.disabled = false;
+      sendWhatsappReceipt.textContent = original;
+    }
   });
 }
 
@@ -2169,9 +2161,7 @@ if (customerInput) {
     state.customerId = null;
     state.customer = null;
     if (loyaltyInput) loyaltyInput.value = '';
-    clearRedemption();
     updatePaymentCustomerLabel();
-    updateOrderRedeem();
     // Debounced server lookup: if the typed name matches one customer, auto-fill.
     clearTimeout(customerLookupTimer);
     const val = customerInput.value.trim();
@@ -2433,26 +2423,6 @@ document.getElementById('payQuickCash')?.addEventListener('click', (event) => {
   }
 });
 
-// Inline redeem controls in the order panel.
-document.getElementById('orderRedeemInput')?.addEventListener('input', applyOrderRedeem);
-document.getElementById('orderRedeemMax')?.addEventListener('click', () => {
-  const c = state.customer;
-  const rate = Number(loyaltyConfig.redeem_rate || 0);
-  if (rate <= 0) return;
-  const balance = Number(c?.points_balance || 0);
-  const orderTotalGross = calculateTotals().total + Number(state.redeemValue || 0);
-  const maxRedeem = Math.max(0, Math.min(balance, Math.ceil(orderTotalGross / rate)));
-  const input = document.getElementById('orderRedeemInput');
-  if (input) { input.value = String(maxRedeem); applyOrderRedeem(); }
-  updateOrderRedeem();
-});
-document.getElementById('orderRedeemClear')?.addEventListener('click', () => {
-  clearRedemption();
-  const input = document.getElementById('orderRedeemInput');
-  if (input) input.value = '';
-  updateOrderRedeem();
-});
-
 if (paymentCustomerBtn) {
   paymentCustomerBtn.addEventListener('click', () => {
     openCustomerModal();
@@ -2534,7 +2504,6 @@ confirmPay.addEventListener('click', async () => {
     amount_tendered: method === 'cash' ? tendered : null,
     note: transactionNote?.value.trim() || '',
     customer_id: state.customerId || null,
-    redeem_points: state.customerId ? Number(state.redeemPoints || 0) : 0,
     discount_pct: discountPct,
     discount_reason: discountPct > 0 ? discountReason : '',
     manager_pin: discountPct > 0 ? discountPin : ''
@@ -2675,19 +2644,9 @@ confirmPay.addEventListener('click', async () => {
   }
   if (receiptQr) {
     receiptQr.src = qrImageUrl;
-    fetch(`/api/qr?text=${encodeURIComponent(receiptLink)}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error('QR service unavailable');
-        const data = await res.json();
-        if (!data.dataUrl) throw new Error('QR failed');
-        if (sendReceipt) sendReceipt.dataset.qr = data.dataUrl;
-      })
-      .catch(() => {
-        if (sendReceipt) sendReceipt.dataset.qr = qrImageUrl;
-      });
   }
-  if (sendReceipt) {
-    sendReceipt.dataset.link = receiptLink;
+  if (sendWhatsappReceipt) {
+    sendWhatsappReceipt.dataset.link = receiptLink;
   }
 
   payModal.classList.remove('active');
@@ -2730,8 +2689,6 @@ confirmPay.addEventListener('click', async () => {
   // before the NEXT order starts fresh instead of inheriting this one.
   state.customerId = null;
   state.customer = null;
-  state.redeemPoints = 0;
-  state.redeemValue = 0;
   state.orderDiscount = 0;
   if (customerInput) customerInput.value = '';
   if (loyaltyInput) loyaltyInput.value = '';
@@ -2873,27 +2830,29 @@ manageModifiersModal?.addEventListener('click', (event) => {
   if (event.target === manageModifiersModal) manageModifiersModal.classList.remove('active');
 });
 
-// ---- Loyalty Setup (manager-only): edit how points are earned/redeemed ----
+// ---- Loyalty Setup (manager-only): edit how points are earned + manage the
+// reward catalog they're redeemed for ----
 const loyaltySetupBtn = document.getElementById('loyaltySetupBtn');
 const loyaltySetupModal = document.getElementById('loyaltySetupModal');
 const closeLoyaltySetup = document.getElementById('closeLoyaltySetup');
 const loyaltyEnabledInput = document.getElementById('loyaltyEnabled');
 const loyaltyEarnPointsInput = document.getElementById('loyaltyEarnPoints');
 const loyaltyEarnBaseInput = document.getElementById('loyaltyEarnBase');
-const loyaltyRedeemRateInput = document.getElementById('loyaltyRedeemRate');
-const loyaltySetupPreview = document.getElementById('loyaltySetupPreview');
 const loyaltySetupBadge = document.getElementById('loyaltySetupBadge');
 const loyaltySetupUpdated = document.getElementById('loyaltySetupUpdated');
 const loyaltyEarnCard = document.getElementById('loyaltyEarnCard');
-const loyaltyRedeemCard = document.getElementById('loyaltyRedeemCard');
 const loyaltyEarnExample = document.getElementById('loyaltyEarnExample');
-const loyaltyRedeemExample = document.getElementById('loyaltyRedeemExample');
 const resetLoyaltySetup = document.getElementById('resetLoyaltySetup');
 const saveLoyaltySetup = document.getElementById('saveLoyaltySetup');
+const loyaltyRewardsList = document.getElementById('loyaltyRewardsList');
+const newRewardName = document.getElementById('newRewardName');
+const newRewardDesc = document.getElementById('newRewardDesc');
+const newRewardPoints = document.getElementById('newRewardPoints');
+const addRewardBtn = document.getElementById('addRewardBtn');
 
-// Historical defaults — what the program shipped with before it became
+// Historical defaults — what the earn side shipped with before it became
 // configurable. Used to seed a fresh install and by "Reset to Defaults".
-const LOYALTY_SETUP_DEFAULTS = { enabled: true, earn_points: 1, earn_base: 10000, redeem_rate: 100 };
+const LOYALTY_SETUP_DEFAULTS = { enabled: true, earn_points: 1, earn_base: 10000 };
 
 function formatLoyaltyUpdatedAt(value) {
   if (!value) return 'Never edited — using defaults.';
@@ -2903,10 +2862,8 @@ function formatLoyaltyUpdatedAt(value) {
 }
 
 function renderLoyaltySetupPreview() {
-  if (!loyaltySetupPreview) return;
   const base = Math.max(0, Number(loyaltyEarnBaseInput.value) || 0);
   const pts = Math.max(0, Number(loyaltyEarnPointsInput.value) || 0);
-  const rate = Math.max(0, Number(loyaltyRedeemRateInput.value) || 0);
   const on = loyaltyEnabledInput.checked;
 
   if (loyaltySetupBadge) {
@@ -2914,33 +2871,144 @@ function renderLoyaltySetupPreview() {
     loyaltySetupBadge.classList.toggle('off', !on);
   }
   loyaltyEarnCard?.classList.toggle('is-off', !on);
-  loyaltyRedeemCard?.classList.toggle('is-off', !on);
 
   if (loyaltyEarnExample) {
-    loyaltyEarnExample.textContent = base > 0
-      ? `Rp 10,000 order → ${Math.floor(10000 / base) * pts} pt${Math.floor(10000 / base) * pts === 1 ? '' : 's'} earned`
-      : 'Set a spend amount to earn points';
+    loyaltyEarnExample.textContent = !on
+      ? 'Program off — no points earned on new sales.'
+      : (base > 0
+        ? `Rp 10,000 order → ${Math.floor(10000 / base) * pts} pt${Math.floor(10000 / base) * pts === 1 ? '' : 's'} earned`
+        : 'Set a spend amount to earn points');
   }
-  if (loyaltyRedeemExample) {
-    loyaltyRedeemExample.textContent = rate > 0
-      ? `10 points → ${formatCurrency(rate * 10)} off`
-      : 'Redemption disabled (Rp0 off)';
-  }
-
-  if (!on) {
-    loyaltySetupPreview.textContent = 'Program off — no points earned or redeemed on new sales.';
-    return;
-  }
-  const earnMsg = base > 0 ? `Spend ${formatCurrency(base)} → earn ${pts} pt${pts === 1 ? '' : 's'}.` : 'Set a spend amount to earn points.';
-  const redeemMsg = rate > 0 ? ` Each point is worth ${formatCurrency(rate)} off.` : ' Redemption disabled (1 pt = Rp0).';
-  loyaltySetupPreview.textContent = earnMsg + redeemMsg;
 }
+
+let loyaltyRewardsCache = [];
+let editingRewardId = null;
+
+async function loadLoyaltyRewardsSetup() {
+  if (!loyaltyRewardsList) return;
+  loyaltyRewardsList.innerHTML = '<div class="muted">Loading…</div>';
+  editingRewardId = null;
+  let rewards = [];
+  try {
+    const res = await fetch('/api/loyalty-rewards?all=1', { headers: typeof authHeaders === 'function' ? authHeaders() : {}, cache: 'no-store' });
+    if (res.ok) rewards = (await res.json()).rewards || [];
+  } catch (e) { /* show empty */ }
+  loyaltyRewardsCache = rewards;
+  renderLoyaltyRewardsSetup(rewards);
+}
+
+function renderLoyaltyRewardsSetup(rewards) {
+  loyaltyRewardsList.innerHTML = rewards.length ? rewards.map((r) => {
+    if (String(r.id) === String(editingRewardId)) {
+      return `
+      <div class="loyalty-reward-row loyalty-reward-row-editing">
+        <div class="reward-info loyalty-reward-edit-fields">
+          <input type="text" class="edit-name" value="${(r.name || '').replace(/"/g, '&quot;')}" placeholder="Reward name" />
+          <input type="text" class="edit-desc" value="${(r.description || '').replace(/"/g, '&quot;')}" placeholder="Description (optional)" />
+          <input type="number" class="edit-points" min="1" step="1" value="${r.points_cost}" placeholder="Points" />
+        </div>
+        <button type="button" data-save-id="${r.id}">Save</button>
+        <button type="button" data-cancel-edit="1">Cancel</button>
+      </div>`;
+    }
+    return `
+    <div class="loyalty-reward-row${r.active ? '' : ' is-inactive'}">
+      <div class="reward-info">
+        <div class="reward-name">${r.name}</div>
+        ${r.description ? `<div class="reward-desc">${r.description}</div>` : ''}
+      </div>
+      <div class="reward-cost">${r.points_cost} pts</div>
+      <button type="button" data-edit-id="${r.id}">Edit</button>
+      <button type="button" data-toggle-id="${r.id}" data-active="${r.active}">${r.active ? 'Retire' : 'Restore'}</button>
+      <button type="button" data-delete-id="${r.id}">Delete</button>
+    </div>`;
+  }).join('') : '<div class="muted">No rewards yet — add one below.</div>';
+
+  loyaltyRewardsList.querySelectorAll('[data-edit-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      editingRewardId = btn.getAttribute('data-edit-id');
+      renderLoyaltyRewardsSetup(loyaltyRewardsCache);
+    });
+  });
+  loyaltyRewardsList.querySelectorAll('[data-cancel-edit]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      editingRewardId = null;
+      renderLoyaltyRewardsSetup(loyaltyRewardsCache);
+    });
+  });
+  loyaltyRewardsList.querySelectorAll('[data-save-id]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-save-id');
+      const row = btn.closest('.loyalty-reward-row');
+      const name = row.querySelector('.edit-name').value.trim();
+      const description = row.querySelector('.edit-desc').value.trim();
+      const points = Math.floor(Number(row.querySelector('.edit-points').value));
+      if (!name) { openInfo('Name required', 'Give the reward a name.'); return; }
+      if (!Number.isFinite(points) || points < 1) { openInfo('Invalid points', 'Points cost must be at least 1.'); return; }
+      try {
+        const res = await fetch(`/api/loyalty-rewards/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
+          body: JSON.stringify({ name, description, points_cost: points })
+        });
+        if (!res.ok) throw new Error('save failed');
+        editingRewardId = null;
+        loadLoyaltyRewardsSetup();
+      } catch (e) { openInfo('Failed', 'Could not save this reward.'); }
+    });
+  });
+  loyaltyRewardsList.querySelectorAll('[data-toggle-id]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-toggle-id');
+      const nextActive = btn.getAttribute('data-active') !== 'true';
+      try {
+        await fetch(`/api/loyalty-rewards/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
+          body: JSON.stringify({ active: nextActive })
+        });
+        loadLoyaltyRewardsSetup();
+      } catch (e) { openInfo('Failed', 'Could not update this reward.'); }
+    });
+  });
+  loyaltyRewardsList.querySelectorAll('[data-delete-id]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-delete-id');
+      const ok = await appConfirm('Delete this reward? Past redemptions keep their own record.');
+      if (!ok) return;
+      try {
+        await fetch(`/api/loyalty-rewards/${id}`, {
+          method: 'DELETE',
+          headers: typeof authHeaders === 'function' ? authHeaders() : {}
+        });
+        loadLoyaltyRewardsSetup();
+      } catch (e) { openInfo('Failed', 'Could not delete this reward.'); }
+    });
+  });
+}
+
+addRewardBtn?.addEventListener('click', async () => {
+  const name = newRewardName.value.trim();
+  const description = newRewardDesc.value.trim();
+  const points = Math.floor(Number(newRewardPoints.value));
+  if (!name) { openInfo('Name required', 'Give the reward a name.'); return; }
+  if (!Number.isFinite(points) || points < 1) { openInfo('Invalid points', 'Points cost must be at least 1.'); return; }
+  try {
+    const res = await fetch('/api/loyalty-rewards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
+      body: JSON.stringify({ name, description, points_cost: points })
+    });
+    if (!res.ok) throw new Error('add failed');
+    newRewardName.value = ''; newRewardDesc.value = ''; newRewardPoints.value = '';
+    loadLoyaltyRewardsSetup();
+  } catch (e) { openInfo('Failed', 'Could not add this reward.'); }
+});
 
 function populateLoyaltySetupFields(config) {
   loyaltyEnabledInput.checked = !!config.enabled;
   loyaltyEarnPointsInput.value = String(config.earn_points ?? 1);
   loyaltyEarnBaseInput.value = String(config.earn_base ?? 10000);
-  loyaltyRedeemRateInput.value = String(config.redeem_rate ?? 100);
   if (loyaltySetupUpdated) loyaltySetupUpdated.textContent = formatLoyaltyUpdatedAt(config.updated_at);
   renderLoyaltySetupPreview();
 }
@@ -2948,10 +3016,11 @@ function populateLoyaltySetupFields(config) {
 function openLoyaltySetup() {
   if (!loyaltySetupModal) return;
   populateLoyaltySetupFields(loyaltyConfig);
+  loadLoyaltyRewardsSetup();
   loyaltySetupModal.classList.add('active');
 }
 
-[loyaltyEnabledInput, loyaltyEarnPointsInput, loyaltyEarnBaseInput, loyaltyRedeemRateInput]
+[loyaltyEnabledInput, loyaltyEarnPointsInput, loyaltyEarnBaseInput]
   .forEach((el) => el?.addEventListener('input', renderLoyaltySetupPreview));
 
 resetLoyaltySetup?.addEventListener('click', () => {
@@ -2976,13 +3045,12 @@ loyaltySetupModal?.addEventListener('click', (event) => {
 saveLoyaltySetup?.addEventListener('click', async () => {
   const earnBase = Math.floor(Number(loyaltyEarnBaseInput.value));
   const earnPoints = Math.floor(Number(loyaltyEarnPointsInput.value));
-  const redeemRate = Math.floor(Number(loyaltyRedeemRateInput.value));
   if (!Number.isFinite(earnBase) || earnBase < 1) {
     openInfo('Invalid setup', 'The spend amount to earn points must be at least Rp1.');
     return;
   }
-  if (!Number.isFinite(earnPoints) || earnPoints < 0 || !Number.isFinite(redeemRate) || redeemRate < 0) {
-    openInfo('Invalid setup', 'Points and redemption value cannot be negative.');
+  if (!Number.isFinite(earnPoints) || earnPoints < 0) {
+    openInfo('Invalid setup', 'Points earned cannot be negative.');
     return;
   }
   try {
@@ -2993,7 +3061,7 @@ saveLoyaltySetup?.addEventListener('click', async () => {
         enabled: loyaltyEnabledInput.checked,
         earn_base: earnBase,
         earn_points: earnPoints,
-        redeem_rate: redeemRate
+        redeem_rate: 0
       })
     });
     if (!res.ok) throw new Error('save failed');
@@ -3743,7 +3811,7 @@ if (mobileCartToggle && orderPanelEl) {
 }
 
 setClock();
-setInterval(setClock, 1000);
+setInterval(setClock, 1000 * 15);
 if (orderTypeSelect) {
   orderTypeSelect.value = normalizeOrderType(settings.orderType);
   orderTypeSelect.addEventListener('change', () => {

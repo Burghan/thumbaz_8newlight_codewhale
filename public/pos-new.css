@@ -1433,9 +1433,9 @@ body {
   inset: 0;
   background: rgba(33, 24, 19, 0.2);
   display: none;
-  align-items: center;
   justify-content: center;
   padding: 20px;
+  overflow-y: auto;
 }
 
 .modal.active {
@@ -1451,6 +1451,11 @@ body {
   box-shadow: var(--shadow);
   display: grid;
   gap: 12px;
+  /* Centers vertically when it fits; when content grows taller than the
+     viewport (e.g. the Loyalty Setup reward catalog), auto margins collapse
+     to 0 instead of pushing the card's top edge above y=0 with no way to
+     scroll to it — align-items:center on the parent did exactly that. */
+  margin: auto;
 }
 
 .modal-card.customer-edit {
@@ -1476,11 +1481,43 @@ body {
 }
 
 .modal-card.receipt {
-  width: min(980px, 96vw);
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(280px, 0.9fr);
-  gap: 18px;
-  align-items: start;
+  width: min(460px, 94vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-card.receipt .receipt-left button {
+  padding: 6px 8px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+/* Single centered column: the actual receipt paper first, then the action
+   buttons in one row below it — reads like a real handoff (see the receipt,
+   then decide what to do with it) instead of a two-column split with the
+   actions floating next to a taller, independently-scrolling card. */
+.receipt-left {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  order: 2;
+}
+
+.receipt-left button {
+  flex: 1;
+  min-width: 0;
+}
+
+.receipt-right {
+  order: 1;
+  margin: 0;
+}
+
+#newOrder {
+  order: 5;
 }
 
 .modal-head {
@@ -1658,57 +1695,6 @@ body {
 
 .modal-actions.single {
   grid-template-columns: 1fr;
-}
-
-.receipt-left {
-  display: grid;
-  gap: 14px;
-}
-
-.receipt-success {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: #daf3df;
-  border: 1px solid #b6e0c0;
-  padding: 16px;
-  border-radius: 14px;
-  color: #1f6a35;
-}
-
-.receipt-check {
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  background: #1f6a35;
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-}
-
-.receipt-title {
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-
-.receipt-amount {
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.receipt-email {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
-}
-
-.receipt-email input {
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: #fffaf6;
-  font-family: inherit;
 }
 
 .receipt-right {
@@ -1909,13 +1895,15 @@ body {
 
 .modal-card.loyalty-setup-card-modal {
   width: min(560px, 94vw);
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .loyalty-setup-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 4px 0 8px;
+  gap: 8px;
+  padding: 2px 0 6px;
 }
 
 /* ---- Status row: switch + Active/Inactive badge + last-updated ---- */
@@ -1923,7 +1911,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   background: #f6f6f6;
   border-radius: 10px;
 }
@@ -1998,23 +1986,154 @@ body {
 /* ---- Earning / Redemption cards ---- */
 .loyalty-setup-cards {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
-@media (max-width: 560px) {
-  .loyalty-setup-cards {
+.loyalty-rewards-card {
+  gap: 6px;
+}
+
+.loyalty-rewards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 130px;
+  overflow-y: auto;
+}
+
+.loyalty-reward-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+}
+
+.loyalty-reward-row.is-inactive {
+  opacity: 0.5;
+}
+
+.loyalty-reward-row .reward-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.loyalty-reward-row .reward-name {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.loyalty-reward-row .reward-desc {
+  font-size: 11px;
+  color: var(--muted, #8a7d74);
+}
+
+.loyalty-reward-row .reward-cost {
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  color: #6b4f9e;
+}
+
+.loyalty-reward-row button {
+  border: none;
+  background: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex: 0 0 auto;
+  color: var(--muted, #8a7d74);
+  transition: background-color 0.12s ease;
+}
+
+.loyalty-reward-row button[data-edit-id] {
+  color: #3e5b7f;
+}
+.loyalty-reward-row button[data-edit-id]:hover {
+  background: rgba(62, 91, 127, 0.14);
+}
+
+.loyalty-reward-row button[data-toggle-id] {
+  color: #92651c;
+}
+.loyalty-reward-row button[data-toggle-id]:hover {
+  background: rgba(146, 101, 28, 0.14);
+}
+
+.loyalty-reward-row button[data-delete-id] {
+  color: #b0401f;
+}
+.loyalty-reward-row button[data-delete-id]:hover {
+  background: rgba(176, 64, 31, 0.14);
+}
+
+.loyalty-reward-row button[data-save-id] {
+  color: #2f8f4e;
+}
+.loyalty-reward-row button[data-save-id]:hover {
+  background: rgba(47, 143, 78, 0.14);
+}
+
+.loyalty-reward-row button[data-cancel-edit]:hover {
+  background: rgba(138, 125, 116, 0.14);
+}
+
+.loyalty-reward-row-editing {
+  border-color: var(--accent-2, #3e5b7f);
+  background: #f4f7fc;
+  flex-wrap: wrap;
+}
+
+.loyalty-reward-edit-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr 80px;
+  gap: 6px;
+  min-width: 100%;
+}
+
+.loyalty-reward-edit-fields input {
+  padding: 6px 8px;
+  border: 1px solid #e2e2e2;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+@media (max-width: 480px) {
+  .loyalty-reward-edit-fields {
     grid-template-columns: 1fr;
   }
+}
+
+.loyalty-reward-form {
+  display: grid;
+  grid-template-columns: 1.4fr 1.4fr 0.8fr auto;
+  gap: 6px;
+}
+
+@media (max-width: 560px) {
+  .loyalty-reward-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+.loyalty-reward-form input {
+  padding: 6px 8px;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  font-size: 12px;
 }
 
 .loyalty-setup-card {
   border: 1px solid #e2e2e2;
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   transition: opacity 0.15s ease;
 }
 
@@ -2055,10 +2174,10 @@ body {
 
 .loyalty-setup-field input {
   width: 100%;
-  padding: 8px 10px;
+  padding: 6px 9px;
   border: 1px solid #d7d7d7;
   border-radius: 8px;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   box-sizing: border-box;
 }
@@ -2083,21 +2202,10 @@ body {
 }
 
 .loyalty-setup-example {
-  font-size: 12px;
-  color: var(--accent-2, #3e5b7f);
-  background: #eef3ff;
-  border-radius: 8px;
-  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--muted, #8a7d74);
 }
 
-.loyalty-setup-preview {
-  padding: 10px 12px;
-  background: #f6f6f6;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  text-align: center;
-}
 
 .loyalty-setup-foot {
   display: grid;
@@ -2408,9 +2516,6 @@ body {
 }
 
 @media (max-width: 980px) {
-  .modal-card.receipt {
-    grid-template-columns: 1fr;
-  }
   .receipt-right {
     max-height: none;
   }

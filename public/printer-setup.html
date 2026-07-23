@@ -67,7 +67,7 @@
     <div class="spacer"></div>
     <span class="who" id="who"></span>
   </div>
-  <p class="sub">Pair this device with the Bluetooth receipt printer once. After that, the “Print via Bluetooth” button on every receipt goes straight to it — no picking a device each time.</p>
+  <p class="sub">Choose how this device prints once. After that, the “Print Receipt” button on every receipt just uses it — no picking a method each time.</p>
 
   <div class="card">
     <label class="method" id="methodNative" style="display:none">
@@ -92,7 +92,14 @@
       <input type="radio" name="pmethod" value="webble"/>
       <span>
         <span class="m-title">Direct from Chrome (Web Bluetooth)</span>
-        <span class="m-desc">Chrome connects to the printer itself. Depends on Chrome's Bluetooth support, which can be unreliable on some tablets.</span>
+        <span class="m-desc">Chrome connects to the printer itself. Only works with Bluetooth LE printers — a classic (non-LE) Bluetooth printer can't be reached this way at all; use RawBT or Native app printing for those.</span>
+      </span>
+    </label>
+    <label class="method" id="methodBrowser">
+      <input type="radio" name="pmethod" value="browser"/>
+      <span>
+        <span class="m-title">Regular printer (browser print dialog)</span>
+        <span class="m-desc">Not a Bluetooth printer at all — USB, WiFi, or anything else already set up on this device. Just opens the normal print dialog and prints to whatever's selected there.</span>
       </span>
     </label>
   </div>
@@ -111,15 +118,16 @@
       <button class="act danger" id="forgetBtn">Forget printer</button>
     </div>
     <div class="note">
-      This pairing is saved per device. Set it up once on each tablet/phone that prints.
-      The printer must be a <b>Bluetooth LE</b> model (e.g. VSC-TM-58D Pro) — classic-only
-      printers can’t be reached from the browser.
+      This choice is saved per device — set it up once on each tablet/phone that prints, and every
+      receipt's "Print Receipt" button uses it automatically from then on. Only <b>Direct from Chrome
+      (Web Bluetooth)</b> needs a Bluetooth LE printer (e.g. VSC-TM-58D Pro) — a classic (non-LE)
+      Bluetooth printer works fine through RawBT or Native app printing instead.
     </div>
   </div>
 
   <div class="warn" id="unsupported" style="display:none">
-    This browser can’t use Bluetooth printing. Use <b>Chrome</b> or <b>Edge</b> on Android or desktop, over HTTPS.
-    (iPhone/Safari has no Web Bluetooth — use the receipt’s “Print Full Receipt” button there instead.)
+    This browser can’t use Web Bluetooth printing. Use <b>Chrome</b> or <b>Edge</b> on Android or desktop, over HTTPS,
+    or switch to RawBT, Native app printing, or Regular printer above instead.
   </div>
 </div>
 
@@ -155,9 +163,15 @@
     const m = window.BlePrinter.printMethod();
     radios.forEach(r => { r.checked = (r.value === m); r.closest('.method').classList.toggle('selected', r.value === m); });
   }
+  const METHOD_TOAST = {
+    native: 'Printing via native app Bluetooth',
+    rawbt: 'Printing via RawBT app',
+    webble: 'Printing directly via Chrome',
+    browser: 'Printing via the browser\'s print dialog'
+  };
   radios.forEach(r => r.addEventListener('change', () => {
     window.BlePrinter.setPrintMethod(r.value);
-    toast(r.value === 'native' ? 'Printing via native app Bluetooth' : r.value === 'rawbt' ? 'Printing via RawBT app' : 'Printing directly via Chrome');
+    toast(METHOD_TOAST[r.value] || '');
     syncMethodUI(); refresh();
   }));
 
@@ -188,6 +202,15 @@
       dot.className = 'dot ok';
       stName.textContent = 'RawBT print service';
       stDesc.textContent = 'Receipts are handed to the RawBT app, which prints them over native Bluetooth. Pair the printer inside RawBT (once). Use Test print to check the whole chain.';
+      connectBtn.disabled = true; forgetBtn.disabled = true; testBtn.disabled = false;
+      connectBtn.textContent = 'Connect a printer';
+      return;
+    }
+
+    if (method === 'browser') {
+      dot.className = 'dot ok';
+      stName.textContent = 'Browser print dialog';
+      stDesc.textContent = 'No pairing needed — every receipt just opens the normal print dialog for whatever printer this device already has set up.';
       connectBtn.disabled = true; forgetBtn.disabled = true; testBtn.disabled = false;
       connectBtn.textContent = 'Connect a printer';
       return;

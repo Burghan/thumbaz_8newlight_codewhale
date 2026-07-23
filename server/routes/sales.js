@@ -51,7 +51,11 @@ router.post('/', (req, res) => {
   const customerNote = String(b.note || '').trim() || null;
   const customerId = Number.isInteger(Number(b.customer_id)) && Number(b.customer_id) > 0
     ? Number(b.customer_id) : null;
-  const requestedRedeem = Math.max(0, Math.floor(Number(b.redeem_points || 0)));
+  // Points-for-cash-discount at checkout has been replaced by the named
+  // reward catalog (server/routes/loyalty-rewards.js) — redemption now
+  // happens independently of any sale, so this is always 0 regardless of
+  // what a client sends.
+  const requestedRedeem = 0;
   // Whole-order discount, entered as a percent at Payment. Clamped 0..100; the
   // rupiah amount is derived server-side from the actual line total.
   const discountPct = Math.max(0, Math.min(100, Math.floor(Number(b.discount_pct || 0))));
