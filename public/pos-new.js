@@ -131,6 +131,12 @@ const closePay = document.getElementById('closePay');
 const confirmPay = document.getElementById('confirmPay');
 const modalTotal = document.getElementById('modalTotal');
 const paymentType = document.getElementById('paymentType');
+// The shop's real static QRIS payload (decoded + CRC-verified from the bank's
+// own printed poster, NOT hand-built) — this is the exact string that poster's
+// QR encodes, so a QR rendered from it is guaranteed to scan/route the same
+// way. Never hand-edit this string; if the shop's QRIS is ever reissued,
+// re-decode the new poster rather than tweaking fields by hand.
+const QRIS_PAYLOAD = '00020101021126580013ID.CO.BRI.WWW01189360000200426206810208426206810303UMI51440014ID.CO.QRIS.WWW0215ID10264781583420303UMI5204581353033605802ID59228 NEW LIGHT COFFEE BAR6007KEBUMEN61055431162070703A0163044158';
 const tenderedInput = document.getElementById('tendered');
 const changeValue = document.getElementById('changeValue');
 const transactionNote = document.getElementById('transactionNote');
@@ -1040,6 +1046,8 @@ function updateTotals() {
   }
   totalEl.textContent = formatCurrency(total);
   modalTotal.textContent = formatCurrency(total);
+  const qrisAmountValue = document.getElementById('qrisAmountValue');
+  if (qrisAmountValue) qrisAmountValue.textContent = formatCurrency(total);
   if (loyaltyPointsEl) {
     const base = Number(loyaltyConfig.earn_base || 0);
     const rate = Number(loyaltyConfig.earn_points || 0);
@@ -1182,6 +1190,15 @@ function updatePayKeypadVisibility() {
   const tenderMode = document.querySelector('#payKeypad .mode[data-mode="tender"]');
   if (tenderMode) tenderMode.style.visibility = isCash ? '' : 'hidden';
   setPayMode(isCash ? 'tender' : 'discount');
+  const isQris = paymentType?.value === 'qris';
+  document.getElementById('qrisAmountPanel')?.classList.toggle('hidden', !isQris);
+  // Loaded lazily (once) rather than baked into the HTML — the same pattern
+  // as the receipt QR, and it means the payload above is only ever hit if
+  // QRIS actually gets selected.
+  const qrisImg = document.getElementById('qrisAmountQr');
+  if (isQris && qrisImg && !qrisImg.src) {
+    qrisImg.src = `/api/qr?text=${encodeURIComponent(QRIS_PAYLOAD)}&format=png`;
+  }
 }
 
 function renderDiscountView() {

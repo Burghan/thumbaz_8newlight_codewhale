@@ -2457,6 +2457,67 @@ body {
   color: #2f8f4e;
 }
 
+/* QRIS is a static merchant code (no amount encoded) — the customer has to
+   type the total into their own e-wallet by hand, so the one thing the POS
+   can actually do to prevent a mistyped payment is make that number
+   impossible to miss. */
+.qris-amount-panel {
+  background: #eef4ff;
+  border: 1px solid #b9cdec;
+  border-radius: 10px;
+  padding: 10px 14px;
+  text-align: center;
+}
+
+/* .modal-row's own `display: grid` is declared later in this file than the
+   shared `.hidden` rule, so at equal specificity it would otherwise win and
+   this panel would never actually hide for Cash/Card. Same collision found
+   and fixed for #tenderRow/.pay-quickcash (never hid for non-cash) and
+   .pay-discount-auth (never hid when there was no discount) — all three
+   have their own later `display` rule fighting the shared `.hidden` one. */
+.qris-amount-panel.hidden,
+#tenderRow.hidden,
+.pay-quickcash.hidden,
+.pay-discount-auth.hidden {
+  display: none;
+}
+
+.qris-amount-merchant {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f3a5f;
+}
+
+.qris-amount-nmid {
+  font-size: 11px;
+  color: #6b7f9c;
+  margin-bottom: 6px;
+}
+
+.qris-amount-qr {
+  display: block;
+  width: 150px;
+  height: 150px;
+  margin: 8px auto;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid #b9cdec;
+  border-radius: 6px;
+}
+
+.qris-amount-label {
+  font-size: 12px;
+  color: #3e5b7f;
+  margin-bottom: 4px;
+}
+
+.qris-amount-value {
+  font-size: 30px;
+  font-weight: 800;
+  color: #1f3a5f;
+  letter-spacing: 0.3px;
+}
+
 /* Stack to a single column on phones / portrait tablets. */
 @media (max-width: 640px), (orientation: portrait) {
   .modal-card.pay-card {
