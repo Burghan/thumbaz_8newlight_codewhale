@@ -2025,64 +2025,138 @@ receiptModal?.addEventListener('click', (event) => {
 // native/rawbt/webble/browser based on whatever this device's Printer Setup
 // picked, so there's nothing to bind here.
 
-// Captures the ACTUAL rendered receipt (real CSS text rendering, not a
-// hand-drawn copy) by embedding a clone of it inside an SVG <foreignObject>
-// and drawing that to a canvas — same technique as receipt-view.html's own
-// "Share Receipt Image", so what gets sent from the POS looks identical to
-// what a customer would generate themselves from the digital receipt link.
+// Draws the receipt onto a canvas by hand, reading straight from the
+// on-screen receipt DOM (same source ble-print.js's thermal-print renderer
+// already trusts). An earlier version tried capturing the real rendered DOM
+// via an SVG <foreignObject> for better font fidelity — confirmed via direct
+// testing that Chrome/WebKit unconditionally taint ANY canvas that draws a
+// foreignObject-containing SVG, even with zero external references,
+// permanently blocking toBlob/toDataURL (SecurityError: "Tainted canvases
+// may not be exported"). Not fixable by cleaning up the SVG content — it's
+// a hard platform policy, so hand-drawing is the only approach that can
+// actually produce a shareable image.
 function loadImageEl(src) {
   return new Promise((resolve) => {
+    if (!src) { resolve(null); return; }
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
+    img.onerror = () => resolve(null); // skip a broken image rather than fail the whole capture
     img.src = src;
   });
 }
-async function domToImageCanvas(el, scale) {
-  const rect = el.getBoundingClientRect();
-  const width = Math.ceil(rect.width);
-  const height = Math.ceil(rect.height);
+function visibleReceiptText(id) {
+  const el = document.getElementById(id);
+  if (!el || el.classList.contains('hidden') || el.style.display === 'none') return '';
+  return (el.textContent || '').replace(/\s+/g, ' ').trim();
+}
+function readReceiptItems() {
+  const nodes = document.querySelectorAll('#receiptItems .receipt-item');
+  return [...nodes].map((el) => ({
+    qty: el.children[0] ? (el.children[0].textContent || '').trim() : '',
+    name: el.querySelector('.name') ? (el.querySelector('.name').textContent || '').replace(/\s+/g, ' ').trim() : '',
+    total: el.children[el.children.length - 1] ? (el.children[el.children.length - 1].textContent || '').trim() : ''
+  }));
+}
+async function renderReceiptCanvasFromDom() {
+  const width = 380;
+  const margin = 20;
+  // WhatsApp recompresses shared "photo" attachments regardless — oversupplying
+  // resolution is the only real lever against that, same reasoning as
+  // receipt-view.html's own hand-drawn renderer.
+  const scale = 4;
+  const logoImg = await loadImageEl((document.getElementById('receiptLogoImg') || {}).src);
+  const qrImg = await loadImageEl((document.getElementById('receiptQr') || {}).src);
+  const items = readReceiptItems();
 
-  const clone = el.cloneNode(true);
-  clone.querySelectorAll('img').forEach((img) => {
-    img.setAttribute('src', new URL(img.getAttribute('src'), location.href).href);
+  const ticket = visibleReceiptText('receiptTicket');
+  const metaLines = ['receiptTime', 'receiptOrderType', 'receiptCustomer', 'receiptNote', 'receiptLoyalty']
+    .map(visibleReceiptText).filter(Boolean);
+  const subtotal = visibleReceiptText('receiptSubtotal');
+  const tax = visibleReceiptText('receiptTax');
+  const total = visibleReceiptText('receiptTotal2') || visibleReceiptText('receiptTotal');
+  const footer = visibleReceiptText('receiptFooterText') || 'Thank you!';
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.font = '13px sans-serif';
+
+  // Measure total height first (dry pass over the same layout logic).
+  let y = 24;
+  y += logoImg ? 62 : 32;
+  if (ticket) y += 20;
+  y += metaLines.length * 16;
+  y += 10; // top rule
+  y += items.length * 22;
+  y += 10; // bottom rule
+  if (subtotal) y += 22;
+  if (tax) y += 22;
+  y += 28; // total
+  if (qrImg) y += 110;
+  y += 22; // footer
+  const height = y + margin;
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+  ctx.textBaseline = 'top';
+
+  y = 24;
+  ctx.textAlign = 'center';
+  if (logoImg) {
+    ctx.drawImage(logoImg, (width - 56) / 2, y, 56, 56); y += 62;
+  } else {
+    ctx.fillStyle = '#2e4864'; ctx.font = 'bold 15px sans-serif';
+    ctx.fillText(visibleReceiptText('receiptLogoText') || '8 NewLight', width / 2, y); y += 32;
+  }
+
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillStyle = '#2e4864';
+  if (ticket) { ctx.fillText(ticket, width / 2, y); y += 20; }
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = '#8a93a3';
+  metaLines.forEach((line) => { ctx.fillText(line, width / 2, y); y += 16; });
+
+  y += 6;
+  ctx.strokeStyle = '#e7e1d4';
+  ctx.beginPath(); ctx.moveTo(margin, y); ctx.lineTo(width - margin, y); ctx.stroke();
+  y += 10;
+
+  ctx.font = '13px sans-serif';
+  items.forEach((it) => {
+    ctx.textAlign = 'left'; ctx.fillStyle = '#2e4864';
+    ctx.fillText(`${it.qty ? it.qty + ' ' : ''}${it.name}`, margin, y);
+    ctx.textAlign = 'right'; ctx.fillText(it.total, width - margin, y);
+    y += 22;
   });
 
-  let css = '';
-  for (const sheet of document.styleSheets) {
-    try {
-      for (const rule of sheet.cssRules) css += rule.cssText + '\n';
-    } catch (e) { /* cross-origin sheet — skip */ }
+  ctx.beginPath(); ctx.moveTo(margin, y); ctx.lineTo(width - margin, y); ctx.stroke();
+  y += 10;
+
+  const row = (label, value, bold) => {
+    ctx.font = (bold ? 'bold 16px' : '13px') + ' sans-serif';
+    ctx.fillStyle = '#2e4864';
+    ctx.textAlign = 'left'; ctx.fillText(label, margin, y);
+    ctx.textAlign = 'right'; ctx.fillText(value, width - margin, y);
+    y += bold ? 28 : 22;
+  };
+  if (subtotal) row('Subtotal', subtotal, false);
+  if (tax) row('Tax', tax, false);
+  row('Total', total, true);
+
+  if (qrImg) {
+    const q = 100;
+    ctx.drawImage(qrImg, (width - q) / 2, y, q, q);
+    y += q + 10;
   }
 
-  const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-    <foreignObject width="100%" height="100%">
-      <html xmlns="http://www.w3.org/1999/xhtml">
-        <head><style>${css}</style></head>
-        <body style="margin:0;">
-          <div style="width:${width}px;">${clone.outerHTML}</div>
-        </body>
-      </html>
-    </foreignObject>
-  </svg>`;
+  ctx.textAlign = 'center';
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = '#8a93a3';
+  ctx.fillText(footer, width / 2, y);
 
-  const svgBlob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(svgBlob);
-  try {
-    const img = await loadImageEl(url);
-    if (!img || !img.width) throw new Error('Could not rasterize the receipt');
-    const canvas = document.createElement('canvas');
-    canvas.width = width * scale;
-    canvas.height = height * scale;
-    const ctx = canvas.getContext('2d');
-    ctx.scale(scale, scale);
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, width, height);
-    ctx.drawImage(img, 0, 0, width, height);
-    return canvas;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  return canvas;
 }
 
 // Sends the receipt as a real image, never just a text link. Web Share with
@@ -2093,13 +2167,11 @@ async function domToImageCanvas(el, scale) {
 // degrading to a link-only message.
 if (sendWhatsappReceipt) {
   sendWhatsappReceipt.addEventListener('click', async () => {
-    const paper = document.querySelector('#receiptPreview .receipt-paper');
     const original = sendWhatsappReceipt.textContent;
     sendWhatsappReceipt.disabled = true;
     sendWhatsappReceipt.textContent = 'Preparing image…';
     try {
-      if (!paper) throw new Error('Receipt not available to capture');
-      const canvas = await domToImageCanvas(paper, 3);
+      const canvas = await renderReceiptCanvasFromDom();
       const blob = await new Promise((resolve, reject) => {
         canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Image export failed'))), 'image/png');
       });
@@ -2114,8 +2186,9 @@ if (sendWhatsappReceipt) {
         openInfo('Image downloaded', 'This browser can\'t send images directly to WhatsApp — the receipt image was downloaded, attach it to the chat manually.');
       }
     } catch (e) {
+      console.error('[sendWhatsappReceipt] failed:', e);
       if (e && e.name === 'AbortError') { /* user cancelled the share sheet — not an error */ }
-      else openInfo('Send failed', 'Could not prepare the receipt image for this sale.');
+      else openInfo('Send failed', `${(e && e.name) || 'Error'}: ${(e && e.message) || 'unknown'}`);
     } finally {
       sendWhatsappReceipt.disabled = false;
       sendWhatsappReceipt.textContent = original;

@@ -1442,6 +1442,17 @@ body {
   display: flex;
 }
 
+/* Utility dialogs (info/confirm/prompt) must always render on top of
+   whatever other modal triggered them — without this, e.g. an error shown
+   while the receipt modal is open renders BEHIND it (same stacking
+   context, no z-index, later-in-DOM wins) and is completely invisible,
+   which looked exactly like "nothing happens" when Send via WhatsApp failed. */
+#promptModal.active,
+#infoModal.active,
+#confirmModal.active {
+  z-index: 5000;
+}
+
 .modal-card {
   background: var(--white);
   border-radius: 18px;

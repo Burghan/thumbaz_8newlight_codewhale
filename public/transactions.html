@@ -251,7 +251,7 @@
         <div class="cost-tot"><span>Order total</span><span>${Rp(o.total)}</span></div>
         ${o.notes?`<h3>Notes</h3><div class="foot">${esc(o.notes)}</div>`:''}
         <div class="foot" style="margin-top:14px">Reference: ${esc(o.reference||'—')}</div>
-        <a class="void-trigger" style="display:inline-block;text-decoration:none;border-color:var(--brand);color:var(--brand-ink)" href="/pos-new.html?reprint=${id}" target="_blank">🖨️ Reprint Receipt</a>
+        <a class="void-trigger" style="display:inline-block;text-decoration:none;border-color:var(--brand);color:var(--brand-ink)" href="/pos-new.html?reprint=${id}">🖨️ Reprint Receipt</a>
         ${isStaff ? '' : '<button class="void-trigger" id="voidTrigger">🗑️ Void this transaction</button>'}`;
       if (!isStaff) {
         document.getElementById('voidTrigger').addEventListener('click', () => renderVoidChoice(id, o));
