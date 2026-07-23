@@ -280,17 +280,22 @@ const mobileCartCount = document.getElementById('mobileCartCount');
 const mobileCartTotal = document.getElementById('mobileCartTotal');
 const orderPanelEl = document.querySelector('.order-panel');
 
-function loadHeldOrders() {
+// Orders (Hold/Save/Paid/Invoice) used to live entirely in this browser's
+// localStorage — invisible to a coworker on a different tablet. Now backed
+// by the held_orders table (server/routes/held-orders.js) so every device
+// sees the same list. Never "read all, mutate, write the whole array back"
+// here — that pattern is exactly what would reintroduce a cross-device race
+// now that this is a shared table; every change is a targeted PUT/DELETE.
+async function fetchHeldOrders(params) {
   try {
-    const raw = localStorage.getItem('pos_held_orders');
-    return raw ? JSON.parse(raw) : [];
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    const res = await fetch(`/api/held-orders${qs}`, { headers: typeof authHeaders === 'function' ? authHeaders() : {}, cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.orders) ? data.orders : [];
   } catch (e) {
     return [];
   }
-}
-
-function saveHeldOrders(orders) {
-  localStorage.setItem('pos_held_orders', JSON.stringify(orders));
 }
 
 // Discards a parked (Hold/Save, not-yet-paid) order — for one already sent to
@@ -304,27 +309,30 @@ function cancelHeldOrder(order) {
     confirmLabel: 'Yes, cancel it',
     dismissLabel: 'No, keep it',
     danger: true,
-    onConfirm: () => {
+    onConfirm: async () => {
       if (order.sentToKitchen) {
         sendOrderToKitchen(order.label || 'Order', order.items || [], 'cancel', order.id);
       }
-      saveHeldOrders(loadHeldOrders().filter((o) => o.id !== order.id));
-      updateOrdersBadge();
+      try {
+        await fetch(`/api/held-orders/${encodeURIComponent(order.id)}`, { method: 'DELETE', headers: typeof authHeaders === 'function' ? authHeaders() : {} });
+      } catch (e) { /* best-effort */ }
+      await updateOrdersBadge();
       state.ordersViewSelectedId = null;
-      renderOrdersView();
+      await renderOrdersView();
     }
   });
 }
 
-function updateOrdersBadge() {
+async function updateOrdersBadge() {
   if (!ordersBadge) return;
   // Active/not-yet-paid orders only — a running total of every sale ever
   // logged would just grow forever and stop being an actionable count.
-  const count = loadHeldOrders().filter((o) => o.status !== 'paid' && o.status !== 'invoice').length;
+  const held = await fetchHeldOrders();
+  const count = held.filter((o) => o.status !== 'paid' && o.status !== 'invoice').length;
   ordersBadge.textContent = String(count);
   ordersBadge.style.display = count ? '' : 'none';
   if (ordersView && !ordersView.classList.contains('hidden')) {
-    renderOrdersView();
+    await renderOrdersView();
   }
 }
 
@@ -435,7 +443,7 @@ function loadOrderIntoRegister(order) {
 
 async function renderOrdersView() {
   if (!posOrdersList) return;
-  const held = loadHeldOrders();
+  const held = await fetchHeldOrders();
   const query = String(posOrdersSearch?.value || '').toLowerCase();
   const filter = String(posOrdersFilter?.value || '');
   const typeFilter = state.ordersTypeFilter || '';
@@ -450,7 +458,6 @@ async function renderOrdersView() {
   } catch (err) {
     kitchenTickets = [];
   }
-  let heldChanged = false;
   const rows = held
     .filter((order) => {
       const status = order.status || 'ongoing';
@@ -503,7 +510,7 @@ async function renderOrdersView() {
     row.type = 'button';
     row.className = 'orders-row';
     if (state.ordersViewSelectedId === order.id) row.classList.add('active');
-    const statusText = order.status === 'paid' ? 'Receipt' : order.status === 'invoice' ? 'Invoice' : 'Ongoing';
+    const statusText = order.status === 'paid' ? 'Lunas' : order.status === 'invoice' ? 'Invoice' : 'Ongoing';
     const statusClass = order.status === 'paid' ? 'paid' : order.status === 'invoice' ? 'invoice' : 'ongoing';
     const createdAt = new Date(order.createdAt || Date.now());
     const dateLabel = createdAt.toLocaleDateString('en-US');
@@ -535,7 +542,6 @@ async function renderOrdersView() {
       : kitchenStatusResolved;
     if (kitchenStatus && kitchenStatus !== order.kitchenStatus) {
       order.kitchenStatus = kitchenStatus;
-      heldChanged = true;
     }
     const finalKitchenStatus = kitchenStatus || order.kitchenStatus;
     row.innerHTML = `
@@ -564,10 +570,6 @@ async function renderOrdersView() {
     posOrdersList.appendChild(row);
   });
 
-  if (heldChanged) {
-    saveHeldOrders(held);
-  }
-
   const selected = rows.find((order) => order.id === state.ordersViewSelectedId) || rows[0];
   state.ordersViewSelectedId = selected?.id || null;
   if (selected) renderOrdersDetail(selected);
@@ -576,7 +578,7 @@ async function renderOrdersView() {
 function renderOrdersDetail(order) {
   if (!order) return;
   const totals = calculateTotalsForItems(order.items || []);
-  const statusText = order.status === 'paid' ? 'Receipt' : order.status === 'invoice' ? 'Invoice' : 'Ongoing';
+  const statusText = order.status === 'paid' ? 'Lunas' : order.status === 'invoice' ? 'Invoice' : 'Ongoing';
   const statusClass = order.status === 'paid' ? 'paid' : order.status === 'invoice' ? 'invoice' : 'ongoing';
 
   if (posOrderTitle) posOrderTitle.textContent = order.label || 'Order';
@@ -1340,7 +1342,13 @@ function handleSetTable() {
   });
 }
 
-function upsertHeldOrder(orderId, {
+// Creates or updates a row in the shared held_orders table. Preserving an
+// existing row's fields when a param is omitted here (customerName,
+// receiptNumber, saleId, etc.) now happens server-side, atomically — see
+// PUT /api/held-orders/:id in server/routes/held-orders.js. The only things
+// resolved client-side below are genuinely client-only UI state the server
+// has no way to know (the live in-progress cart/label if not given).
+async function upsertHeldOrder(orderId, {
   label,
   sentToKitchen,
   status,
@@ -1352,57 +1360,46 @@ function upsertHeldOrder(orderId, {
   items,
   saleId
 } = {}) {
-  const held = loadHeldOrders();
   const resolvedItems = items || state.order;
   const totals = typeof total === 'number' ? { total } : calculateTotalsForItems(resolvedItems);
   const resolvedTotal = typeof total === 'number' ? total : totals.total;
-  const existingIndex = held.findIndex((item) => item.id === orderId);
-  const existing = existingIndex >= 0 ? held[existingIndex] : null;
-  const resolvedCustomerName = customerName ?? existing?.customerName ?? null;
-  // A customer name is more useful in the Orders list than a generic "Tab N"
-  // — only fall back to auto-numbering when no name was actually entered.
-  const resolvedLabel = label || state.orderLabel || resolvedCustomerName || `Tab ${held.length + 1}`;
-  const payload = {
-    id: orderId,
+  const resolvedLabel = label || state.orderLabel || customerName || undefined;
+  const body = {
     label: resolvedLabel,
-    createdAt: existing?.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
     total: resolvedTotal,
     items: resolvedItems,
     sentToKitchen: sentToKitchen ?? state.sentToKitchen,
-    status: status || existing?.status || (sentToKitchen ? 'ongoing' : 'draft'),
-    orderType: orderType || existing?.orderType || getOrderTypeValue(),
-    receiptNumber: receiptNumber ?? existing?.receiptNumber ?? null,
-    isInvoice: isInvoice ?? existing?.isInvoice ?? false,
-    customerName: resolvedCustomerName,
-    paidAt: existing?.paidAt || null,
-    // The real database transaction id — different from `id` above (a local
-    // UUID used to track this order client-side). Void needs the real one.
-    saleId: saleId ?? existing?.saleId ?? null,
-    // Whoever was logged in when this order was first created — distinct from
-    // customerName (what the customer typed in). Set once, kept on every
-    // later update (a shared till may have a different staff member logged
-    // in by the time the same order is Saved again or paid).
-    cashierName: existing?.cashierName || auth?.name || null
+    status,
+    orderType,
+    receiptNumber,
+    isInvoice,
+    customerName,
+    saleId
   };
-  if (existingIndex >= 0) {
-    held[existingIndex] = payload;
-  } else {
-    held.push(payload);
-  }
-  saveHeldOrders(held);
+  let payload = { id: orderId, label: resolvedLabel, total: resolvedTotal, items: resolvedItems, status, orderType, receiptNumber, isInvoice, customerName, saleId };
+  try {
+    const res = await fetch(`/api/held-orders/${encodeURIComponent(orderId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
+      body: JSON.stringify(body)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.order) payload = data.order;
+    }
+  } catch (e) { /* best-effort — badge/list just show stale data until the next refresh */ }
   updateOrdersBadge();
   return payload;
 }
 
-function handleSetTab() {
+async function handleSetTab() {
   if (!state.order.length) {
     openInfo('No items', 'No items to save.');
     return;
   }
   const orderId = state.currentOrderId || crypto.randomUUID();
   const type = state.sentToKitchen ? 'update' : 'new';
-  const payload = upsertHeldOrder(orderId, { sentToKitchen: true, status: 'ongoing' });
+  const payload = await upsertHeldOrder(orderId, { sentToKitchen: true, status: 'ongoing', orderType: getOrderTypeValue() });
   state.currentOrderId = sendOrderToKitchen(payload.label, state.order, type, orderId) || orderId;
   state.sentToKitchen = true;
   state.order = [];
@@ -2794,7 +2791,7 @@ confirmPay.addEventListener('click', async () => {
     } catch (err) {}
   }
   if (state.currentOrderId) {
-    upsertHeldOrder(state.currentOrderId, {
+    await upsertHeldOrder(state.currentOrderId, {
       status: wantsInvoice ? 'invoice' : 'paid',
       receiptNumber: ticket,
       isInvoice,
@@ -3601,12 +3598,12 @@ async function refreshHeldOrderFromServer(heldOrderId, saleId) {
     if (!res.ok) return;
     const detail = await res.json();
     const total = (detail.items || []).reduce((sum, i) => sum + Number(i.total || 0), 0);
-    upsertHeldOrder(heldOrderId, {
+    await upsertHeldOrder(heldOrderId, {
       total,
       items: (detail.items || []).map((i) => ({ qty: i.quantity, name: i.name, price: i.price }))
     });
   } catch (e) { /* best-effort — a stale cache isn't worth failing the void over */ }
-  if (ordersView && !ordersView.classList.contains('hidden')) renderOrdersView();
+  if (ordersView && !ordersView.classList.contains('hidden')) await renderOrdersView();
 }
 
 function submitVoid(sale, restock) {
@@ -3633,11 +3630,13 @@ function submitVoid(sale, restock) {
           // real sale, so drop it rather than leave a stale "Receipt" entry
           // that can't actually be reprinted anymore.
           if (sale.heldOrderId) {
-            saveHeldOrders(loadHeldOrders().filter((o) => o.id !== sale.heldOrderId));
-            updateOrdersBadge();
+            try {
+              await fetch(`/api/held-orders/${encodeURIComponent(sale.heldOrderId)}`, { method: 'DELETE', headers: typeof authHeaders === 'function' ? authHeaders() : {} });
+            } catch (e) { /* best-effort */ }
+            await updateOrdersBadge();
             if (ordersView && !ordersView.classList.contains('hidden')) {
               state.ordersViewSelectedId = null;
-              renderOrdersView();
+              await renderOrdersView();
             }
           }
           openInfo('Voided', data.message || 'Sale voided.');
@@ -3727,13 +3726,13 @@ moreActionsModal?.addEventListener('click', (event) => {
 const holdBtn = document.getElementById('holdBtn');
 const invoiceBtn = document.getElementById('invoiceBtn');
 const refundBtn = document.getElementById('refundBtn');
-function holdCurrentOrder() {
+async function holdCurrentOrder() {
   if (!state.order.length) {
     openInfo('No items', 'Add items before putting an order on hold.');
     return;
   }
   const orderId = state.currentOrderId || crypto.randomUUID();
-  upsertHeldOrder(orderId, { status: 'draft', customerName: customerInput?.value.trim() || null });
+  await upsertHeldOrder(orderId, { status: 'draft', customerName: customerInput?.value.trim() || null, orderType: getOrderTypeValue() });
   resetOrderState();
   updateOrdersBadge();
   openInfo('Held', 'Order parked — find it under the Orders tab.');
@@ -3968,20 +3967,17 @@ function loadTransferOrder() {
       if (currentRaw) {
         const current = JSON.parse(currentRaw);
         if (current?.items?.length) {
-          const held = loadHeldOrders();
           const total = current.items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
-          held.push({
-            id: crypto.randomUUID(),
-            label: current.label || `Tab ${held.length + 1}`,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+          // Best-effort, fire-and-forget — this is parking an abandoned cart
+          // in the background while the page navigates on; upsertHeldOrder
+          // already swallows its own errors.
+          upsertHeldOrder(crypto.randomUUID(), {
+            label: current.label || null,
             total,
             items: current.items,
             sentToKitchen: current.sentToKitchen,
             orderType: current.orderType || settings.orderType || 'dine_in'
           });
-          saveHeldOrders(held);
-          updateOrdersBadge();
         }
         localStorage.removeItem(CURRENT_ORDER_KEY);
       }

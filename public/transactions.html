@@ -30,18 +30,37 @@
   .kpi .val { font-family:var(--font-brand); font-size:22px; font-weight:700; color:var(--brand-ink); margin-top:6px; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
   /* Filters */
-  .filters { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 16px; margin-bottom:16px;
-    display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
-  .filters .fld { display:flex; flex-direction:column; gap:4px; }
-  .filters .fld label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; font-weight:700; }
-  .filters input, .filters select { min-height:36px; padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--bg,#fff); color:var(--ink); }
-  .filters #q { min-width:180px; }
-  .filters .clear { background:none; border:1px solid var(--border); border-radius:8px; padding:7px 12px; font-size:13px; cursor:pointer; color:var(--muted); min-height:36px; }
-  .filters .clear:hover { background:var(--cream-soft); }
+  .filters { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px 18px; margin-bottom:16px;
+    display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; box-shadow:var(--shadow-sm); }
+  .filters-group { display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; }
+  .filters-divider { width:1px; align-self:stretch; background:var(--border); }
+  .filters .fld { display:flex; flex-direction:column; gap:5px; }
+  .filters .fld label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
+  .filters input, .filters select {
+    box-sizing:border-box; height:38px; padding:0 12px; border:1px solid var(--border); border-radius:9px;
+    font-size:13px; line-height:1; background:var(--bg,#fff); color:var(--ink);
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .filters input:hover, .filters select:hover { border-color:var(--brand-600); }
+  .filters input:focus, .filters select:focus {
+    outline:none; border-color:var(--brand); box-shadow:0 0 0 3px rgba(92,125,166,.15);
+  }
+  .filters select { min-width:126px; cursor:pointer; }
+  .filters #q { min-width:190px; }
+  .filters .clear {
+    box-sizing:border-box; display:flex; align-items:center; gap:5px; margin-left:auto;
+    background:none; border:1px solid transparent; border-radius:9px; padding:0 14px;
+    font-size:13px; font-weight:600; cursor:pointer; color:var(--brand-700); height:38px;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .filters .clear:hover { background:var(--cream-soft); border-color:var(--border); }
+  @media (max-width:900px) { .filters-divider { display:none; } }
   @media (max-width:640px) {
-    .filters { flex-direction:column; align-items:stretch; }
+    .filters { flex-direction:column; align-items:stretch; gap:12px; }
+    .filters-group { flex-direction:column; align-items:stretch; gap:10px; width:100%; }
     .filters .fld, .filters #q, .filters .clear { width:100%; }
-    .filters input, .filters select { min-height:44px; font-size:16px; width:100%; } /* 16px avoids iOS auto-zoom on focus */
+    .filters .clear { margin-left:0; justify-content:center; border-color:var(--border); }
+    .filters input, .filters select { height:44px; font-size:16px; width:100%; } /* 16px avoids iOS auto-zoom on focus */
   }
 
   /* Table panel */
@@ -135,17 +154,28 @@
   </div>
 
   <div class="filters">
-    <div class="fld"><label>From</label><input type="date" id="fFrom"/></div>
-    <div class="fld"><label>To</label><input type="date" id="fTo"/></div>
-    <div class="fld"><label>Order type</label>
-      <select id="fOrderType"><option value="">All</option></select>
+    <div class="filters-group">
+      <div class="fld"><label>From</label><input type="date" id="fFrom"/></div>
+      <div class="fld"><label>To</label><input type="date" id="fTo"/></div>
     </div>
-    <div class="fld"><label>Product</label>
-      <input list="productList" id="fProduct" placeholder="All products"/>
-      <datalist id="productList"></datalist>
+    <div class="filters-divider"></div>
+    <div class="filters-group">
+      <div class="fld"><label>Order type</label>
+        <select id="fOrderType"><option value="">All</option></select>
+      </div>
+      <div class="fld"><label>Payment type</label>
+        <select id="fPayment"><option value="">All</option></select>
+      </div>
     </div>
-    <div class="fld"><label>Search</label><input type="text" id="q" placeholder="Order # or reference"/></div>
-    <button class="clear" id="clearBtn">Clear filters</button>
+    <div class="filters-divider"></div>
+    <div class="filters-group">
+      <div class="fld"><label>Product</label>
+        <input list="productList" id="fProduct" placeholder="All products"/>
+        <datalist id="productList"></datalist>
+      </div>
+      <div class="fld"><label>Search</label><input type="text" id="q" placeholder="Order # or reference"/></div>
+    </div>
+    <button class="clear" id="clearBtn">✕ Clear filters</button>
   </div>
 
   <div class="status" id="status">⏳ Loading…</div>
@@ -395,10 +425,11 @@
   }
 
   // ---- filters / sort / pagination state ----
-  const state = { from:'', to:'', order_type:'', product_id:'', q:'', sort:'date', dir:'desc', page:1, pageSize:50 };
+  const state = { from:'', to:'', order_type:'', payment_method:'', product_id:'', q:'', sort:'date', dir:'desc', page:1, pageSize:50 };
   const fFrom = document.getElementById('fFrom'), fTo = document.getElementById('fTo'),
-        fOrderType = document.getElementById('fOrderType'), fProduct = document.getElementById('fProduct'),
-        qEl = document.getElementById('q');
+        fOrderType = document.getElementById('fOrderType'), fPayment = document.getElementById('fPayment'),
+        fProduct = document.getElementById('fProduct'), qEl = document.getElementById('q');
+  const paymentLabel = m => m === 'qris' ? 'QRIS' : m.charAt(0).toUpperCase() + m.slice(1);
 
   // Default range: current month, unless the page was opened with filters in
   // the URL (e.g. "View all transactions" links from a KPI drill-down).
@@ -413,6 +444,7 @@
     state.from = fFrom.value = urlParams.get('from') || fmtLocalDate(first);
     state.to = fTo.value = urlParams.get('to') || fmtLocalDate(now);
     if (urlParams.get('order_type')) state.order_type = urlParams.get('order_type');
+    if (urlParams.get('payment_method')) state.payment_method = urlParams.get('payment_method');
     if (urlParams.get('q')) state.q = qEl.value = urlParams.get('q');
     if (urlParams.get('product_id')) state.product_id = urlParams.get('product_id');
   })();
@@ -449,11 +481,12 @@
   fFrom.addEventListener('change', () => { state.from = fFrom.value; scheduleLoad(); });
   fTo.addEventListener('change', () => { state.to = fTo.value; scheduleLoad(); });
   fOrderType.addEventListener('change', () => { state.order_type = fOrderType.value; scheduleLoad(); });
+  fPayment.addEventListener('change', () => { state.payment_method = fPayment.value; scheduleLoad(); });
   fProduct.addEventListener('input', () => { state.product_id = productsByName.get(fProduct.value) || ''; scheduleLoad(); });
   qEl.addEventListener('input', () => { state.q = qEl.value.trim(); scheduleLoad(); });
   document.getElementById('clearBtn').addEventListener('click', () => {
-    fFrom.value = ''; fTo.value = ''; fOrderType.value = ''; fProduct.value = ''; qEl.value = '';
-    state.from = state.to = state.order_type = state.product_id = state.q = '';
+    fFrom.value = ''; fTo.value = ''; fOrderType.value = ''; fPayment.value = ''; fProduct.value = ''; qEl.value = '';
+    state.from = state.to = state.order_type = state.payment_method = state.product_id = state.q = '';
     state.page = 1; load();
   });
 
@@ -484,6 +517,7 @@
     if (state.from) params.set('from', state.from);
     if (state.to) params.set('to', state.to);
     if (state.order_type) params.set('order_type', state.order_type);
+    if (state.payment_method) params.set('payment_method', state.payment_method);
     if (state.product_id) params.set('product_id', state.product_id);
     if (state.q) params.set('q', state.q);
     params.set('sort', state.sort); params.set('dir', state.dir);
@@ -502,6 +536,11 @@
       if (Array.isArray(d.orderTypes) && fOrderType.options.length <= 1) {
         d.orderTypes.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; fOrderType.appendChild(o); });
         if (state.order_type) fOrderType.value = state.order_type;
+      }
+      // Same pattern for Payment type.
+      if (Array.isArray(d.paymentMethods) && fPayment.options.length <= 1) {
+        d.paymentMethods.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = paymentLabel(m); fPayment.appendChild(o); });
+        if (state.payment_method) fPayment.value = state.payment_method;
       }
 
       const rows = document.getElementById('rows');

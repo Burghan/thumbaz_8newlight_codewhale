@@ -10,11 +10,12 @@ const router = express.Router();
 // exposing the rest of /api/reports' analytics.
 
 router.get('/', (req, res) => {
-  const { order_type, product_id, q, sort, dir } = req.query;
+  const { order_type, payment_method, product_id, q, sort, dir } = req.query;
 
   const clauses = ["date(t.transacted_at) = date('now', '+7 hours')"];
   const params = [];
   if (order_type) { clauses.push('t.order_type = ?'); params.push(order_type); }
+  if (payment_method) { clauses.push('t.payment_method = ?'); params.push(payment_method); }
   if (q) { clauses.push('(t.reference LIKE ? OR CAST(t.id AS TEXT) = ?)'); params.push(`%${q}%`, String(q).replace(/^#/, '')); }
   if (product_id) { clauses.push('EXISTS (SELECT 1 FROM transaction_items x WHERE x.transaction_id = t.id AND x.product_id = ?)'); params.push(Number(product_id)); }
   const where = `WHERE ${clauses.join(' AND ')}`;
@@ -52,12 +53,17 @@ router.get('/', (req, res) => {
     "SELECT DISTINCT order_type FROM transactions WHERE order_type IS NOT NULL AND TRIM(order_type) <> '' AND date(transacted_at) = date('now', '+7 hours') ORDER BY order_type"
   ).all().map(r => r.order_type);
 
+  const paymentMethods = db.prepare(
+    "SELECT DISTINCT payment_method FROM transactions WHERE payment_method IS NOT NULL AND TRIM(payment_method) <> '' AND date(transacted_at) = date('now', '+7 hours') ORDER BY payment_method"
+  ).all().map(r => r.payment_method);
+
   res.json({
     orders,
     total: kpi.orders,
     page: pageNum,
     pageSize,
     orderTypes,
+    paymentMethods,
     kpi: { revenue: kpi.revenue, orders: kpi.orders, items: kpi.items, avg: kpi.orders ? Math.round(kpi.revenue / kpi.orders) : 0 }
   });
 });

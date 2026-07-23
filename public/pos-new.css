@@ -369,6 +369,15 @@ body {
   gap: 10px;
   max-height: 520px;
   overflow-y: auto;
+  /* The list itself is correctly bounded/scrollable by height (verified via
+     a headless-browser check of the grid/flex containment chain) — this is
+     for touch specifically: older Android WebView builds need momentum
+     scroll explicitly opted into on a nested overflow-y:auto container, and
+     without touch-action the browser can be slower to recognize a touch
+     starting on one of the row <button>s as a vertical scroll gesture. */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .orders-row {
@@ -453,6 +462,9 @@ body {
   gap: 8px;
   max-height: 520px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .orders-detail-item {

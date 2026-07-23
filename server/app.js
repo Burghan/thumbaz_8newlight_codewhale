@@ -50,6 +50,7 @@ app.use('/api/customers', posRole, require('./routes/customers'));
 app.use('/api/loyalty-config', posRole, require('./routes/loyalty-config'));
 app.use('/api/loyalty-rewards', posRole, require('./routes/loyalty-rewards'));
 app.use('/api/order-types', posRole, require('./routes/order-types'));
+app.use('/api/held-orders', posRole, require('./routes/held-orders'));
 app.use('/api/qr', posRole, require('./routes/qr'));
 app.get('/api/clock/status', (req, res) => res.json({active:false,employee:null}));
 app.use('/api/reports', manager, require('./routes/reports'));

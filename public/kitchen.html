@@ -52,6 +52,10 @@
     .btn-advance:hover { background: var(--brand-700); }
     .btn-cancel { background: transparent; border: 1px solid var(--border) !important; color: var(--muted); flex: 0 0 auto !important; padding: 9px 12px !important; }
     .btn-cancel:hover { color: var(--danger); border-color: var(--danger) !important; }
+    /* Shortcut for New/Preparing tickets — skips Ready straight to Served,
+       since this board isn't run as a real multi-stage kitchen queue today. */
+    .btn-serve { background: transparent; border: 1px solid #2e9d5b !important; color: #2e9d5b; flex: 0 0 auto !important; padding: 9px 12px !important; }
+    .btn-serve:hover { background: #2e9d5b; color: #fff; }
 
     .sync-note { flex: 0 0 auto; margin-top: 10px; font-size: 12px; color: var(--muted); text-align: center; }
 
@@ -158,6 +162,7 @@
             <div class="ticket-items">${items}</div>
             <div class="ticket-actions">
               <button class="btn-advance" data-action="advance" data-id="${ticket.id}" data-status="${ticket.status}">${ACTION_LABEL[ticket.status]}</button>
+              ${ticket.status !== 'ready' ? `<button class="btn-serve" data-action="serve" data-id="${ticket.id}">Served</button>` : ''}
               <button class="btn-cancel" data-action="cancel" data-id="${ticket.id}">✕</button>
             </div>
           </div>
@@ -232,6 +237,16 @@
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify({ status: next })
+          });
+          refresh();
+        } else if (button.dataset.action === 'serve') {
+          // Shortcut: skip straight to Served from New or Preparing, without
+          // stepping through Ready — the server already allows any status
+          // jump (server/routes/kitchen.js), this just exposes it in the UI.
+          await fetch(`/api/kitchen/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ status: 'served' })
           });
           refresh();
         } else if (button.dataset.action === 'cancel') {
