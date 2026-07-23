@@ -21,23 +21,33 @@ router.get('/', (req, res) => {
   res.json({ rewards: rows });
 });
 
+// Rupiah-off value redeeming this reward takes off the CURRENT bill (only
+// meaningful when redeemed mid-Payment) — null/0 for physical handovers
+// like Merchandise/Alat Kopi/Rokpresso that don't touch the sale total.
+function parseDiscountValue(raw) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const n = Math.round(Number(raw));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 // POST /api/loyalty-rewards — admin/manager only, add a reward.
 router.post('/', managerOnly, (req, res) => {
   const name = String(req.body?.name || '').trim();
   const description = String(req.body?.description || '').trim() || null;
   const pointsCost = Math.floor(Number(req.body?.points_cost));
+  const discountValue = parseDiscountValue(req.body?.discount_value);
   if (!name) return res.status(400).json({ error: 'Name required' });
   if (!Number.isFinite(pointsCost) || pointsCost < 1) {
     return res.status(400).json({ error: 'Points cost must be at least 1' });
   }
   const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM loyalty_rewards').get().m;
   const info = db.prepare(
-    'INSERT INTO loyalty_rewards (name, description, points_cost, sort_order) VALUES (?, ?, ?, ?)'
-  ).run(name, description, pointsCost, maxOrder + 1);
+    'INSERT INTO loyalty_rewards (name, description, points_cost, discount_value, sort_order) VALUES (?, ?, ?, ?, ?)'
+  ).run(name, description, pointsCost, discountValue, maxOrder + 1);
   res.json({ reward: db.prepare('SELECT * FROM loyalty_rewards WHERE id = ?').get(info.lastInsertRowid) });
 });
 
-// PUT /api/loyalty-rewards/:id — admin/manager only, edit name/description/cost/active.
+// PUT /api/loyalty-rewards/:id — admin/manager only, edit name/description/cost/active/discount_value.
 router.put('/:id', managerOnly, (req, res) => {
   const id = Number(req.params.id);
   const existing = db.prepare('SELECT * FROM loyalty_rewards WHERE id = ?').get(id);
@@ -46,13 +56,14 @@ router.put('/:id', managerOnly, (req, res) => {
   const description = req.body?.description !== undefined ? (String(req.body.description).trim() || null) : existing.description;
   const pointsCost = req.body?.points_cost !== undefined ? Math.floor(Number(req.body.points_cost)) : existing.points_cost;
   const active = req.body?.active !== undefined ? (req.body.active ? 1 : 0) : existing.active;
+  const discountValue = req.body?.discount_value !== undefined ? parseDiscountValue(req.body.discount_value) : existing.discount_value;
   if (!name) return res.status(400).json({ error: 'Name required' });
   if (!Number.isFinite(pointsCost) || pointsCost < 1) {
     return res.status(400).json({ error: 'Points cost must be at least 1' });
   }
   db.prepare(
-    `UPDATE loyalty_rewards SET name = ?, description = ?, points_cost = ?, active = ?, updated_at = datetime('now', '+7 hours') WHERE id = ?`
-  ).run(name, description, pointsCost, active, id);
+    `UPDATE loyalty_rewards SET name = ?, description = ?, points_cost = ?, active = ?, discount_value = ?, updated_at = datetime('now', '+7 hours') WHERE id = ?`
+  ).run(name, description, pointsCost, active, discountValue, id);
   res.json({ reward: db.prepare('SELECT * FROM loyalty_rewards WHERE id = ?').get(id) });
 });
 
@@ -87,7 +98,7 @@ router.post('/:id/redeem', (req, res) => {
   });
   tx();
   const updatedCustomer = db.prepare('SELECT id, name, member_id, points_balance FROM customers WHERE id = ?').get(customerId);
-  res.json({ message: 'Redeemed', customer: updatedCustomer });
+  res.json({ message: 'Redeemed', customer: updatedCustomer, discount_value: reward.discount_value || 0 });
 });
 
 // GET /api/loyalty-rewards/redemptions/:customerId — a customer's redemption history.

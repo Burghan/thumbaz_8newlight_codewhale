@@ -16,7 +16,7 @@ router.get('/:id', (req, res) => {
 
   const txn = db.prepare(`
     SELECT id, transacted_at, payment_method, reference, customer_name, cashier_name, order_type, tax,
-           points_earned, redeem_points, customer_id
+           points_earned, redeem_points, redeem_value, discount_amount, customer_id
     FROM transactions WHERE id = ?`).get(id);
   if (!txn) return res.status(404).json({ error: 'Receipt not found' });
 
@@ -30,6 +30,8 @@ router.get('/:id', (req, res) => {
     WHERE ti.transaction_id = ? AND ti.quantity > 0`).all(id);
 
   const subtotal = items.reduce((sum, i) => sum + i.line_total, 0);
+  const discountAmount = txn.discount_amount || 0;
+  const redeemValue = txn.redeem_value || 0;
 
   res.json({
     id: txn.id,
@@ -42,9 +44,11 @@ router.get('/:id', (req, res) => {
     tax: txn.tax || 0,
     points_earned: txn.points_earned || 0,
     redeem_points: txn.redeem_points || 0,
+    redeem_value: redeemValue,
+    discount_amount: discountAmount,
     points_balance: customer ? customer.points_balance : null,
     subtotal,
-    total: subtotal + (txn.tax || 0),
+    total: Math.max(0, subtotal - discountAmount + (txn.tax || 0) - redeemValue),
     items: items.map((i) => ({ name: i.name, quantity: i.quantity, price: i.unit_price, total: i.line_total }))
   });
 });

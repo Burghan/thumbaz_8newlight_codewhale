@@ -51,6 +51,10 @@
     var r = document.getElementById('receiptChangeLine');
     return !!(r && r.style.display !== 'none');
   }
+  function redeemedVisible() {
+    var r = document.getElementById('receiptRedeemedLine');
+    return !!(r && r.style.display !== 'none');
+  }
   function loadImage(src) {
     return new Promise(function (res) {
       if (!src) { res(null); return; }
@@ -121,6 +125,7 @@
     var tax = visibleText('receiptTax');
     if (subtotal) { row('Subtotal', subtotal, '16px sans-serif', false); y += 22; }
     if (tax) { row('Tax', tax, '16px sans-serif', false); y += 22; }
+    if (redeemedVisible()) { var rw = visibleText('receiptRedeemed'); if (rw) { row('Reward redeemed', rw, '16px sans-serif', false); y += 22; } }
     row('TOTAL', visibleText('receiptTotal2') || visibleText('receiptTotal'), '21px sans-serif', true); y += 30;
     if (changeVisible()) { var ch = visibleText('receiptChange'); if (ch) { row('Change', ch, '16px sans-serif', false); y += 22; } }
 

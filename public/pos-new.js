@@ -32,6 +32,10 @@ const state = {
   customerId: null,
   customer: null,
   orderDiscount: 0,
+  // Rupiah taken off the CURRENT bill by redeeming a reward with a
+  // discount_value (e.g. Menu Credit) mid-Payment — 0 for everything else
+  // (physical-handover rewards don't touch the total at all).
+  redeemDiscount: 0,
   ordersViewSelectedId: null,
   ordersTypeFilter: ''
 };
@@ -180,6 +184,8 @@ const receiptSubtotal = document.getElementById('receiptSubtotal');
 const receiptTax = document.getElementById('receiptTax');
 const receiptChangeLine = document.getElementById('receiptChangeLine');
 const receiptChange = document.getElementById('receiptChange');
+const receiptRedeemedLine = document.getElementById('receiptRedeemedLine');
+const receiptRedeemed = document.getElementById('receiptRedeemed');
 const receiptTitle = document.getElementById('receiptTitle');
 const receiptTicket = document.getElementById('receiptTicket');
 const receiptTime = document.getElementById('receiptTime');
@@ -981,8 +987,11 @@ function calculateTotals() {
   const taxable = Math.max(0, subtotal - totalDiscount);
   const tax = taxable * (taxRate / 100);
   const gross = taxable + tax;
-  const total = gross;
-  return { subtotal, discount: totalDiscount, orderDiscountPct, orderDiscountAmt, deliveryDiscount, perItem, tax, total };
+  // A redeemed reward's bill discount (e.g. Menu Credit), capped at the bill
+  // itself so it can never go negative or "carry over" past this sale.
+  const redeemDiscount = Math.min(Number(state.redeemDiscount || 0), gross);
+  const total = gross - redeemDiscount;
+  return { subtotal, discount: totalDiscount, orderDiscountPct, orderDiscountAmt, deliveryDiscount, perItem, tax, redeemDiscount, total };
 }
 
 function calculateTotalsForItems(items) {
@@ -1003,7 +1012,7 @@ function calculateTotalsForItems(items) {
 
 function updateTotals() {
   const totals = calculateTotals();
-  const { subtotal, discount, deliveryDiscount, tax, total } = totals;
+  const { subtotal, discount, deliveryDiscount, tax, redeemDiscount, total } = totals;
   subtotalEl.textContent = formatCurrency(subtotal);
   // Discount line shows manual/line discounts; the delivery-platform charge gets
   // its own labelled row so it's clear where it comes from (both are in `total`).
@@ -1020,6 +1029,15 @@ function updateTotals() {
     }
   }
   if (taxEl) taxEl.textContent = formatCurrency(tax);
+  const redeemedRow = document.getElementById('redeemedRow');
+  if (redeemedRow) {
+    if (redeemDiscount > 0) {
+      document.getElementById('redeemedValue').textContent = `- ${formatCurrency(redeemDiscount)}`;
+      redeemedRow.style.display = '';
+    } else {
+      redeemedRow.style.display = 'none';
+    }
+  }
   totalEl.textContent = formatCurrency(total);
   modalTotal.textContent = formatCurrency(total);
   if (loyaltyPointsEl) {
@@ -1062,6 +1080,7 @@ function resetOrderState() {
   state.customerId = null;
   state.customer = null;
   state.orderDiscount = 0;
+  state.redeemDiscount = 0;
   if (customerInput) customerInput.value = '';
   if (loyaltyInput) loyaltyInput.value = '';
   const discountReasonInput = document.getElementById('discountReason');
@@ -1228,7 +1247,9 @@ function renderPaymentLoyalty(customer) {
       <div class="pay-loyalty-tile"><div class="tile-label">Points Won</div><div class="tile-value">${pointsWon}</div></div>
       <div class="pay-loyalty-tile"><div class="tile-label">New Total</div><div class="tile-value">${newTotal}</div></div>
     </div>
+    <button type="button" class="ghost" id="payLoyaltyRedeemBtn" style="margin-top:6px;width:100%;">🎁 Redeem a reward (${balance} pts)</button>
   `;
+  document.getElementById('payLoyaltyRedeemBtn')?.addEventListener('click', openLoyaltyModal);
 }
 
 // Render immediately from cache, then refresh the balance from the server so the
@@ -1608,8 +1629,21 @@ function renderLoyaltyBody(customer, rewards) {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'Redemption failed');
         state.customer = data.customer;
-        openInfo('Redeemed', `"${reward.name}" redeemed — ${data.customer.points_balance} pts remaining.`);
-        renderLoyaltyBody(data.customer, rewards);
+        const discountValue = Number(data.discount_value || 0);
+        // A bill-discount reward (e.g. Menu Credit) redeemed mid-Payment actually
+        // reduces the current sale total; redeeming the same reward from the
+        // general register (no order in progress) just logs it, same as always.
+        if (discountValue > 0 && payModal?.classList.contains('active')) {
+          state.redeemDiscount += discountValue;
+          updateTotals();
+          // A bill discount is a one-shot action, not browsing — close back to
+          // Payment right away instead of leaving the reward list open.
+          closeLoyaltyModal();
+          openInfo('Redeemed', `"${reward.name}" redeemed — ${formatCurrency(discountValue)} taken off this bill. ${data.customer.points_balance} pts remaining.`);
+        } else {
+          openInfo('Redeemed', `"${reward.name}" redeemed — ${data.customer.points_balance} pts remaining.`);
+          renderLoyaltyBody(data.customer, rewards);
+        }
       } catch (err) {
         openInfo('Redemption failed', err.message || 'Could not redeem this reward.');
         btn.disabled = false; btn.textContent = 'Redeem';
@@ -2073,6 +2107,8 @@ async function renderReceiptCanvasFromDom() {
     .map(visibleReceiptText).filter(Boolean);
   const subtotal = visibleReceiptText('receiptSubtotal');
   const tax = visibleReceiptText('receiptTax');
+  const redeemedLineEl = document.getElementById('receiptRedeemedLine');
+  const redeemed = (redeemedLineEl && redeemedLineEl.style.display !== 'none') ? visibleReceiptText('receiptRedeemed') : '';
   const total = visibleReceiptText('receiptTotal2') || visibleReceiptText('receiptTotal');
   const footer = visibleReceiptText('receiptFooterText') || 'Thank you!';
 
@@ -2090,6 +2126,7 @@ async function renderReceiptCanvasFromDom() {
   y += 10; // bottom rule
   if (subtotal) y += 22;
   if (tax) y += 22;
+  if (redeemed) y += 22;
   y += 28; // total
   if (qrImg) y += 110;
   y += 22; // footer
@@ -2143,6 +2180,7 @@ async function renderReceiptCanvasFromDom() {
   };
   if (subtotal) row('Subtotal', subtotal, false);
   if (tax) row('Tax', tax, false);
+  if (redeemed) row('Reward redeemed', redeemed, false);
   row('Total', total, true);
 
   if (qrImg) {
@@ -2574,7 +2612,8 @@ confirmPay.addEventListener('click', async () => {
     customer_id: state.customerId || null,
     discount_pct: discountPct,
     discount_reason: discountPct > 0 ? discountReason : '',
-    manager_pin: discountPct > 0 ? discountPin : ''
+    manager_pin: discountPct > 0 ? discountPin : '',
+    redemption_discount: totals.redeemDiscount || 0
   };
 
   let saleId = null;
@@ -2654,6 +2693,14 @@ confirmPay.addEventListener('click', async () => {
   if (receiptTotal2) receiptTotal2.textContent = formatCurrency(totals.total);
   if (receiptSubtotal) receiptSubtotal.textContent = formatCurrency(totals.subtotal);
   if (receiptTax) receiptTax.textContent = formatCurrency(totals.tax);
+  if (receiptRedeemedLine && receiptRedeemed) {
+    if (totals.redeemDiscount > 0) {
+      receiptRedeemed.textContent = `- ${formatCurrency(totals.redeemDiscount)}`;
+      receiptRedeemedLine.style.display = '';
+    } else {
+      receiptRedeemedLine.style.display = 'none';
+    }
+  }
   if (receiptChange && receiptChangeLine) {
     if (method === 'cash') {
       receiptChange.textContent = formatCurrency(change);
@@ -2755,6 +2802,7 @@ confirmPay.addEventListener('click', async () => {
   state.customerId = null;
   state.customer = null;
   state.orderDiscount = 0;
+  state.redeemDiscount = 0;
   if (customerInput) customerInput.value = '';
   if (loyaltyInput) loyaltyInput.value = '';
   const discountReasonInput = document.getElementById('discountReason');
@@ -2913,6 +2961,7 @@ const loyaltyRewardsList = document.getElementById('loyaltyRewardsList');
 const newRewardName = document.getElementById('newRewardName');
 const newRewardDesc = document.getElementById('newRewardDesc');
 const newRewardPoints = document.getElementById('newRewardPoints');
+const newRewardDiscount = document.getElementById('newRewardDiscount');
 const addRewardBtn = document.getElementById('addRewardBtn');
 
 // Historical defaults — what the earn side shipped with before it became
@@ -2971,6 +3020,7 @@ function renderLoyaltyRewardsSetup(rewards) {
           <input type="text" class="edit-name" value="${(r.name || '').replace(/"/g, '&quot;')}" placeholder="Reward name" />
           <input type="text" class="edit-desc" value="${(r.description || '').replace(/"/g, '&quot;')}" placeholder="Description (optional)" />
           <input type="number" class="edit-points" min="1" step="1" value="${r.points_cost}" placeholder="Points" />
+          <input type="number" class="edit-discount" min="0" step="500" value="${r.discount_value || ''}" placeholder="Bill discount Rp" />
         </div>
         <button type="button" data-save-id="${r.id}">Save</button>
         <button type="button" data-cancel-edit="1">Cancel</button>
@@ -2981,6 +3031,7 @@ function renderLoyaltyRewardsSetup(rewards) {
       <div class="reward-info">
         <div class="reward-name">${r.name}</div>
         ${r.description ? `<div class="reward-desc">${r.description}</div>` : ''}
+        ${r.discount_value ? `<div class="reward-desc">Rp ${Number(r.discount_value).toLocaleString('id-ID')} off the bill when redeemed</div>` : ''}
       </div>
       <div class="reward-cost">${r.points_cost} pts</div>
       <button type="button" data-edit-id="${r.id}">Edit</button>
@@ -3008,13 +3059,14 @@ function renderLoyaltyRewardsSetup(rewards) {
       const name = row.querySelector('.edit-name').value.trim();
       const description = row.querySelector('.edit-desc').value.trim();
       const points = Math.floor(Number(row.querySelector('.edit-points').value));
+      const discountRaw = row.querySelector('.edit-discount').value.trim();
       if (!name) { openInfo('Name required', 'Give the reward a name.'); return; }
       if (!Number.isFinite(points) || points < 1) { openInfo('Invalid points', 'Points cost must be at least 1.'); return; }
       try {
         const res = await fetch(`/api/loyalty-rewards/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
-          body: JSON.stringify({ name, description, points_cost: points })
+          body: JSON.stringify({ name, description, points_cost: points, discount_value: discountRaw ? Number(discountRaw) : null })
         });
         if (!res.ok) throw new Error('save failed');
         editingRewardId = null;
@@ -3056,16 +3108,17 @@ addRewardBtn?.addEventListener('click', async () => {
   const name = newRewardName.value.trim();
   const description = newRewardDesc.value.trim();
   const points = Math.floor(Number(newRewardPoints.value));
+  const discountRaw = newRewardDiscount.value.trim();
   if (!name) { openInfo('Name required', 'Give the reward a name.'); return; }
   if (!Number.isFinite(points) || points < 1) { openInfo('Invalid points', 'Points cost must be at least 1.'); return; }
   try {
     const res = await fetch('/api/loyalty-rewards', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(typeof authHeaders === 'function' ? authHeaders() : {}) },
-      body: JSON.stringify({ name, description, points_cost: points })
+      body: JSON.stringify({ name, description, points_cost: points, discount_value: discountRaw ? Number(discountRaw) : null })
     });
     if (!res.ok) throw new Error('add failed');
-    newRewardName.value = ''; newRewardDesc.value = ''; newRewardPoints.value = '';
+    newRewardName.value = ''; newRewardDesc.value = ''; newRewardPoints.value = ''; newRewardDiscount.value = '';
     loadLoyaltyRewardsSetup();
   } catch (e) { openInfo('Failed', 'Could not add this reward.'); }
 });

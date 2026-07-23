@@ -52,10 +52,13 @@ router.post('/', (req, res) => {
   const customerId = Number.isInteger(Number(b.customer_id)) && Number(b.customer_id) > 0
     ? Number(b.customer_id) : null;
   // Points-for-cash-discount at checkout has been replaced by the named
-  // reward catalog (server/routes/loyalty-rewards.js) — redemption now
-  // happens independently of any sale, so this is always 0 regardless of
-  // what a client sends.
-  const requestedRedeem = 0;
+  // reward catalog (server/routes/loyalty-rewards.js) — points are spent
+  // there, independently of any sale. A reward with a rupiah discount_value
+  // (e.g. Menu Credit) redeemed mid-Payment still needs to reduce THIS bill
+  // though, so the client forwards that already-authorized amount here to
+  // apply and record against the sale (points were already deducted at
+  // redeem time, so there's nothing to re-verify against points_balance).
+  const requestedRedemptionDiscount = Math.max(0, Math.round(Number(b.redemption_discount || 0)));
   // Whole-order discount, entered as a percent at Payment. Clamped 0..100; the
   // rupiah amount is derived server-side from the actual line total.
   const discountPct = Math.max(0, Math.min(100, Math.floor(Number(b.discount_pct || 0))));
@@ -123,23 +126,17 @@ router.post('/', (req, res) => {
         .run(discountPct, discountValue, discountReason, txnId);
     }
 
+    // A reward-catalog bill discount (e.g. Menu Credit), clamped to what's
+    // left after the manual discount — can't take off more than the bill.
+    // Points for it were already spent via /api/loyalty-rewards/:id/redeem,
+    // so redeem_points stays 0 here; this only records/applies the rupiah.
+    redeemValue = Math.min(requestedRedemptionDiscount, afterDiscount);
+    if (redeemValue > 0) {
+      db.prepare('UPDATE transactions SET redeem_value = ? WHERE id = ?').run(redeemValue, txnId);
+    }
+
     const loyalty = getLoyaltyConfig();
     if (customer && loyalty.enabled) {
-      // Redemption first — clamp to what they actually have and to the
-      // discounted total (can't redeem more than the bill). redeem_value is
-      // derived here, never trusted from the client.
-      if (requestedRedeem > 0 && loyalty.redeem_rate > 0) {
-        redeemPoints = Math.min(requestedRedeem, customer.points_balance);
-        redeemValue = redeemPoints * loyalty.redeem_rate;
-        if (redeemValue > afterDiscount) {
-          redeemValue = afterDiscount;
-          redeemPoints = Math.ceil(redeemValue / loyalty.redeem_rate);
-        }
-        if (redeemPoints > 0) {
-          db.prepare('UPDATE customers SET points_balance = points_balance - ?, updated_at = datetime(\'now\') WHERE id = ?')
-            .run(redeemPoints, customer.id);
-        }
-      }
       // Earn on what was actually paid (net of discount and redemption).
       const netTotal = Math.max(0, afterDiscount - redeemValue);
       pointsEarned = loyalty.earn_base > 0 ? Math.floor(netTotal / loyalty.earn_base) * loyalty.earn_points : 0;
@@ -147,8 +144,7 @@ router.post('/', (req, res) => {
         db.prepare('UPDATE customers SET points_balance = points_balance + ?, updated_at = datetime(\'now\') WHERE id = ?')
           .run(pointsEarned, customer.id);
       }
-      db.prepare('UPDATE transactions SET points_earned = ?, redeem_points = ?, redeem_value = ? WHERE id = ?')
-        .run(pointsEarned, redeemPoints, redeemValue, txnId);
+      db.prepare('UPDATE transactions SET points_earned = ? WHERE id = ?').run(pointsEarned, txnId);
       customerRow = db.prepare('SELECT id, name, member_id, points_balance FROM customers WHERE id = ?').get(customer.id);
     } else if (customer) {
       // Program off: still link the customer to the sale, just no points move.

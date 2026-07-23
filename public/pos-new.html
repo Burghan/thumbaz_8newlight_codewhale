@@ -126,6 +126,10 @@
               <span id="deliveryChargeLabel">Delivery charge</span>
               <strong id="deliveryCharge">Rp 0</strong>
             </div>
+            <div class="summary-row" id="redeemedRow" style="display:none;">
+              <span>Reward redeemed</span>
+              <strong id="redeemedValue">-Rp 0</strong>
+            </div>
             <div class="summary-row">
               <span>Loyalty Points</span>
               <strong id="loyaltyPoints">0</strong>
@@ -437,8 +441,10 @@
             <input type="text" id="newRewardName" placeholder="Reward name" />
             <input type="text" id="newRewardDesc" placeholder="Description (optional)" />
             <input type="number" id="newRewardPoints" min="1" step="1" placeholder="Points" />
+            <input type="number" id="newRewardDiscount" min="0" step="500" placeholder="Bill discount Rp (optional)" />
             <button class="pay" id="addRewardBtn" type="button">+ Add</button>
           </div>
+          <div class="muted" style="font-size:11px;">Bill discount is only for rewards that reduce the current order (like a menu-item credit) — leave blank for physical items (merchandise, equipment) that don't touch the total.</div>
         </div>
       </div>
       <div class="modal-foot loyalty-setup-foot">
@@ -757,6 +763,10 @@
           <div class="receipt-divider"></div>
           <div class="receipt-line"><span>Subtotal</span><span id="receiptSubtotal">Rp 0</span></div>
           <div class="receipt-line"><span>Tax</span><span id="receiptTax">Rp 0</span></div>
+          <div class="receipt-line" id="receiptRedeemedLine" style="display:none;">
+            <span>Reward redeemed</span>
+            <span id="receiptRedeemed">-Rp 0</span>
+          </div>
           <div class="receipt-line total"><span>Total</span><span id="receiptTotal2">Rp 0</span></div>
           <div class="receipt-line" id="receiptChangeLine" style="display:none;">
             <span>Change</span>

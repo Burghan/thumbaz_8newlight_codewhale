@@ -94,7 +94,9 @@
         `).join('')}
       </div>
       <div class="totals-row"><span>Subtotal</span><span>${Rp(o.subtotal)}</span></div>
+      ${o.discount_amount ? `<div class="totals-row"><span>Discount</span><span>-${Rp(o.discount_amount)}</span></div>` : ''}
       ${o.tax ? `<div class="totals-row"><span>Tax</span><span>${Rp(o.tax)}</span></div>` : ''}
+      ${o.redeem_value ? `<div class="totals-row"><span>Reward redeemed</span><span>-${Rp(o.redeem_value)}</span></div>` : ''}
       <div class="totals-row grand"><span>Total</span><span>${Rp(o.total)}</span></div>
       <div class="footer-note">Thank you for visiting 8 NewLight Coffee!</div>
     `;
@@ -152,7 +154,9 @@
     y += o.items.length * 22;
     y += 10; // bottom rule
     y += 22; // subtotal
+    if (o.discount_amount) y += 22;
     if (o.tax) y += 22;
+    if (o.redeem_value) y += 22;
     y += 28; // total
     y += 30; // footer
     const height = y + margin;
@@ -206,7 +210,9 @@
       y += bold ? 28 : 22;
     };
     row('Subtotal', Rp(o.subtotal), false);
+    if (o.discount_amount) row('Discount', '-' + Rp(o.discount_amount), false);
     if (o.tax) row('Tax', Rp(o.tax), false);
+    if (o.redeem_value) row('Reward redeemed', '-' + Rp(o.redeem_value), false);
     row('Total', Rp(o.total), true);
 
     ctx.textAlign = 'center';
