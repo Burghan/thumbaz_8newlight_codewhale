@@ -1060,6 +1060,21 @@ body {
   overflow-y: auto;
 }
 
+/* Close Shift lives at the bottom of the Shift panel, visually separated
+   from the everyday Cash In/Out actions above it. */
+.shift-panel-foot {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border, #ddd);
+}
+.shift-panel-foot button {
+  width: 100%;
+}
+.shift-panel-foot button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .cash-move-row {
   display: flex;
   justify-content: space-between;
@@ -1078,6 +1093,82 @@ body {
 .cash-move-row .cmr-amount { font-weight: 800; white-space: nowrap; }
 .cash-move-row .cmr-amount.in { color: var(--positive, #3a8a5c); }
 .cash-move-row .cmr-amount.out { color: var(--danger, #c1584e); }
+
+/* Shift Report modal — receipt-style sections after Close Shift. */
+.shift-report {
+  margin-top: 12px;
+  display: grid;
+  gap: 14px;
+  max-height: 55vh;
+  overflow: auto;
+}
+.sr-section { border-top: 1px dashed var(--border, #ddd); padding-top: 10px; }
+.sr-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.sr-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+  padding: 2px 0;
+}
+.sr-row .sr-label { font-weight: 600; color: var(--ink); }
+.sr-row .sr-val { text-align: right; font-variant-numeric: tabular-nums; }
+.sr-row.sr-total { border-top: 1px solid var(--border, #ddd); margin-top: 4px; padding-top: 6px; font-weight: 800; }
+.sr-var { font-weight: 800; white-space: nowrap; }
+.sr-var.pos { color: var(--positive, #3a8a5c); }
+.sr-var.neg { color: var(--danger, #c1584e); }
+.sr-sub { font-weight: 400; font-size: 11px; color: var(--muted); }
+
+/* Attendance: name | time range | hours-or-still-in, so the times stop
+   floating as one long right-aligned string. */
+.sr-att {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+  padding: 2px 0;
+}
+.sr-att-name { font-weight: 600; }
+.sr-att-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sr-att-hours { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.sr-pill {
+  display: inline-block;
+  background: #efe1c4;
+  color: #92651c;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 9px;
+}
+
+/* Drawer reconciliation as a real Counted/Expected/Variance table. */
+.sr-table {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr 1fr;
+  gap: 3px 10px;
+  margin-top: 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.sr-table .sr-th {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-align: right;
+}
+.sr-table .sr-cell-label { font-weight: 600; }
+.sr-table .sr-cell { text-align: right; }
 
 .void-sale-total {
   font-weight: 800;

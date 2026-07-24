@@ -110,6 +110,7 @@
         { href: '/pos/ui/1/register', label: 'Register' },
         { href: '/kitchen.html', label: 'Kitchen' },
         { href: '/transactions.html', label: 'Transactions' },
+        { href: '/shifts.html', label: 'Shifts' },
         { href: '/customers.html', label: 'Customers' },
         { href: '/clock.html', label: 'Attendance' },
         { href: '/printer-setup.html', label: 'Printer' },

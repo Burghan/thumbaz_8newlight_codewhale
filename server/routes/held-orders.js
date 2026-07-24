@@ -59,13 +59,14 @@ router.put('/:id', (req, res) => {
   const items = Array.isArray(b.items) ? b.items : (existing ? JSON.parse(existing.items_json || '[]') : []);
   const total = typeof b.total === 'number' ? b.total : (existing ? existing.total : 0);
   const resolvedCustomerName = b.customerName !== undefined ? b.customerName : (existing ? existing.customer_name : null);
-  // A customer name is more useful in the Orders list than a generic label
-  // — only fall back when no name was actually entered. The shop doesn't run
-  // a per-table/tab system (no dine-in kitchen workflow active yet — see
-  // [[project-orders-server-side-2026-07-24]]), so every order defaults to
-  // the same "Direct Sale" label sendOrderToKitchen already uses for a
+  // The customer's name IS the order's title whenever one was entered — it
+  // always beats a generic client label ("Tab 2", "Direct Sale"), including
+  // one already stored on the row. The shop doesn't run a per-table/tab
+  // system (no dine-in kitchen workflow active yet — see
+  // [[project-orders-server-side-2026-07-24]]), so a no-name order defaults
+  // to the same "Direct Sale" label sendOrderToKitchen already uses for a
   // no-table ticket, not an auto-numbered "Tab N".
-  const resolvedLabel = b.label || resolvedCustomerName || (existing ? existing.label : null) || 'Direct Sale';
+  const resolvedLabel = resolvedCustomerName || b.label || (existing ? existing.label : null) || 'Direct Sale';
   const status = b.status || (existing ? existing.status : null) || (b.sentToKitchen ? 'ongoing' : 'draft');
   const orderType = b.orderType || (existing ? existing.order_type : null);
   const receiptNumber = b.receiptNumber !== undefined ? b.receiptNumber : (existing ? existing.receipt_number : null);
