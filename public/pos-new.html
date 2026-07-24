@@ -691,6 +691,7 @@
       <div class="modal-actions single">
         <button class="pay" id="cashMoveIn">Cash In</button>
         <button class="pay" id="cashMoveOut">Cash Out</button>
+        <button class="pay danger" id="closeShiftBtn">Close Shift</button>
       </div>
       <div class="cash-move-history" id="cashMoveHistory"><div class="muted">Loading…</div></div>
     </div>
@@ -740,6 +741,22 @@
       <div class="modal-actions">
         <button class="pay" id="closeSessionCancel">Cancel</button>
         <button class="pay primary" id="closeSessionConfirm">Close Shift</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="shiftReportModal">
+    <div class="modal-card large">
+      <div class="modal-head">
+        <div>
+          <h3>Shift Report</h3>
+          <div class="muted" id="shiftReportSubhead">Shift closed.</div>
+        </div>
+        <button class="ghost" id="shiftReportClose">Close</button>
+      </div>
+      <div class="shift-report" id="shiftReportBody"></div>
+      <div class="modal-actions single">
+        <button class="pay primary" id="shiftReportDone">Done</button>
       </div>
     </div>
   </div>

@@ -1079,6 +1079,38 @@ body {
 .cash-move-row .cmr-amount.in { color: var(--positive, #3a8a5c); }
 .cash-move-row .cmr-amount.out { color: var(--danger, #c1584e); }
 
+/* Shift Report modal — receipt-style sections after Close Shift. */
+.shift-report {
+  margin-top: 12px;
+  display: grid;
+  gap: 14px;
+  max-height: 55vh;
+  overflow: auto;
+}
+.sr-section { border-top: 1px dashed var(--border, #ddd); padding-top: 10px; }
+.sr-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.sr-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+  padding: 2px 0;
+}
+.sr-row .sr-label { font-weight: 600; color: var(--ink); }
+.sr-row .sr-val { text-align: right; font-variant-numeric: tabular-nums; }
+.sr-row.sr-total { border-top: 1px solid var(--border, #ddd); margin-top: 4px; padding-top: 6px; font-weight: 800; }
+.sr-var { font-weight: 800; white-space: nowrap; }
+.sr-var.pos { color: var(--positive, #3a8a5c); }
+.sr-var.neg { color: var(--danger, #c1584e); }
+
 .void-sale-total {
   font-weight: 800;
   white-space: nowrap;

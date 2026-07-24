@@ -21,7 +21,11 @@
     .clock-btn { width: 100%; padding: 16px; font-size: 18px; border-radius: 14px; border: none; cursor: pointer; font-weight: 700; color: #fff; margin-top: 12px; }
     .clock-btn.in { background: #2e7d32; }
     .clock-btn.out { background: var(--danger); }
+    .clock-btn.shift { background: var(--accent); }
     .clock-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .shift-msg { margin-top: 12px; font-size: 14px; font-weight: 600; min-height: 0; }
+    .shift-msg.ok { color: #2e7d32; }
+    #drawerCount { margin-top: 10px; text-align: left; }
 
     video, canvas { width: 100%; max-width: 320px; border-radius: 12px; margin: 8px auto; display: block; }
     .photo-preview { width: 120px; height: 120px; border-radius: 12px; object-fit: cover; margin: 8px auto; border: 2px solid var(--border); }
@@ -117,6 +121,19 @@
         <img class="photo-preview" id="photoInPreview" src="" style="display:none;" alt="Photo" />
         <button class="clock-btn in" id="clockInBtn">📸 Take Photo & Clock In</button>
         <div class="status" id="statusIn"></div>
+
+        <!-- Post-clock-in shift flow: shown only after a successful clock-in.
+             Start Shift is a deliberate second tap, and the drawer count
+             happens right here — no redirect to the Register. -->
+        <div id="shiftFlow" style="display:none;">
+          <div class="shift-msg" id="shiftMsg"></div>
+          <button class="clock-btn shift" id="startShiftBtn" style="display:none;">🗄️ Start Shift</button>
+          <div id="drawerCount" style="display:none;">
+            <label for="openingCash">Count the drawer — opening cash (Rp)</label>
+            <input id="openingCash" type="number" inputmode="numeric" min="0" placeholder="0" />
+            <button class="clock-btn shift" id="confirmDrawerBtn">Confirm & Open Shift</button>
+          </div>
+        </div>
       </div>
 
       <!-- Clock Out -->
@@ -256,6 +273,7 @@
           document.getElementById('photoOutPreview').src = photo;
           document.getElementById('photoOutPreview').style.display = '';
         }
+        if (action === 'in') showShiftFlow();
         loadToday();
       } catch (e) { statusEl.textContent = `❌ ${e.message || 'Failed'}`; statusEl.className = 'status'; }
       finally {
@@ -266,6 +284,65 @@
 
     document.getElementById('clockInBtn').addEventListener('click', () => openCamera('in'));
     document.getElementById('clockOutBtn').addEventListener('click', () => openCamera('out'));
+
+    // --- Start Shift flow (after a successful clock-in) ---
+    // If the drawer session is already open, just say who opened it; if not,
+    // offer a deliberate Start Shift tap that reveals the drawer count inline.
+    const shiftFlow = document.getElementById('shiftFlow');
+    const shiftMsg = document.getElementById('shiftMsg');
+    const startShiftBtn = document.getElementById('startShiftBtn');
+    const drawerCount = document.getElementById('drawerCount');
+    const openingCashInput = document.getElementById('openingCash');
+    const Rp = v => 'Rp ' + Math.round(v || 0).toLocaleString('id-ID');
+
+    async function showShiftFlow() {
+      shiftFlow.style.display = '';
+      startShiftBtn.style.display = 'none';
+      drawerCount.style.display = 'none';
+      shiftMsg.className = 'shift-msg';
+      try {
+        const d = await fetch('/api/sessions/open', { headers: authHeaders(), credentials: 'same-origin' }).then(r => r.json());
+        if (d.session) {
+          shiftMsg.textContent = `🗄️ Shift already opened by ${d.session.opened_by || '—'}, ${fmtDateTime(d.session.opened_at)}`;
+        } else {
+          shiftMsg.textContent = 'No shift open yet.';
+          startShiftBtn.style.display = '';
+        }
+      } catch {
+        shiftFlow.style.display = 'none';
+      }
+    }
+
+    startShiftBtn.addEventListener('click', () => {
+      startShiftBtn.style.display = 'none';
+      drawerCount.style.display = '';
+      openingCashInput.value = '';
+      openingCashInput.focus();
+    });
+
+    document.getElementById('confirmDrawerBtn').addEventListener('click', async () => {
+      const amount = Math.max(0, Math.round(Number(openingCashInput.value || 0)));
+      const btn = document.getElementById('confirmDrawerBtn');
+      btn.disabled = true;
+      try {
+        const r = await fetch('/api/sessions/open', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() }, credentials: 'same-origin',
+          body: JSON.stringify({ opening_cash: amount, opened_by: auth.name })
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.message || `Server error (${r.status})`);
+        drawerCount.style.display = 'none';
+        shiftMsg.className = 'shift-msg ok';
+        // POST /open is idempotent — if someone opened it in the meantime we
+        // get their session back; show whichever amount is really in there.
+        shiftMsg.textContent = `✅ Shift opened — ${Rp(d.session?.opening_cash ?? amount)} in drawer`;
+      } catch (e) {
+        shiftMsg.textContent = `❌ ${e.message || 'Failed to open shift'}`;
+      } finally {
+        btn.disabled = false;
+      }
+    });
 
     // Hours, admin/manager only.
     const isManager = auth && (auth.role === 'admin' || auth.role === 'manager');

@@ -214,7 +214,13 @@ const cashMoveModal = document.getElementById('cashMoveModal');
 const cashMoveIn = document.getElementById('cashMoveIn');
 const cashMoveOut = document.getElementById('cashMoveOut');
 const closeCashMove = document.getElementById('closeCashMove');
+const closeShiftBtn = document.getElementById('closeShiftBtn');
 const closeSessionModal = document.getElementById('closeSessionModal');
+const shiftReportModal = document.getElementById('shiftReportModal');
+const shiftReportSubhead = document.getElementById('shiftReportSubhead');
+const shiftReportBody = document.getElementById('shiftReportBody');
+const shiftReportClose = document.getElementById('shiftReportClose');
+const shiftReportDone = document.getElementById('shiftReportDone');
 const closeSessionSubhead = document.getElementById('closeSessionSubhead');
 const closeSessionClose = document.getElementById('closeSessionClose');
 const closeSessionCancel = document.getElementById('closeSessionCancel');
@@ -1322,6 +1328,15 @@ if (cashMoveOut) {
   });
 }
 
+// Close Shift's entry point — the modal and its confirm handler always
+// existed, but nothing ever called openCloseSessionModal().
+if (closeShiftBtn) {
+  closeShiftBtn.addEventListener('click', () => {
+    cashMoveModal?.classList.remove('active');
+    openCloseSessionModal();
+  });
+}
+
 closeCashMove?.addEventListener('click', () => cashMoveModal?.classList.remove('active'));
 cashMoveModal?.addEventListener('click', (event) => {
   if (event.target === cashMoveModal) cashMoveModal.classList.remove('active');
@@ -1810,6 +1825,106 @@ async function openCloseSessionModal() {
   }
 }
 
+// --- Shift Report (shown after Close Shift; same data as Shift History's
+// View Report — both read GET /api/sessions/:id/summary on a closed session).
+// Timestamps are WIB wall-clock strings; parse via replace(' ','T') + local
+// getters like every other formatter in this app — never toLocaleString on
+// the raw string.
+function shiftReportHtml(summary) {
+  const fmtT = (v) => {
+    if (!v) return '—';
+    const d = new Date(String(v).replace(' ', 'T'));
+    if (isNaN(d)) return v;
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}-${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  const hoursOf = (a) => {
+    if (!a.clock_in || !a.clock_out) return null;
+    const ms = new Date(a.clock_out.replace(' ', 'T')) - new Date(a.clock_in.replace(' ', 'T'));
+    return ms > 0 ? (ms / 3600000).toFixed(1) + ' h' : null;
+  };
+  const signed = (v) => `${v > 0 ? '+' : ''}${formatCurrency(v || 0)}`;
+  const varCls = (v) => (v < 0 ? 'neg' : v > 0 ? 'pos' : '');
+  const counted = summary.counted || {};
+  const variance = summary.variance || {};
+  const payments = summary.payments || {};
+  const counts = summary.payment_counts || {};
+  const attendance = summary.attendance || [];
+
+  const attendanceRows = attendance.length ? attendance.map((a) => `
+    <div class="sr-row">
+      <span class="sr-label">${esc(a.employee_name)}</span>
+      <span class="sr-val">${fmtT(a.clock_in)} → ${a.clock_out ? fmtT(a.clock_out) : 'still in'}${hoursOf(a) ? ` · ${hoursOf(a)}` : ''}</span>
+    </div>`).join('') : '<div class="sr-row"><span class="sr-label muted">No clock-ins in this window</span></div>';
+
+  const drawerLine = (label, countedV, expectedV, varianceV) => `
+    <div class="sr-row">
+      <span class="sr-label">${label}</span>
+      <span class="sr-val">${formatCurrency(countedV || 0)} counted · ${formatCurrency(expectedV || 0)} expected
+        <span class="sr-var ${varCls(varianceV || 0)}">${signed(varianceV || 0)}</span></span>
+    </div>`;
+
+  const revenueLine = (label, amount, count) => `
+    <div class="sr-row">
+      <span class="sr-label">${label}</span>
+      <span class="sr-val">${formatCurrency(amount || 0)} · ${count || 0} transaction${count === 1 ? '' : 's'}</span>
+    </div>`;
+
+  const totalRevenue = (payments.cash || 0) + (payments.card || 0) + (payments.qris || 0);
+  const totalCount = (counts.cash || 0) + (counts.card || 0) + (counts.qris || 0);
+
+  return `
+    <div class="sr-section">
+      <div class="sr-title">Attendance</div>
+      ${attendanceRows}
+    </div>
+    <div class="sr-section">
+      <div class="sr-title">Drawer</div>
+      <div class="sr-row"><span class="sr-label">Opening cash</span><span class="sr-val">${formatCurrency(summary.opening_cash || 0)}</span></div>
+      <div class="sr-row"><span class="sr-label">Cash in / out</span><span class="sr-val">+${formatCurrency(summary.cash_in || 0)} / -${formatCurrency(summary.cash_out || 0)}</span></div>
+      ${drawerLine('Cash', counted.cash, summary.expected?.cash, variance.cash)}
+      ${drawerLine('Card', counted.card, summary.expected?.card, variance.card)}
+      ${drawerLine('QRIS', counted.qris, summary.expected?.qris, variance.qris)}
+    </div>
+    <div class="sr-section">
+      <div class="sr-title">Revenue</div>
+      ${revenueLine('Cash', payments.cash, counts.cash)}
+      ${revenueLine('Card', payments.card, counts.card)}
+      ${revenueLine('QRIS', payments.qris, counts.qris)}
+      <div class="sr-row sr-total"><span class="sr-label">Total</span><span class="sr-val">${formatCurrency(totalRevenue)} · ${totalCount} transaction${totalCount === 1 ? '' : 's'}</span></div>
+    </div>
+    <div class="sr-section">
+      <div class="sr-title">Notes</div>
+      <div class="sr-row"><span class="sr-label ${summary.notes ? '' : 'muted'}">${summary.notes ? esc(summary.notes) : 'No notes'}</span></div>
+    </div>`;
+}
+
+function openShiftReport(summary) {
+  if (!shiftReportModal || !shiftReportBody) return false;
+  shiftReportBody.innerHTML = shiftReportHtml(summary);
+  if (shiftReportSubhead) {
+    const closedBy = summary.closed_by ? ` · closed by ${summary.closed_by}` : '';
+    shiftReportSubhead.textContent = `Shift ${summary.session?.name || ''}${closedBy}`.trim();
+  }
+  shiftReportModal.classList.add('active');
+  return true;
+}
+
+// Dismissing the report is when the Register goes back to "no session open"
+// mode — ensureSessionOpening() is deferred to here so its Opening Cash
+// prompt doesn't stack on top of the report.
+function dismissShiftReport() {
+  if (!shiftReportModal?.classList.contains('active')) return;
+  shiftReportModal.classList.remove('active');
+  ensureSessionOpening();
+}
+
+shiftReportClose?.addEventListener('click', dismissShiftReport);
+shiftReportDone?.addEventListener('click', dismissShiftReport);
+shiftReportModal?.addEventListener('click', (event) => {
+  if (event.target === shiftReportModal) dismissShiftReport();
+});
+
 function requestRefund() {
   openPrompt({
     title: 'Refund Order',
@@ -2034,7 +2149,8 @@ if (closeSessionConfirm) {
         notes: closeSessionNotes.value.trim(),
         closed_by: auth?.name || null
       };
-      const response = await fetch(`/api/sessions/${encodeURIComponent(posSessionId)}/close`, {
+      const sessionId = posSessionId;
+      const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/close`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -2044,9 +2160,19 @@ if (closeSessionConfirm) {
         throw new Error(data.message || 'Close session failed.');
       }
       closeSessionModal.classList.remove('active');
-      openInfo('Shift closed', 'Shift closed successfully.');
       posSessionId = null;
-      ensureSessionOpening();
+      // Show the full Shift Report (attendance + drawer + revenue + notes)
+      // instead of a bare "closed" dialog. Re-fetch the summary now that the
+      // session is closed so it carries the stored counted/variance figures.
+      let shown = false;
+      try {
+        const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/summary`);
+        if (res.ok) shown = openShiftReport(await res.json());
+      } catch { /* report is best-effort — the close already succeeded */ }
+      if (!shown) {
+        openInfo('Shift closed', 'Shift closed successfully.');
+        ensureSessionOpening();
+      }
     } catch (err) {
       openInfo('Close failed', err.message || 'Close session failed.');
     }

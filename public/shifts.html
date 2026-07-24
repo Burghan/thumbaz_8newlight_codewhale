@@ -35,6 +35,25 @@
     .pill.closed { background: var(--cream-soft); color: var(--muted); }
     .pos { color: var(--positive); font-weight: 600; }
     .neg { color: var(--danger); font-weight: 600; }
+    .report-btn { padding: 4px 12px; font-size: 12px; font-weight: 600; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--brand-ink); cursor: pointer; min-height: auto; }
+    .report-btn:hover { background: var(--cream-soft); }
+
+    /* Shift Report modal — same four sections as the POS after-close report. */
+    .modal { position: fixed; inset: 0; background: rgba(41,26,18,0.45); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 16px; }
+    .modal.active { display: flex; }
+    .modal-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 12px 32px rgba(41,26,18,0.25); width: 100%; max-width: 460px; max-height: 85vh; overflow: auto; padding: 18px; }
+    .modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 4px; }
+    .modal-head h3 { margin: 0; color: var(--accent); }
+    .modal-head .sub-line { color: var(--muted); font-size: 13px; }
+    .modal-head button { border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+    .sr-section { border-top: 1px dashed var(--border); padding-top: 10px; margin-top: 12px; }
+    .sr-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 6px; }
+    .sr-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; padding: 2px 0; white-space: normal; }
+    .sr-row .sr-label { font-weight: 600; }
+    .sr-row .sr-val { text-align: right; font-variant-numeric: tabular-nums; }
+    .sr-row.sr-total { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; font-weight: 800; }
+    .sr-var { font-weight: 800; white-space: nowrap; }
+    .muted { color: var(--muted); }
   </style>
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#5c7da6" />
@@ -77,11 +96,25 @@
               <th class="num">Expected Cash</th>
               <th class="num">Variance</th>
               <th>Status</th>
+              <th></th>
             </tr></thead>
             <tbody id="rows"></tbody>
           </table>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="modal" id="reportModal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h3>🧾 Shift Report</h3>
+          <div class="sub-line" id="reportSub"></div>
+        </div>
+        <button id="reportClose">Close</button>
+      </div>
+      <div id="reportBody"></div>
     </div>
   </div>
 
@@ -146,7 +179,72 @@
           <td class="num">${r.status==='closed' ? Rp(r.expected_cash) : '—'}</td>
           <td class="num ${r.status==='closed' ? varClass(r.variance_cash) : ''}">${r.status==='closed' ? (r.variance_cash>0?'+':'')+Rp(r.variance_cash) : '—'}</td>
           <td><span class="pill ${r.status}">${r.status==='open' ? 'Open' : 'Closed'}</span></td>
-        </tr>`).join('') : '<tr><td colspan="10" class="status">No shifts recorded yet</td></tr>';
+          <td>${r.status==='closed' ? `<button class="report-btn" data-report="${r.id}">View Report</button>` : ''}</td>
+        </tr>`).join('') : '<tr><td colspan="11" class="status">No shifts recorded yet</td></tr>';
+
+      tbody.querySelectorAll('[data-report]').forEach(btn =>
+        btn.addEventListener('click', () => viewReport(btn.dataset.report)));
+    }
+
+    // --- Shift Report (same four sections as the POS after-close report,
+    // both fed by GET /api/sessions/:id/summary on a closed session) ---
+    const reportModal = document.getElementById('reportModal');
+    const reportSub = document.getElementById('reportSub');
+    const reportBody = document.getElementById('reportBody');
+    document.getElementById('reportClose').addEventListener('click', () => reportModal.classList.remove('active'));
+    reportModal.addEventListener('click', e => { if (e.target === reportModal) reportModal.classList.remove('active'); });
+
+    function hoursOf(a) {
+      if (!a.clock_in || !a.clock_out) return null;
+      const ms = new Date(a.clock_out.replace(' ','T')) - new Date(a.clock_in.replace(' ','T'));
+      return ms > 0 ? (ms/3600000).toFixed(1) + ' h' : null;
+    }
+
+    function reportHtml(s) {
+      const counted = s.counted || {}, variance = s.variance || {};
+      const payments = s.payments || {}, counts = s.payment_counts || {};
+      const signed = v => (v > 0 ? '+' : '') + Rp(v);
+      const drawerLine = (label, c, e, v) => `
+        <div class="sr-row"><span class="sr-label">${label}</span>
+          <span class="sr-val">${Rp(c)} counted · ${Rp(e)} expected <span class="sr-var ${varClass(v||0)}">${signed(v||0)}</span></span></div>`;
+      const revenueLine = (label, amount, n) => `
+        <div class="sr-row"><span class="sr-label">${label}</span>
+          <span class="sr-val">${Rp(amount)} · ${n||0} transaction${n===1?'':'s'}</span></div>`;
+      const attendance = (s.attendance || []).map(a => `
+        <div class="sr-row"><span class="sr-label">${esc(a.employee_name)}</span>
+          <span class="sr-val">${formatDate(a.clock_in)} → ${a.clock_out ? formatDate(a.clock_out) : 'still in'}${hoursOf(a) ? ' · ' + hoursOf(a) : ''}</span></div>`
+        ).join('') || '<div class="sr-row"><span class="sr-label muted">No clock-ins in this window</span></div>';
+      const totalRevenue = (payments.cash||0)+(payments.card||0)+(payments.qris||0);
+      const totalCount = (counts.cash||0)+(counts.card||0)+(counts.qris||0);
+      return `
+        <div class="sr-section"><div class="sr-title">Attendance</div>${attendance}</div>
+        <div class="sr-section"><div class="sr-title">Drawer</div>
+          <div class="sr-row"><span class="sr-label">Opening cash</span><span class="sr-val">${Rp(s.opening_cash)}</span></div>
+          <div class="sr-row"><span class="sr-label">Cash in / out</span><span class="sr-val">+${Rp(s.cash_in)} / -${Rp(s.cash_out)}</span></div>
+          ${drawerLine('Cash', counted.cash, s.expected?.cash, variance.cash)}
+          ${drawerLine('Card', counted.card, s.expected?.card, variance.card)}
+          ${drawerLine('QRIS', counted.qris, s.expected?.qris, variance.qris)}
+        </div>
+        <div class="sr-section"><div class="sr-title">Revenue</div>
+          ${revenueLine('Cash', payments.cash, counts.cash)}
+          ${revenueLine('Card', payments.card, counts.card)}
+          ${revenueLine('QRIS', payments.qris, counts.qris)}
+          <div class="sr-row sr-total"><span class="sr-label">Total</span><span class="sr-val">${Rp(totalRevenue)} · ${totalCount} transaction${totalCount===1?'':'s'}</span></div>
+        </div>
+        <div class="sr-section"><div class="sr-title">Notes</div>
+          <div class="sr-row"><span class="sr-label ${s.notes ? '' : 'muted'}">${s.notes ? esc(s.notes) : 'No notes'}</span></div>
+        </div>`;
+    }
+
+    async function viewReport(id) {
+      try {
+        const s = await jget(`/api/sessions/${encodeURIComponent(id)}/summary`);
+        reportSub.textContent = `Shift #${id} · ${formatDate(s.session?.opened_at)} → ${formatDate(s.closed_at)}${s.closed_by ? ' · closed by ' + s.closed_by : ''}`;
+        reportBody.innerHTML = reportHtml(s);
+        reportModal.classList.add('active');
+      } catch (e) {
+        await appAlert('Could not load the shift report: ' + (e.message || e));
+      }
     }
 
     async function load() {
