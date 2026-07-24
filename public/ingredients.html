@@ -37,6 +37,8 @@
 
     table th, table td { min-width: 90px; padding: 8px 8px; font-size: 13px; }
     table th:first-child, table td:first-child { min-width: 180px; }
+    .num { text-align: right; }
+    .center { text-align: center; }
     #ingredientTable thead th { position: sticky; top: 0; z-index: 2; background: var(--card); }
 
     .status { margin-top: 8px; font-size: 13px; color: var(--muted); min-height: 18px; }
@@ -123,7 +125,7 @@
           <div style="min-width:160px;"><label for="ingredientSort" style="margin-top:0;font-size:12px;color:var(--accent);">Sort</label><select id="ingredientSort"><option value="name-asc">Name (A–Z)</option><option value="name-desc">Name (Z–A)</option></select></div>
           <div style="display:flex;align-items:flex-end;"><label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-top:0;"><input type="checkbox" id="ingShowArchived" style="width:auto;margin:0;"> Show archived</label></div>
         </div>
-        <div class="table-wrap list-scroll"><table id="ingredientTable"><thead><tr><th>Name</th><th>Actions</th><th>Base Unit</th><th>Purchase Unit</th><th>Conversion</th><th>Last Price</th><th>Std Cost</th><th>Min Stock</th><th>Notes</th></tr></thead><tbody id="ingredientRows"><tr><td colspan="9">Loading…</td></tr></tbody></table></div>
+        <div class="table-wrap list-scroll"><table id="ingredientTable"><thead><tr><th>Name</th><th>Actions</th><th class="center">Base Unit</th><th class="center">Purchase Unit</th><th class="num">Conversion</th><th class="num">Last Price</th><th class="num">Std Cost</th><th class="num">Min Stock</th><th>Notes</th></tr></thead><tbody id="ingredientRows"><tr><td colspan="9">Loading…</td></tr></tbody></table></div>
       </div>
     </div>
   </div>
@@ -240,7 +242,7 @@
           ? `<button class="row-btn" data-action="edit" data-id="${i.id}">Edit</button><button class="row-btn" data-action="archive" data-id="${i.id}">Archive</button><button class="row-btn danger" data-action="delete" data-id="${i.id}">Delete</button>`
           : `<button class="row-btn" data-action="restore" data-id="${i.id}">Restore</button><button class="row-btn danger" data-action="delete" data-id="${i.id}">Delete</button>`;
         if (!isActive) tr.style.opacity = '0.6';
-        tr.innerHTML = `<td>${i.name||''}${badge}</td><td>${actions}</td><td>${i.base_unit||i.unit||''}</td><td>${i.purchase_unit||''}</td><td>${i.conv_purchase_to_base||''}</td><td>${i.last_purchase_price!=null?i.last_purchase_price.toLocaleString('id-ID'):''}</td><td>${i.std_cost_per_base??''}</td><td>${i.min_stock??0}</td><td>${i.notes||''}</td>`;
+        tr.innerHTML = `<td>${i.name||''}${badge}</td><td>${actions}</td><td class="center">${i.base_unit||i.unit||''}</td><td class="center">${i.purchase_unit||''}</td><td class="num">${i.conv_purchase_to_base||''}</td><td class="num">${i.last_purchase_price!=null?i.last_purchase_price.toLocaleString('id-ID'):''}</td><td class="num">${i.std_cost_per_base??''}</td><td class="num">${i.min_stock??0}</td><td>${i.notes||''}</td>`;
         ingredientRows.appendChild(tr);
       });
     }

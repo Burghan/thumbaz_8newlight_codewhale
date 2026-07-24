@@ -134,12 +134,8 @@
       document.getElementById("statTotal").textContent = data.length;
       document.getElementById("statActive").textContent = data.filter(s=>s.active).length;
       if(!data.length){tb.innerHTML='<tr><td colspan="5">No suppliers yet</td></tr>';return;}
-      document.getElementById("statTotal").textContent = data.length;
-      document.getElementById("statActive").textContent = data.filter(s=>s.active).length;
       data.forEach(s=>{
         tb.innerHTML += `<tr><td>${s.name}</td><td>${s.contact_name||''}</td><td>${s.phone||''}</td><td>${s.email||''}</td>
-      document.getElementById("statTotal").textContent = data.length;
-      document.getElementById("statActive").textContent = data.filter(s=>s.active).length;
           <td><button class="row-btn" data-edit="${s.id}">Edit</button><button class="row-btn danger" data-archive="${s.id}">Archive</button></td></tr>`;
       });
     }

@@ -53,14 +53,30 @@
     .card { background: var(--card); padding: 16px; border-radius: 12px; box-shadow: 0 8px 20px rgba(41,26,18,0.16); border: 1px solid var(--border); }
 
     .recipe-modal-list { max-height: 300px; overflow: auto; margin: 12px 0; }
-    .recipe-modal-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-    .recipe-modal-item span { flex: 1; }
-    .recipe-modal-item input { width: 70px; min-height: 28px; padding: 2px 6px; font-size: 12px; margin: 0; }
-    .recipe-modal-item button { width: auto; min-height: 28px; padding: 2px 8px; margin: 0; font-size: 12px; }
-    .recipe-add-row { display: flex; gap: 8px; align-items: flex-end; margin-top: 12px; }
-    .recipe-add-row select { flex: 1; min-height: 36px; font-size: 13px; margin: 0; }
-    .recipe-add-row input { width: 80px; min-height: 36px; margin: 0; }
-    .recipe-add-row button { width: auto; min-height: 36px; padding: 6px 14px; margin: 0; }
+    /* Existing ingredient rows and the "+ Add ingredient" row below them
+       share one sizing scale now — same input height/font, same qty-box
+       width, same button height — so the two no longer look like they
+       belong to different, mismatched forms. */
+    .recipe-modal-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .recipe-modal-item:last-child { border-bottom: none; }
+    .recipe-modal-item .ing-name { flex: 1; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .recipe-modal-item .ing-unit { flex: 0 0 auto; width: 24px; font-size: 12px; color: var(--muted); text-align: left; }
+    .recipe-modal-item .ing-cost { flex: 0 0 auto; width: 64px; font-size: 13px; color: var(--ink); text-align: left; }
+    .recipe-add-row { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
+    .recipe-add-row select { flex: 1; min-width: 0; }
+
+    /* Fixed `height` (not min-height) — a bare number input's own UA sizing
+       otherwise stretches past min-height and no longer lines up with the
+       select/button beside it, which is exactly what happened here. */
+    .recipe-modal-item input, .recipe-add-row input, .recipe-add-row select {
+      height: 38px; line-height: 1; font-size: 13px; padding: 0 10px; margin: 0; box-sizing: border-box; border-radius: 8px;
+    }
+    .recipe-modal-item input.modal-qty, #recipeModalQty { flex: 0 0 90px; width: 90px; text-align: center; }
+    .recipe-modal-item button.row-btn, .recipe-add-row button {
+      height: 38px; min-height: 0; margin: 0; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .recipe-modal-item button.row-btn { flex: 0 0 auto; width: 38px; padding: 0; font-size: 14px; }
+    .recipe-add-row button { flex: 0 0 auto; width: auto; padding: 0 18px; font-size: 13px; font-weight: 700; }
   </style>
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#5c7da6" />
@@ -246,7 +262,7 @@
       recipeModalList.innerHTML='';
       if(!ings.length){recipeModalList.innerHTML='<div style="padding:12px;color:var(--muted);">No ingredients yet</div>';return;}
       ings.forEach(ing=>{const d=document.createElement('div');d.className='recipe-modal-item';
-        d.innerHTML=`<span>${ing.name}</span><input type="number" step="0.0001" value="${ing.quantity}" data-iid="${ing.ingredient_id}" class="modal-qty" /><span style="flex:0;font-size:12px;color:var(--muted);">${ing.unit}</span><span style="flex:0;font-size:12px;">${formatRupiah(ing.line_cost)}</span><button class="row-btn danger" data-action="modal-del" data-iid="${ing.ingredient_id}" style="margin:0;">✕</button>`;
+        d.innerHTML=`<span class="ing-name">${ing.name}</span><input type="number" step="0.0001" value="${ing.quantity}" data-iid="${ing.ingredient_id}" class="modal-qty" /><span class="ing-unit">${ing.unit}</span><span class="ing-cost">${formatRupiah(ing.line_cost)}</span><button class="row-btn danger" data-action="modal-del" data-iid="${ing.ingredient_id}">✕</button>`;
         recipeModalList.appendChild(d);});
     }
 
