@@ -41,6 +41,7 @@
     th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
     th { position: sticky; top: 0; background: var(--card); color: var(--accent); font-size: 11px; text-transform: uppercase; z-index: 1; }
     .num { text-align: right; }
+    .center { text-align: center; }
     th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
     th.sortable:hover { color: var(--brand); }
     th.sortable::after { content: ''; display: inline-block; width: 0; height: 0; margin-left: 5px; vertical-align: middle; border-left: 4px solid transparent; border-right: 4px solid transparent; opacity: .35; }
@@ -173,7 +174,7 @@
         </div>
         <div class="hint" style="margin-bottom:6px;">Click an item to select it above.</div>
         <div class="list-scroll">
-          <table><thead><tr><th>Ingredient</th><th class="num">On Hand</th><th>Unit</th><th class="num">Shortfall</th></tr></thead>
+          <table><thead><tr><th>Ingredient</th><th class="num">On Hand</th><th class="center">Unit</th><th class="num">Shortfall</th></tr></thead>
           <tbody id="lowStockRows"><tr><td colspan="4">Loading…</td></tr></tbody></table>
         </div>
       </div>
@@ -187,7 +188,7 @@
           <th class="sortable" data-sort="date">Date</th>
           <th class="sortable" data-sort="item">Item</th>
           <th class="num sortable" data-sort="quantity">Qty</th>
-          <th class="sortable" data-sort="purchase_unit">Unit</th>
+          <th class="center sortable" data-sort="purchase_unit">Unit</th>
           <th class="num sortable" data-sort="total_cost">Total Cost</th>
           <th>Notes</th>
         </tr></thead>
@@ -319,7 +320,7 @@
       sorted.forEach(p=>{
         const item=p.category==='ingredient'?p.ingredient_name:p.item_name||'';
         const tr=document.createElement('tr');
-        tr.innerHTML=`<td data-label="Date">${formatDate(p.date)}</td><td data-label="Item">${item}</td><td class="num" data-label="Qty">${p.quantity||''}</td><td data-label="Unit">${p.purchase_unit||''}</td><td class="num" data-label="Total Cost">${formatRp(p.total_cost)}</td><td data-label="Notes">${esc(p.notes||'')}</td>`;
+        tr.innerHTML=`<td data-label="Date">${formatDate(p.date)}</td><td data-label="Item">${item}</td><td class="num" data-label="Qty">${p.quantity||''}</td><td class="center" data-label="Unit">${p.purchase_unit||''}</td><td class="num" data-label="Total Cost">${formatRp(p.total_cost)}</td><td data-label="Notes">${esc(p.notes||'')}</td>`;
         tbody.appendChild(tr);
       });
       document.querySelectorAll('#purchaseHistoryTable th[data-sort]').forEach(th=>{
@@ -371,7 +372,7 @@
             const sf=Math.max(0,item.minStock-item.qty);
             const tr=document.createElement('tr');tr.classList.add('low-row');
             tr.dataset.ingredientId=item.ingredient_id;
-            tr.innerHTML=`<td class="low" data-label="Ingredient">${item.name}</td><td class="num" data-label="On Hand">${item.qty.toFixed(2)}</td><td data-label="Unit">${item.unit||''}</td><td class="num" data-label="Shortfall">${sf.toFixed(2)}</td>`;
+            tr.innerHTML=`<td class="low" data-label="Ingredient">${item.name}</td><td class="num" data-label="On Hand">${Math.round(item.qty).toLocaleString('id-ID')}</td><td class="center" data-label="Unit">${item.unit||''}</td><td class="num" data-label="Shortfall">${Math.round(sf).toLocaleString('id-ID')}</td>`;
             lb.appendChild(tr);
           });
           syncSelectedLowStockRow();
