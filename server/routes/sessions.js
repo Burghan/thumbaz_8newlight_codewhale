@@ -44,22 +44,30 @@ function computeExpected(session) {
   return { payments, payment_counts: paymentCounts, cash_in: cashIn, cash_out: cashOut, expected: { cash: expectedCash, card: payments.card, qris: payments.qris } };
 }
 
-// GET /api/sessions — shift history (admin/manager only; exposes every
-// cashier's counted cash and variance, not staff-safe like the rest of this
-// router). Newest first, optional ?month=YYYY-MM filter.
+// GET /api/sessions — shift history. Admin/manager see every shift; staff
+// see only shifts THEY opened or closed (matched on their session name,
+// same field the open/close flows record) — so a cashier can review their
+// own drawer history without exposing every colleague's counted cash and
+// variance. Newest first, optional ?month=YYYY-MM filter.
 router.get('/', (req, res) => {
-  if (req.user?.role === 'staff') return res.status(403).json({ message: 'Manager access required' });
   const month = req.query.month;
+  const clauses = [];
+  const params = [];
+  if (month) { clauses.push("strftime('%Y-%m', opened_at) = ?"); params.push(month); }
+  if (req.user?.role === 'staff') {
+    clauses.push('(opened_by = ? OR closed_by = ?)');
+    params.push(req.user.name, req.user.name);
+  }
   const rows = db.prepare(`
     SELECT id, opened_at, opened_by, opening_cash, status,
            closed_at, closed_by, counted_cash, counted_card, counted_qris,
            expected_cash, expected_card, expected_qris,
            variance_cash, variance_card, variance_qris, notes
     FROM pos_sessions
-    ${month ? "WHERE strftime('%Y-%m', opened_at) = ?" : ''}
+    ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
     ORDER BY opened_at DESC, id DESC
     LIMIT 200
-  `).all(...(month ? [month] : []));
+  `).all(...params);
   res.json(rows);
 });
 
@@ -123,6 +131,15 @@ router.get('/:id/summary', (req, res) => {
   const id = Number(req.params.id);
   const session = db.prepare('SELECT * FROM pos_sessions WHERE id = ?').get(id);
   if (!session) return res.status(404).json({ message: 'Session not found' });
+  // Staff may always read the OPEN session (the live shift — Close Shift
+  // needs it no matter who opened the drawer that morning), but a CLOSED
+  // one only if they opened or closed it themselves — mirrors the GET /
+  // history filter, so "only their shift history" holds at the API level
+  // too, not just in the list the page happens to show.
+  if (req.user?.role === 'staff' && session.status === 'closed'
+      && session.opened_by !== req.user.name && session.closed_by !== req.user.name) {
+    return res.status(403).json({ message: 'You can only view shifts you opened or closed' });
+  }
   const calc = computeExpected(session);
 
   // Attendance rows overlapping the session window. Both tables store WIB

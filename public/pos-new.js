@@ -1297,7 +1297,7 @@ searchInput.addEventListener('input', (event) => {
 
 
 if (cashMoveBtn) {
-  cashMoveBtn.addEventListener('click', () => { cashMoveModal?.classList.add('active'); renderCashMoveHistory(); });
+  cashMoveBtn.addEventListener('click', () => { cashMoveModal?.classList.add('active'); renderShiftPanelStatus(); renderCashMoveHistory(); });
 }
 
 if (ordersBtn) {
@@ -1327,6 +1327,42 @@ if (cashMoveOut) {
     openCashMove('out');
   });
 }
+
+// The Shift panel's status subline — who opened the drawer, when, and with
+// how much. Re-fetched on every open so it never shows a stale shift.
+async function renderShiftPanelStatus() {
+  const el = document.getElementById('shiftPanelStatus');
+  const openShiftBtn = document.getElementById('openShiftBtn');
+  if (!el) return;
+  el.textContent = 'Loading…';
+  if (closeShiftBtn) { closeShiftBtn.disabled = true; closeShiftBtn.style.display = ''; }
+  if (openShiftBtn) openShiftBtn.style.display = 'none';
+  try {
+    const res = await fetch('/api/sessions/open');
+    const data = res.ok ? await res.json() : {};
+    const s = data.session;
+    posSessionId = s?.id || null;
+    if (s) {
+      const t = s.opened_at ? new Date(String(s.opened_at).replace(' ', 'T')) : null;
+      const timeStr = t && !isNaN(t) ? `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}` : '';
+      el.textContent = `Shift #${s.id} · opened by ${s.opened_by || '—'}${timeStr ? ` at ${timeStr}` : ''} · opening ${formatCurrency(s.opening_cash || 0)}`;
+      if (closeShiftBtn) closeShiftBtn.disabled = false;
+    } else {
+      el.textContent = 'No shift open.';
+      // Footer flips to Open Shift — the drawer count starts here, never
+      // auto-popped on Register load.
+      if (closeShiftBtn) closeShiftBtn.style.display = 'none';
+      if (openShiftBtn) openShiftBtn.style.display = '';
+    }
+  } catch (e) {
+    el.textContent = 'Could not load shift status.';
+  }
+}
+
+document.getElementById('openShiftBtn')?.addEventListener('click', () => {
+  cashMoveModal?.classList.remove('active');
+  promptOpeningCash();
+});
 
 // Close Shift's entry point — the modal and its confirm handler always
 // existed, but nothing ever called openCloseSessionModal().
@@ -1378,7 +1414,9 @@ async function upsertHeldOrder(orderId, {
   const resolvedItems = items || state.order;
   const totals = typeof total === 'number' ? { total } : calculateTotalsForItems(resolvedItems);
   const resolvedTotal = typeof total === 'number' ? total : totals.total;
-  const resolvedLabel = label || state.orderLabel || customerName || undefined;
+  // Customer name first, mirroring the server's resolution — the name is
+  // the order's title whenever one was entered, never "Tab N"/"Direct Sale".
+  const resolvedLabel = customerName || label || state.orderLabel || undefined;
   const body = {
     label: resolvedLabel,
     total: resolvedTotal,
@@ -1683,6 +1721,34 @@ function renderLoyaltyBody(customer, rewards) {
 
 function closeLoyaltyModal() { loyaltyModal?.classList.remove('active'); }
 
+// The drawer-count prompt. Lives behind a deliberate Open Shift tap (Shift
+// panel, or the Start Shift flow on Attendance) — never auto-popped.
+function promptOpeningCash() {
+  openPrompt({
+    title: 'Opening Cash',
+    label: 'Opening cash amount',
+    value: '0',
+    placeholder: '0',
+    hint: 'Count the drawer, then enter the opening cash.',
+    onSave: async (value) => {
+      const amount = Number(value || 0);
+      try {
+        const res = await fetch('/api/sessions/open', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ opening_cash: amount, opened_by: auth?.name || null })
+        });
+        if (!res.ok) throw new Error('Failed to save opening cash.');
+        const data = await res.json().catch(() => ({}));
+        posSessionId = data.session?.id || posSessionId;
+        openInfo('Shift opened', `Opening cash recorded — ${formatCurrency(data.session?.opening_cash ?? amount)} in drawer.`);
+      } catch (err) {
+        openInfo('Opening cash failed', err.message || 'Failed to save opening cash.');
+      }
+    }
+  });
+}
+
 async function ensureSessionOpening() {
   try {
     const response = await fetch('/api/sessions/open');
@@ -1690,27 +1756,11 @@ async function ensureSessionOpening() {
     const data = await response.json();
     posSessionId = data.session?.id || null;
     if (!data.opening_required) return;
-    openPrompt({
-      title: 'Opening Cash',
-      label: 'Opening cash amount',
-      value: '0',
-      placeholder: '0',
-      hint: 'Enter the opening cash before selling.',
-      onSave: async (value) => {
-        const amount = Number(value || 0);
-        try {
-          const res = await fetch('/api/sessions/open', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ opening_cash: amount, opened_by: auth?.name || null })
-          });
-          if (!res.ok) throw new Error('Failed to save opening cash.');
-          openInfo('Shift opened', 'Opening cash recorded.');
-        } catch (err) {
-          openInfo('Opening cash failed', err.message || 'Failed to save opening cash.');
-        }
-      }
-    });
+    // No auto-popped count prompt — just say where to go. Opening the
+    // drawer is a deliberate action from the 🗄️ Shift panel (or Start
+    // Shift on the Attendance page), not something to fat-finger through
+    // the moment the Register loads.
+    openInfo('No shift open', 'Open one from the 🗄️ Shift button in the top bar (or Start Shift on the Attendance page) before selling.');
   } catch (err) {
     console.warn('Session open failed', err);
   }
@@ -1852,26 +1902,30 @@ function shiftReportHtml(summary) {
   const attendance = summary.attendance || [];
 
   const attendanceRows = attendance.length ? attendance.map((a) => `
-    <div class="sr-row">
-      <span class="sr-label">${esc(a.employee_name)}</span>
-      <span class="sr-val">${fmtT(a.clock_in)} → ${a.clock_out ? fmtT(a.clock_out) : 'still in'}${hoursOf(a) ? ` · ${hoursOf(a)}` : ''}</span>
+    <div class="sr-att">
+      <span class="sr-att-name">${esc(a.employee_name)}</span>
+      <span class="sr-att-time">${fmtT(a.clock_in)} → ${a.clock_out ? fmtT(a.clock_out) : ''}</span>
+      <span class="sr-att-hours">${a.clock_out ? (hoursOf(a) || '—') : '<span class="sr-pill">still in</span>'}</span>
     </div>`).join('') : '<div class="sr-row"><span class="sr-label muted">No clock-ins in this window</span></div>';
 
-  const drawerLine = (label, countedV, expectedV, varianceV) => `
-    <div class="sr-row">
-      <span class="sr-label">${label}</span>
-      <span class="sr-val">${formatCurrency(countedV || 0)} counted · ${formatCurrency(expectedV || 0)} expected
-        <span class="sr-var ${varCls(varianceV || 0)}">${signed(varianceV || 0)}</span></span>
-    </div>`;
+  // Counted / Expected / Variance as real columns — the one-line
+  // "X counted · Y expected Z" string was unreadable, especially with the
+  // variance unlabeled at the end.
+  const drawerCell = (label, countedV, expectedV, varianceV) => `
+    <span class="sr-cell-label">${label}</span>
+    <span class="sr-cell">${formatCurrency(countedV || 0)}</span>
+    <span class="sr-cell">${formatCurrency(expectedV || 0)}</span>
+    <span class="sr-cell sr-var ${varCls(varianceV || 0)}">${signed(varianceV || 0)}</span>`;
 
   const revenueLine = (label, amount, count) => `
     <div class="sr-row">
-      <span class="sr-label">${label}</span>
-      <span class="sr-val">${formatCurrency(amount || 0)} · ${count || 0} transaction${count === 1 ? '' : 's'}</span>
+      <span class="sr-label">${label} <span class="sr-sub">${count || 0} trx</span></span>
+      <span class="sr-val">${formatCurrency(amount || 0)}</span>
     </div>`;
 
   const totalRevenue = (payments.cash || 0) + (payments.card || 0) + (payments.qris || 0);
   const totalCount = (counts.cash || 0) + (counts.card || 0) + (counts.qris || 0);
+  const hasCashMoves = (summary.cash_in || 0) > 0 || (summary.cash_out || 0) > 0;
 
   return `
     <div class="sr-section">
@@ -1881,17 +1935,23 @@ function shiftReportHtml(summary) {
     <div class="sr-section">
       <div class="sr-title">Drawer</div>
       <div class="sr-row"><span class="sr-label">Opening cash</span><span class="sr-val">${formatCurrency(summary.opening_cash || 0)}</span></div>
-      <div class="sr-row"><span class="sr-label">Cash in / out</span><span class="sr-val">+${formatCurrency(summary.cash_in || 0)} / -${formatCurrency(summary.cash_out || 0)}</span></div>
-      ${drawerLine('Cash', counted.cash, summary.expected?.cash, variance.cash)}
-      ${drawerLine('Card', counted.card, summary.expected?.card, variance.card)}
-      ${drawerLine('QRIS', counted.qris, summary.expected?.qris, variance.qris)}
+      ${hasCashMoves ? `<div class="sr-row"><span class="sr-label">Cash in / out</span><span class="sr-val">+${formatCurrency(summary.cash_in || 0)} / −${formatCurrency(summary.cash_out || 0)}</span></div>` : ''}
+      <div class="sr-table">
+        <span></span>
+        <span class="sr-th">Counted</span>
+        <span class="sr-th">Expected</span>
+        <span class="sr-th">Variance</span>
+        ${drawerCell('Cash', counted.cash, summary.expected?.cash, variance.cash)}
+        ${drawerCell('Card', counted.card, summary.expected?.card, variance.card)}
+        ${drawerCell('QRIS', counted.qris, summary.expected?.qris, variance.qris)}
+      </div>
     </div>
     <div class="sr-section">
       <div class="sr-title">Revenue</div>
       ${revenueLine('Cash', payments.cash, counts.cash)}
       ${revenueLine('Card', payments.card, counts.card)}
       ${revenueLine('QRIS', payments.qris, counts.qris)}
-      <div class="sr-row sr-total"><span class="sr-label">Total</span><span class="sr-val">${formatCurrency(totalRevenue)} · ${totalCount} transaction${totalCount === 1 ? '' : 's'}</span></div>
+      <div class="sr-row sr-total"><span class="sr-label">Total <span class="sr-sub">${totalCount} trx</span></span><span class="sr-val">${formatCurrency(totalRevenue)}</span></div>
     </div>
     <div class="sr-section">
       <div class="sr-title">Notes</div>

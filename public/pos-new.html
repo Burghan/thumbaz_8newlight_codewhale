@@ -30,7 +30,7 @@
       <div class="pos-brand-text">8 NewLight POS</div>
     </div>
     <div class="pos-actions">
-      <button class="pos-link" id="cashMoveBtn" type="button">Cash In/Out</button>
+      <button class="pos-link" id="cashMoveBtn" type="button">🗄️ Shift</button>
       <!-- Every order (Hold/Save AND every completed sale) is logged here —
            see renderOrdersView()/loadOrderIntoRegister() in pos-new.js. This
            is also the reprint picker now (View Receipt on any paid order),
@@ -683,17 +683,20 @@
     <div class="modal-card large">
       <div class="modal-head">
         <div>
-          <h3>Cash In/Out</h3>
-          <div class="muted">This shift's cash movements.</div>
+          <h3>🗄️ Shift</h3>
+          <div class="muted" id="shiftPanelStatus">Loading…</div>
         </div>
         <button class="ghost" id="closeCashMove">Close</button>
       </div>
       <div class="modal-actions single">
         <button class="pay" id="cashMoveIn">Cash In</button>
         <button class="pay" id="cashMoveOut">Cash Out</button>
-        <button class="pay danger" id="closeShiftBtn">Close Shift</button>
       </div>
       <div class="cash-move-history" id="cashMoveHistory"><div class="muted">Loading…</div></div>
+      <div class="shift-panel-foot">
+        <button class="pay primary" id="openShiftBtn" style="display:none;">Open Shift</button>
+        <button class="pay danger" id="closeShiftBtn">Close Shift</button>
+      </div>
     </div>
   </div>
 

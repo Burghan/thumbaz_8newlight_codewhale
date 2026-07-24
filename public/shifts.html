@@ -52,6 +52,16 @@
     .sr-row .sr-label { font-weight: 600; }
     .sr-row .sr-val { text-align: right; font-variant-numeric: tabular-nums; }
     .sr-row.sr-total { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; font-weight: 800; }
+    .sr-sub { font-weight: 400; font-size: 11px; color: var(--muted); }
+    .sr-att { display: grid; grid-template-columns: minmax(90px, auto) 1fr auto; gap: 10px; align-items: baseline; font-size: 13px; padding: 2px 0; }
+    .sr-att-name { font-weight: 600; }
+    .sr-att-time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: normal; }
+    .sr-att-hours { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .sr-pill { display: inline-block; background: #efe1c4; color: #92651c; border-radius: 999px; font-size: 11px; font-weight: 700; padding: 1px 9px; }
+    .sr-table { display: grid; grid-template-columns: auto 1fr 1fr 1fr; gap: 3px 10px; margin-top: 6px; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .sr-table .sr-th { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); text-align: right; }
+    .sr-table .sr-cell-label { font-weight: 600; }
+    .sr-table .sr-cell { text-align: right; }
     .sr-var { font-weight: 800; white-space: nowrap; }
     .muted { color: var(--muted); }
   </style>
@@ -123,7 +133,13 @@
   <script src="/pwa.js"></script>
   <script src="/sidebar.js"></script>
   <script>
-    const auth = requireRole(['admin','manager']);
+    // Staff are allowed in too — the server filters GET /api/sessions to only
+    // the shifts they opened or closed, so what renders here is already
+    // scoped to them; nothing extra to hide client-side.
+    const auth = requireRole(['admin','manager','staff']);
+    if (auth && auth.role === 'staff') {
+      document.querySelector('.sub').textContent = 'Your shifts: opening cash, counted closing cash vs. expected, and the variance.';
+    }
     if (!auth) throw new Error('Unauthorized');
     const opts = { headers: authHeaders(), credentials: 'same-origin' };
     const statusEl = document.getElementById('status'), viewEl = document.getElementById('view');
@@ -204,32 +220,46 @@
       const counted = s.counted || {}, variance = s.variance || {};
       const payments = s.payments || {}, counts = s.payment_counts || {};
       const signed = v => (v > 0 ? '+' : '') + Rp(v);
-      const drawerLine = (label, c, e, v) => `
-        <div class="sr-row"><span class="sr-label">${label}</span>
-          <span class="sr-val">${Rp(c)} counted · ${Rp(e)} expected <span class="sr-var ${varClass(v||0)}">${signed(v||0)}</span></span></div>`;
+      // Counted / Expected / Variance as real columns — same layout as the
+      // POS's after-close report (pos-new.js shiftReportHtml).
+      const drawerCell = (label, c, e, v) => `
+        <span class="sr-cell-label">${label}</span>
+        <span class="sr-cell">${Rp(c)}</span>
+        <span class="sr-cell">${Rp(e)}</span>
+        <span class="sr-cell sr-var ${varClass(v||0)}">${signed(v||0)}</span>`;
       const revenueLine = (label, amount, n) => `
-        <div class="sr-row"><span class="sr-label">${label}</span>
-          <span class="sr-val">${Rp(amount)} · ${n||0} transaction${n===1?'':'s'}</span></div>`;
+        <div class="sr-row"><span class="sr-label">${label} <span class="sr-sub">${n||0} trx</span></span>
+          <span class="sr-val">${Rp(amount)}</span></div>`;
       const attendance = (s.attendance || []).map(a => `
-        <div class="sr-row"><span class="sr-label">${esc(a.employee_name)}</span>
-          <span class="sr-val">${formatDate(a.clock_in)} → ${a.clock_out ? formatDate(a.clock_out) : 'still in'}${hoursOf(a) ? ' · ' + hoursOf(a) : ''}</span></div>`
+        <div class="sr-att">
+          <span class="sr-att-name">${esc(a.employee_name)}</span>
+          <span class="sr-att-time">${formatDate(a.clock_in)} → ${a.clock_out ? formatDate(a.clock_out) : ''}</span>
+          <span class="sr-att-hours">${a.clock_out ? (hoursOf(a) || '—') : '<span class="sr-pill">still in</span>'}</span>
+        </div>`
         ).join('') || '<div class="sr-row"><span class="sr-label muted">No clock-ins in this window</span></div>';
       const totalRevenue = (payments.cash||0)+(payments.card||0)+(payments.qris||0);
       const totalCount = (counts.cash||0)+(counts.card||0)+(counts.qris||0);
+      const hasCashMoves = (s.cash_in||0) > 0 || (s.cash_out||0) > 0;
       return `
         <div class="sr-section"><div class="sr-title">Attendance</div>${attendance}</div>
         <div class="sr-section"><div class="sr-title">Drawer</div>
           <div class="sr-row"><span class="sr-label">Opening cash</span><span class="sr-val">${Rp(s.opening_cash)}</span></div>
-          <div class="sr-row"><span class="sr-label">Cash in / out</span><span class="sr-val">+${Rp(s.cash_in)} / -${Rp(s.cash_out)}</span></div>
-          ${drawerLine('Cash', counted.cash, s.expected?.cash, variance.cash)}
-          ${drawerLine('Card', counted.card, s.expected?.card, variance.card)}
-          ${drawerLine('QRIS', counted.qris, s.expected?.qris, variance.qris)}
+          ${hasCashMoves ? `<div class="sr-row"><span class="sr-label">Cash in / out</span><span class="sr-val">+${Rp(s.cash_in)} / −${Rp(s.cash_out)}</span></div>` : ''}
+          <div class="sr-table">
+            <span></span>
+            <span class="sr-th">Counted</span>
+            <span class="sr-th">Expected</span>
+            <span class="sr-th">Variance</span>
+            ${drawerCell('Cash', counted.cash, s.expected?.cash, variance.cash)}
+            ${drawerCell('Card', counted.card, s.expected?.card, variance.card)}
+            ${drawerCell('QRIS', counted.qris, s.expected?.qris, variance.qris)}
+          </div>
         </div>
         <div class="sr-section"><div class="sr-title">Revenue</div>
           ${revenueLine('Cash', payments.cash, counts.cash)}
           ${revenueLine('Card', payments.card, counts.card)}
           ${revenueLine('QRIS', payments.qris, counts.qris)}
-          <div class="sr-row sr-total"><span class="sr-label">Total</span><span class="sr-val">${Rp(totalRevenue)} · ${totalCount} transaction${totalCount===1?'':'s'}</span></div>
+          <div class="sr-row sr-total"><span class="sr-label">Total <span class="sr-sub">${totalCount} trx</span></span><span class="sr-val">${Rp(totalRevenue)}</span></div>
         </div>
         <div class="sr-section"><div class="sr-title">Notes</div>
           <div class="sr-row"><span class="sr-label ${s.notes ? '' : 'muted'}">${s.notes ? esc(s.notes) : 'No notes'}</span></div>
