@@ -88,9 +88,17 @@ ORDER BY id;
 -- Replace the list below with the exact created_at values you confirmed
 -- (this is deliberately not auto-filled from the query above, so you
 -- can't delete something you haven't looked at first).
+--
+-- RUN ON THE DROPLET 2026-07-24 — confirmed via server/inspect-attendance-
+-- duplicates.js (added that day; read-only report, safe to re-run any time
+-- to re-check for this pattern). These three values were seed-demo.js/
+-- seed_full_demo.js bulk inserts (June + two duplicate July batches, the
+-- second adding Natasya) — 260 rows total, all round 08:00/16:00 (or 14:00
+-- Saturdays) with no photo. Removed 269 -> 9 rows; the 9 remaining were
+-- verified real (unique timestamps, mostly with photos) before and after.
 DELETE FROM attendances
 WHERE created_at IN (
-  -- '2026-07-10 14:01:35',
-  -- '2026-07-10 14:01:25',
-  -- '2026-07-10 13:12:33'
+  '2026-07-10 14:01:35',
+  '2026-07-10 14:01:25',
+  '2026-07-10 13:12:33'
 );
